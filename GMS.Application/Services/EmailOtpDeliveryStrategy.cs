@@ -13,7 +13,7 @@ namespace GMS.Application.Services;
 /// <summary>
 /// Email OTP delivery strategy using MailKit SMTP.
 /// Sends OTP via email with an HTML template. Returns masked email address for user feedback.
-/// Masks email as "ah***@gmail.com" (preserves first 3 chars and domain, masks middle).
+/// Masks email as "adm***@gymflow.local" (preserves first 3 chars and domain, masks middle).
 /// Uses STARTTLS on port 587 by default.
 /// </summary>
 public class EmailOtpDeliveryStrategy : IOtpDeliveryStrategy
@@ -96,7 +96,7 @@ public class EmailOtpDeliveryStrategy : IOtpDeliveryStrategy
 
     /// <summary>
     /// Masks email address by preserving first 3 chars and domain, hiding the middle.
-    /// Example: "ahmed.ali@gmail.com" → "ahm*****@gmail.com"
+    /// Example: "admin@gymflow.local" → "adm*****@gymflow.local"
     /// </summary>
     private static string MaskEmailAddress(string email)
     {
