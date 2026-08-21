@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="FsCheck.Xunit" Version="3.3.3" />
+    <PackageReference Include="Hangfire.InMemory" Version="1.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ReconCheck is its own console project (ReconCheck.csproj) nested under this folder;
+         without this exclude, the default **/*.cs glob would also compile its top-level-statement
+         Program.cs into this test assembly. -->
+    <Compile Remove="ReconCheck\**" />
+    <Content Remove="ReconCheck\**" />
+    <EmbeddedResource Remove="ReconCheck\**" />
+    <None Remove="ReconCheck\**" />
+    <Compile Remove="LoadTests\**" />
+    <Content Remove="LoadTests\**" />
+    <EmbeddedResource Remove="LoadTests\**" />
+    <None Remove="LoadTests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GMS.Api\GMS.Api.csproj" />
+    <ProjectReference Include="..\GMS.Core\GMS.Core.csproj" />
+    <ProjectReference Include="..\GMS.Infrastructure\GMS.Infrastructure.csproj" />
+    <ProjectReference Include="..\GMS.Platform\GMS.Platform.csproj" />
+  </ItemGroup>
+
+</Project>

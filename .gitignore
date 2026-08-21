@@ -1,0 +1,52 @@
+﻿# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Build output
+bin/
+obj/
+
+# Publish credentials (passwords)
+*.pubxml.user
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.local.json
+appsettings.*.local.json
+
+# Logs
+*.log
+logs/
+
+# Temp / scratch
+tmp/
+*.tmp
+*~
+tmp-*.txt
+
+# Local uploads (staff photos, PDFs — do not commit)
+GMS.Api/wwwroot/uploads/
+
+# Nested Frontend repo — keep separate until intentional monorepo migration
+Frontend/
+Frontend.zip
+Frontend.rar
+Frontend*.zip
+Frontend*.rar
+
+# Local publish output (contains deployed binaries / config copies)
+publish/
+publish-test/
+publish-verify/
+
+# Tooling / local agent state
+.claude/
+.wolf/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,10 @@
+<Solution>
+  <Project Path="GMS.Api/GMS.Api.csproj" />
+  <Project Path="GMS.Application/GMS.Application.csproj" />
+  <Project Path="GMS.Core/GMS.Core.csproj" />
+  <Project Path="GMS.Infrastructure/GMS.Infrastructure.csproj" />
+  <Project Path="GMS.Platform/GMS.Platform.csproj" />
+  <Project Path="GMS.Tests/GMS.Tests.csproj" />
+  <Project Path="GMS.Tests/ReconCheck/ReconCheck.csproj" />
+  <Project Path="GMS.Tests/LoadTests/LoadTests.csproj" />
+</Solution>
