@@ -1,0 +1,1605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GymFlow Pro — Full System Demo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,400;0,500;1,400&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --brand:#1D9E75;--brand-dark:#0F6E56;--brand-light:#E1F5EE;
+  --gold:#EF9F27;--gold-light:#FAEEDA;
+  --red:#E24B4A;--red-light:#FCEBEB;
+  --blue:#378ADD;--blue-light:#E6F1FB;
+  --amber:#BA7517;
+  --bg:#F4F6F5;--sidebar:#0F1F1A;--card:#fff;
+  --text:#1a1a1a;--muted:#6b7280;--border:rgba(0,0,0,0.08);
+  --radius:12px;--radius-sm:8px;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;font-size:14px}
+
+/* ─── SIDEBAR ─── */
+#sidebar{width:232px;min-width:232px;background:var(--sidebar);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100}
+.sidebar-logo{padding:20px 18px 14px;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;gap:10px}
+.logo-mark{width:32px;height:32px;background:var(--brand);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo-mark svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2.5}
+.logo-text{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:#fff}
+.logo-sub{font-size:10px;color:rgba(255,255,255,0.4);margin-top:1px}
+
+/* GYM SELECTOR (multi-tenant) */
+.gym-selector{padding:12px 14px;border-bottom:1px solid rgba(255,255,255,0.07)}
+.gym-selector-label{font-size:10px;font-weight:600;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.gym-select-wrap{position:relative}
+.gym-select-wrap select{width:100%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 28px 8px 10px;color:#fff;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;appearance:none;outline:none}
+.gym-select-wrap select option{background:#1a1a1a;color:#fff}
+.gym-select-wrap::after{content:'▾';position:absolute;right:10px;top:50%;transform:translateY(-50%);color:rgba(255,255,255,0.4);font-size:11px;pointer-events:none}
+.gym-code-chip{margin-top:6px;background:rgba(29,158,117,0.2);border:1px solid rgba(29,158,117,0.3);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--brand);font-weight:600;display:flex;align-items:center;gap:6px}
+
+nav{padding:10px 10px;flex:1;overflow-y:auto}
+.nav-section{font-size:10px;font-weight:600;color:rgba(255,255,255,0.25);text-transform:uppercase;letter-spacing:1px;padding:8px 8px 4px;margin-top:6px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;cursor:pointer;color:rgba(255,255,255,0.55);font-size:13px;transition:all 0.15s;margin-bottom:1px}
+.nav-item:hover{background:rgba(255,255,255,0.06);color:#fff}
+.nav-item.active{background:rgba(29,158,117,0.2);color:#fff;font-weight:500;border-left:2px solid var(--brand)}
+.nav-item svg{width:15px;height:15px;flex-shrink:0;stroke-width:2;stroke:currentColor;fill:none}
+.nav-badge{margin-left:auto;background:var(--gold);color:#633806;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px}
+.nav-badge-green{margin-left:auto;background:rgba(29,158,117,0.25);color:var(--brand);font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px}
+.sidebar-footer{padding:14px;border-top:1px solid rgba(255,255,255,0.07)}
+.user-row{display:flex;align-items:center;gap:8px}
+.user-av{width:30px;height:30px;background:rgba(255,255,255,0.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:700;font-size:11px;color:#fff}
+.user-name{font-size:12px;color:#fff;font-weight:500}
+.user-role{font-size:10px;color:rgba(255,255,255,0.4)}
+
+/* ─── MAIN ─── */
+#main{margin-left:232px;flex:1;display:flex;flex-direction:column;min-height:100vh}
+.topbar{background:#fff;border-bottom:1px solid var(--border);padding:0 24px;height:54px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50}
+.topbar-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;flex:1}
+.topbar-search{display:flex;align-items:center;background:#f5f5f5;border-radius:8px;padding:6px 12px;gap:7px;width:200px}
+.topbar-search input{border:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:13px;outline:none;width:100%}
+.topbar-search input::placeholder{color:var(--muted)}
+.btn{padding:7px 14px;border-radius:8px;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;transition:all 0.15s}
+.btn-primary{background:var(--brand);color:#fff}.btn-primary:hover{background:var(--brand-dark)}
+.btn-secondary{background:#f5f5f5;color:var(--text)}.btn-secondary:hover{background:#e8e8e8}
+.btn-danger{background:var(--red-light);color:var(--red)}
+.notif-btn{position:relative;width:34px;height:34px;background:#f5f5f5;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.notif-dot{position:absolute;top:6px;right:6px;width:7px;height:7px;background:var(--red);border-radius:50%;border:2px solid #fff}
+.content{padding:22px 24px;flex:1}
+
+/* ─── PAGES ─── */
+.page{display:none}.page.active{display:block}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.stat-card{background:var(--card);border-radius:var(--radius);padding:16px 18px;border:1px solid var(--border)}
+.stat-card.accent{background:var(--brand-dark)}
+.stat-label{font-size:11px;color:var(--muted);margin-bottom:5px}
+.stat-card.accent .stat-label{color:rgba(255,255,255,0.6)}
+.stat-value{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;line-height:1}
+.stat-card.accent .stat-value{color:#fff}
+.stat-change{font-size:11px;margin-top:5px;color:var(--muted)}
+.stat-change.up{color:var(--brand)}.stat-change.down{color:var(--red)}
+
+.card{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden}
+.card-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.card-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700}
+.card-body{padding:18px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+
+/* ─── TABLE ─── */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:9px 14px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border)}
+td{padding:11px 14px;border-bottom:1px solid rgba(0,0,0,0.04);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafafa}
+
+/* ─── BADGES ─── */
+.badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:600;gap:3px;white-space:nowrap}
+.badge-green{background:var(--brand-light);color:var(--brand-dark)}
+.badge-red{background:var(--red-light);color:#a32d2d}
+.badge-amber{background:var(--gold-light);color:#633806}
+.badge-blue{background:var(--blue-light);color:#185fa5}
+.badge-gray{background:#f0f0f0;color:#555}
+.badge-purple{background:#EEEDFE;color:#3C3489}
+
+/* ─── AVATAR ─── */
+.av{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:11px;font-weight:700;flex-shrink:0}
+.av-g{background:var(--brand-light);color:var(--brand-dark)}
+.av-b{background:var(--blue-light);color:#185fa5}
+.av-a{background:var(--gold-light);color:#633806}
+.av-r{background:var(--red-light);color:#a32d2d}
+.av-p{background:#EEEDFE;color:#3C3489}
+
+/* ─── FORM ─── */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.fg{display:flex;flex-direction:column;gap:4px}
+.fg.full{grid-column:1/-1}
+label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px}
+input,select,textarea{padding:8px 11px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;transition:border-color 0.15s;background:#fff;color:var(--text)}
+input:focus,select:focus,textarea:focus{border-color:var(--brand)}
+textarea{resize:vertical;min-height:70px}
+.form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+
+/* ─── MODAL ─── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity 0.2s}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal{background:#fff;border-radius:16px;width:100%;max-width:520px;max-height:92vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,0.18)}
+.modal-lg{max-width:680px}
+.modal-header{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1}
+.modal-title{font-family:'Syne',sans-serif;font-size:15px;font-weight:700}
+.modal-close{width:28px;height:28px;background:#f5f5f5;border:none;border-radius:6px;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.modal-body{padding:22px}
+
+/* ─── TABS ─── */
+.tabs{display:flex;gap:2px;background:#f0f0f0;border-radius:10px;padding:3px;margin-bottom:18px}
+.tab{padding:6px 14px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:500;color:var(--muted);transition:all 0.15s;border:none;background:transparent;font-family:'DM Sans',sans-serif}
+.tab.active{background:#fff;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.08)}
+
+/* ─── QR PHONE MOCKUP (inverted model) ─── */
+.phone-mockup{background:#111;border-radius:36px;padding:8px;width:200px;margin:0 auto;box-shadow:0 20px 60px rgba(0,0,0,0.4)}
+.phone-screen{background:#f0f0f0;border-radius:30px;overflow:hidden}
+.phone-status{background:#111;color:#fff;font-size:9px;padding:4px 16px;display:flex;justify-content:space-between}
+.phone-app-header{background:var(--brand-dark);padding:10px 14px;display:flex;align-items:center;gap:8px}
+.phone-app-header .app-name{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:#fff}
+.phone-body{padding:12px}
+.gym-qr-poster{background:#fff;border-radius:10px;padding:14px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+.gym-qr-poster .gym-name-qr{font-family:'Syne',sans-serif;font-size:10px;font-weight:800;margin-bottom:8px;color:var(--text)}
+.viewfinder{width:120px;height:120px;margin:0 auto;position:relative;border-radius:8px;overflow:hidden}
+.viewfinder::before{content:'';position:absolute;inset:0;border:3px solid var(--brand);border-radius:8px;z-index:2;box-shadow:0 0 0 1000px rgba(0,0,0,0.5)}
+.scan-line{position:absolute;left:0;right:0;height:2px;background:var(--brand);z-index:3;animation:scan 1.5s ease-in-out infinite}
+@keyframes scan{0%{top:10%}50%{top:85%}100%{top:10%}}
+.scan-dots{position:absolute;width:16px;height:16px;border-radius:2px;z-index:4}
+.scan-dots.tl{top:6px;left:6px;border-top:3px solid var(--brand);border-left:3px solid var(--brand)}
+.scan-dots.tr{top:6px;right:6px;border-top:3px solid var(--brand);border-right:3px solid var(--brand)}
+.scan-dots.bl{bottom:6px;left:6px;border-bottom:3px solid var(--brand);border-left:3px solid var(--brand)}
+.scan-dots.br{bottom:6px;right:6px;border-bottom:3px solid var(--brand);border-right:3px solid var(--brand)}
+.scan-label{font-size:9px;color:var(--muted);margin-top:8px;text-align:center}
+.scan-result-success{background:var(--brand-light);border-radius:8px;padding:8px 10px;margin-top:8px;text-align:center;font-size:10px;color:var(--brand-dark);font-weight:600}
+
+/* ─── MANUAL CHECK-IN ─── */
+.checkin-search{display:flex;gap:8px;margin-bottom:16px}
+.checkin-search input{flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;outline:none}
+.checkin-search input:focus{border-color:var(--brand)}
+.member-row-select{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;border:1px solid var(--border);cursor:pointer;transition:all 0.15s;background:#fff;margin-bottom:8px}
+.member-row-select:hover{border-color:var(--brand);background:var(--brand-light)}
+.member-row-select.selected{border-color:var(--brand);background:var(--brand-light)}
+.member-row-select.denied{border-color:var(--red);background:var(--red-light);cursor:default}
+
+/* ─── INVITATIONS ─── */
+.invite-card{background:linear-gradient(135deg,var(--brand-dark),#1a7a5e);border-radius:14px;padding:20px;color:#fff;position:relative;overflow:hidden}
+.invite-card::before{content:'';position:absolute;top:-30px;right:-30px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.06)}
+.invite-quota{font-family:'Syne',sans-serif;font-size:40px;font-weight:800;line-height:1}
+.invite-dots{display:flex;gap:6px;margin-top:10px}
+.invite-dot{width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,0.4);display:flex;align-items:center;justify-content:center;font-size:12px}
+.invite-dot.used{background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.3)}
+.invite-dot.avail{background:var(--gold);border-color:var(--gold);color:#633806;font-weight:700}
+.invite-history-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.invite-history-item:last-child{border-bottom:none}
+.invite-status-used{font-size:10px;color:var(--muted);background:#f5f5f5;border-radius:4px;padding:2px 7px}
+.invite-status-active{font-size:10px;color:var(--brand-dark);background:var(--brand-light);border-radius:4px;padding:2px 7px;font-weight:600}
+
+/* ─── APP ONBOARDING FLOW ─── */
+.onboard-phone{background:#111;border-radius:30px;padding:7px;width:220px;box-shadow:0 20px 50px rgba(0,0,0,0.5)}
+.onboard-screen{background:#fff;border-radius:24px;overflow:hidden;min-height:380px}
+.onboard-step{padding:24px 20px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.onboard-icon{width:60px;height:60px;background:var(--brand-light);border-radius:18px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;font-size:28px}
+.onboard-title{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;margin-bottom:6px;color:var(--text)}
+.onboard-sub{font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:18px}
+.onboard-input{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:14px;text-align:center;letter-spacing:2px;font-weight:700;outline:none;font-family:'Syne',sans-serif}
+.onboard-input:focus{border-color:var(--brand)}
+.onboard-btn{width:100%;padding:11px;background:var(--brand);color:#fff;border:none;border-radius:9px;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;margin-top:10px}
+.onboard-or{font-size:11px;color:var(--muted);margin:10px 0}
+.onboard-qr-btn{width:100%;padding:10px;background:#f5f5f5;color:var(--text);border:none;border-radius:9px;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+
+/* ─── SETTINGS INVITE CONFIG ─── */
+.plan-invite-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:#fff}
+.plan-invite-row:hover{border-color:var(--brand);background:var(--brand-light)}
+.qty-control{display:flex;align-items:center;gap:8px}
+.qty-btn{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:#fff;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;font-weight:700;transition:all 0.15s}
+.qty-btn:hover{background:var(--brand);color:#fff;border-color:var(--brand)}
+.qty-val{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;min-width:24px;text-align:center}
+
+/* ─── CHECKIN LOG (new method column) ─── */
+.method-qr{background:var(--brand-light);color:var(--brand-dark);font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600}
+.method-manual{background:var(--blue-light);color:#185fa5;font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600}
+
+/* ─── PROGRESS ─── */
+.prog-bar{height:5px;background:#f0f0f0;border-radius:3px;overflow:hidden}
+.prog-fill{height:100%;border-radius:3px;background:var(--brand)}
+
+/* ─── CHARTS ─── */
+.chart-wrap{position:relative;height:190px}
+.chart-wrap-lg{position:relative;height:240px}
+
+/* ─── CALENDAR ─── */
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cal-header{text-align:center;font-size:10px;font-weight:700;color:var(--muted);padding:5px 0;text-transform:uppercase}
+.cal-day{border-radius:8px;overflow:hidden;min-height:82px;background:#f9f9f9;border:1px solid var(--border)}
+.cal-day-num{font-size:11px;font-weight:600;color:var(--muted);padding:5px 7px}
+.cal-day.today{border-color:var(--brand)}
+.cal-day.today .cal-day-num{color:var(--brand)}
+.cal-event{margin:2px 3px;border-radius:3px;padding:2px 5px;font-size:10px;font-weight:500;cursor:pointer}
+.cal-event.yoga{background:#E1F5EE;color:var(--brand-dark)}
+.cal-event.cross{background:var(--red-light);color:#a32d2d}
+.cal-event.spin{background:var(--blue-light);color:#185fa5}
+.cal-event.boxing{background:var(--gold-light);color:#633806}
+.cal-event.pilates{background:#EEEDFE;color:#3C3489}
+
+/* ─── HEATMAP ─── */
+.heatmap{display:grid;grid-template-columns:40px repeat(7,1fr);gap:2px}
+.hm-label{font-size:10px;color:var(--muted);display:flex;align-items:center}
+.hm-day-label{font-size:10px;color:var(--muted);text-align:center;padding:2px 0}
+.hm-cell{height:24px;border-radius:3px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600}
+
+/* ─── WHATSAPP ─── */
+.wa-phone-wrap{background:#e5ddd5;border-radius:12px;overflow:hidden}
+.wa-header{background:#075E54;padding:10px 14px;display:flex;align-items:center;gap:9px}
+.wa-av{width:32px;height:32px;background:var(--brand);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:12px}
+.wa-gname{font-size:12px;font-weight:600;color:#fff}
+.wa-status{font-size:10px;color:rgba(255,255,255,0.55)}
+.wa-msgs{padding:12px;display:flex;flex-direction:column;gap:8px;max-height:240px;overflow-y:auto}
+.wa-msg{max-width:82%;padding:7px 10px;border-radius:9px;font-size:11px;line-height:1.5}
+.wa-msg.out{background:#dcf8c6;align-self:flex-end;border-radius:9px 9px 2px 9px}
+.wa-msg.in{background:#fff;align-self:flex-start;border-radius:9px 9px 9px 2px}
+.wa-msg-time{font-size:9px;color:var(--muted);margin-top:2px;text-align:right}
+
+/* ─── TOAST ─── */
+#toast{position:fixed;bottom:22px;right:22px;background:#1a1a1a;color:#fff;padding:11px 16px;border-radius:10px;font-size:13px;z-index:999;transform:translateY(80px);opacity:0;transition:all 0.25s;max-width:320px;line-height:1.4}
+#toast.show{transform:translateY(0);opacity:1}
+#toast.success{background:var(--brand-dark)}
+#toast.error{background:#a32d2d}
+#toast.info{background:#185fa5}
+
+/* ─── SCROLLBAR ─── */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.12);border-radius:10px}
+</style>
+</head>
+<body>
+
+<!-- ═══════ SIDEBAR ═══════ -->
+<div id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg></div>
+    <div><div class="logo-text">GymFlow Pro</div><div style="font-size:10px;color:rgba(255,255,255,0.35)">Management System</div></div>
+  </div>
+
+  <!-- MULTI-TENANT GYM SELECTOR -->
+  <div class="gym-selector">
+    <div class="gym-selector-label">Active Gym</div>
+    <div class="gym-select-wrap">
+      <select id="gym-select" onchange="switchGym(this.value)">
+        <option value="cairo">🏋️ Iron Zone Gym — Cairo</option>
+        <option value="giza">🏋️ FitLife Center — Giza</option>
+        <option value="alex">🏋️ Power Gym — Alexandria</option>
+      </select>
+    </div>
+    <div class="gym-code-chip">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h1m4 0h1m-1 4v1m0-6v1"/></svg>
+      <span id="gym-code-display">GYM-CAIRO-01</span>
+    </div>
+  </div>
+
+  <nav>
+    <div class="nav-section">Overview</div>
+    <div class="nav-item active" onclick="showPage('dashboard',this)">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </div>
+
+    <div class="nav-section">Check-In</div>
+    <div class="nav-item" onclick="showPage('qrcheckin',this)">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h1m4 0h1m-1 4v1m0-6v1"/></svg>
+      QR Check-In
+      <span class="nav-badge-green">Live</span>
+    </div>
+    <div class="nav-item" onclick="showPage('manualcheckin',this)">
+      <svg viewBox="0 0 24 24"><path d="M12 2a5 5 0 100 10 5 5 0 000-10zm0 12c-5.33 0-8 2.67-8 4v2h16v-2c0-1.33-2.67-4-8-4z"/></svg>
+      Manual Check-In
+      <span class="nav-badge">NEW</span>
+    </div>
+
+    <div class="nav-section">Members</div>
+    <div class="nav-item" onclick="showPage('members',this)">
+      <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87m-4-12a4 4 0 010 7.75"/></svg>
+      Members
+    </div>
+    <div class="nav-item" onclick="showPage('memberships',this)">
+      <svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+      Memberships
+    </div>
+    <div class="nav-item" onclick="showPage('invitations',this)">
+      <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
+      Invitations
+      <span class="nav-badge">NEW</span>
+    </div>
+
+    <div class="nav-section">Operations</div>
+    <div class="nav-item" onclick="showPage('classes',this)">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Classes
+    </div>
+    <div class="nav-item" onclick="showPage('trainers',this)">
+      <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+      Trainers & PT
+    </div>
+    <div class="nav-item" onclick="showPage('notifications',this)">
+      <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      WhatsApp / Notifs
+    </div>
+
+    <div class="nav-section">Insights</div>
+    <div class="nav-item" onclick="showPage('analytics',this)">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Analytics
+    </div>
+    <div class="nav-item" onclick="showPage('payments',this)">
+      <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      Payments
+    </div>
+
+    <div class="nav-section">System</div>
+    <div class="nav-item" onclick="showPage('appmodel',this)">
+      <svg viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg>
+      GymFlow App
+      <span class="nav-badge">NEW</span>
+    </div>
+    <div class="nav-item" onclick="showPage('settings',this)">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Settings
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="user-row">
+      <div class="user-av" id="user-av-init">AH</div>
+      <div>
+        <div class="user-name" id="user-name-disp">Ahmed Hassan</div>
+        <div class="user-role">Owner</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ MAIN ═══════ -->
+<div id="main">
+  <div class="topbar">
+    <div class="topbar-title" id="page-title">Dashboard</div>
+    <div class="topbar-search">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" placeholder="Search members...">
+    </div>
+    <button class="btn btn-primary" id="topbar-btn" onclick="handleTopAction()">+ Add Member</button>
+    <button class="notif-btn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+      <span class="notif-dot"></span>
+    </button>
+  </div>
+
+  <div class="content">
+
+    <!-- ═══ DASHBOARD ═══ -->
+    <div class="page active" id="page-dashboard">
+      <div class="stats-grid">
+        <div class="stat-card accent">
+          <div class="stat-label">Active Members</div>
+          <div class="stat-value" id="s-active">342</div>
+          <div class="stat-change up" style="color:rgba(255,255,255,0.7)">↑ 12 new this month</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Monthly Revenue</div>
+          <div class="stat-value">EGP <span id="s-rev">84,200</span></div>
+          <div class="stat-change up">↑ 8.4% vs last month</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Expiring in 7 Days</div>
+          <div class="stat-value" style="color:var(--amber)" id="s-exp">18</div>
+          <div class="stat-change">WhatsApp reminders active</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Today's Check-ins</div>
+          <div class="stat-value" id="s-checkins">67</div>
+          <div class="stat-change up">↑ Live — <span id="s-qr-pct">89%</span> via QR</div>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-bottom:14px">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Revenue — Last 6 Months</span></div>
+          <div class="card-body"><div class="chart-wrap"><canvas id="revChart"></canvas></div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Membership Mix</span></div>
+          <div class="card-body"><div class="chart-wrap"><canvas id="pieChart"></canvas></div></div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Recent Check-ins</span><span class="badge badge-green">Live</span></div>
+          <div class="card-body" style="padding:0">
+            <table>
+              <thead><tr><th>Member</th><th>Plan</th><th>Time</th><th>Method</th></tr></thead>
+              <tbody id="checkin-tb">
+                <tr><td><div style="display:flex;align-items:center;gap:7px"><div class="av av-g">AK</div> Ahmed Karim</div></td><td><span class="badge badge-green">Monthly</span></td><td>8:03 AM</td><td><span class="method-qr">QR</span></td></tr>
+                <tr><td><div style="display:flex;align-items:center;gap:7px"><div class="av av-b">SM</div> Sara Mohamed</div></td><td><span class="badge badge-blue">Session Pack</span></td><td>7:51 AM</td><td><span class="method-qr">QR</span></td></tr>
+                <tr><td><div style="display:flex;align-items:center;gap:7px"><div class="av av-a">OM</div> Omar Mostafa</div></td><td><span class="badge badge-green">Family</span></td><td>7:44 AM</td><td><span class="method-qr">QR</span></td></tr>
+                <tr><td><div style="display:flex;align-items:center;gap:7px"><div class="av av-r">LH</div> Layla Hassan</div></td><td><span class="badge badge-amber">PT Credits</span></td><td>7:39 AM</td><td><span class="method-manual">Manual</span></td></tr>
+                <tr><td><div style="display:flex;align-items:center;gap:7px"><div class="av av-p">YA</div> Youssef Ali</div></td><td><span class="badge badge-green">Monthly</span></td><td>7:22 AM</td><td><span class="method-qr">QR</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Expiring Soon</span><button class="btn btn-secondary" style="font-size:11px;padding:4px 10px" onclick="sendAllReminders()">Send All Reminders</button></div>
+          <div class="card-body" style="padding:0">
+            <table>
+              <thead><tr><th>Member</th><th>Expires</th><th>Plan</th><th></th></tr></thead>
+              <tbody>
+                <tr><td><div style="display:flex;align-items:center;gap:7px"><div class="av av-r">MA</div> Mona Ahmed</div></td><td><span class="badge badge-red">Today</span></td><td>Monthly</td><td><button class="btn btn-primary" style="font-size:11px;padding:3px 10px" onclick="toast('✓ Renewal WhatsApp sent to Mona!','success')">Renew</button></td></tr>
+                <tr><td><div style="display:flex;align-items:center;gap:7px"><div class="av av-a">KS</div> Khaled Said</div></td><td><span class="badge badge-amber">2 days</span></td><td>3-Month</td><td><button class="btn btn-primary" style="font-size:11px;padding:3px 10px" onclick="toast('✓ Renewal WhatsApp sent to Khaled!','success')">Renew</button></td></tr>
+                <tr><td><div style="display:flex;align-items:center;gap:7px"><div class="av av-a">NF</div> Nour Farouk</div></td><td><span class="badge badge-amber">3 days</span></td><td>Session Pack</td><td><button class="btn btn-primary" style="font-size:11px;padding:3px 10px" onclick="toast('✓ Renewal WhatsApp sent to Nour!','success')">Renew</button></td></tr>
+                <tr><td><div style="display:flex;align-items:center;gap:7px"><div class="av av-b">RA</div> Rania Atef</div></td><td><span class="badge badge-blue">5 days</span></td><td>Morning Pass</td><td><button class="btn btn-primary" style="font-size:11px;padding:3px 10px" onclick="toast('✓ Renewal WhatsApp sent to Rania!','success')">Renew</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ QR CHECK-IN (INVERTED MODEL) ═══ -->
+    <div class="page" id="page-qrcheckin">
+      <div style="background:linear-gradient(135deg,#0F1F1A,#1D3D30);border-radius:16px;padding:28px;margin-bottom:18px;display:flex;gap:32px;align-items:center">
+        <div style="flex:1;color:#fff">
+          <div style="background:rgba(29,158,117,0.25);border:1px solid rgba(29,158,117,0.4);border-radius:8px;padding:6px 12px;display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--brand);margin-bottom:14px;font-weight:600">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+            Zero-Hardware Model — v3.1
+          </div>
+          <h2 style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:10px">Member Scans Gym QR<br><span style="color:#5DCAA5">Not the Other Way Around</span></h2>
+          <p style="font-size:13px;color:rgba(255,255,255,0.65);line-height:1.6;margin-bottom:18px">No tablet. No scanner hardware. No $2,000 setup cost.<br>Each gym gets one printed QR code. Members open the GymFlow Pro app and scan it to check in.</p>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+            <div style="background:rgba(255,255,255,0.07);border-radius:10px;padding:12px;text-align:center"><div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#fff">EGP 0</div><div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:3px">Hardware cost</div></div>
+            <div style="background:rgba(255,255,255,0.07);border-radius:10px;padding:12px;text-align:center"><div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#fff">300ms</div><div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:3px">Check-in speed</div></div>
+            <div style="background:rgba(255,255,255,0.07);border-radius:10px;padding:12px;text-align:center"><div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#fff">∞</div><div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:3px">Gates supported</div></div>
+          </div>
+        </div>
+        <div style="flex-shrink:0">
+          <!-- Gym QR poster mockup -->
+          <div style="background:#fff;border-radius:16px;padding:20px;text-align:center;width:180px;box-shadow:0 10px 40px rgba(0,0,0,0.3)">
+            <div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:800;color:var(--brand-dark);margin-bottom:4px">IRON ZONE GYM</div>
+            <div style="font-size:9px;color:var(--muted);margin-bottom:10px">Scan to check in with GymFlow Pro</div>
+            <div style="background:#f5f5f5;border-radius:8px;padding:10px;margin-bottom:10px">${buildQRSVG(120)}</div>
+            <div style="background:var(--brand);color:#fff;border-radius:6px;padding:4px 0;font-size:10px;font-weight:700">GYM-CAIRO-01</div>
+            <div style="font-size:8px;color:var(--muted);margin-top:6px">Open GymFlow Pro → Tap Check-In → Scan</div>
+          </div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Simulate Member App Check-In</span><span class="badge badge-green">Tap to simulate</span></div>
+          <div class="card-body">
+            <div style="display:flex;gap:16px;align-items:flex-start">
+              <div class="phone-mockup" style="width:160px">
+                <div class="phone-screen">
+                  <div style="background:#111;color:#fff;font-size:8px;padding:3px 12px;display:flex;justify-content:space-between"><span>9:41</span><span>●●●</span></div>
+                  <div style="background:var(--brand-dark);padding:8px 12px;display:flex;align-items:center;justify-content:space-between">
+                    <span style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;color:#fff">GymFlow Pro</span>
+                    <div style="width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff">AK</div>
+                  </div>
+                  <div style="padding:10px" id="phone-content">
+                    <div style="background:var(--brand-light);border-radius:8px;padding:10px;text-align:center;margin-bottom:8px">
+                      <div style="font-size:9px;color:var(--brand-dark);font-weight:600;margin-bottom:4px">Ahmed Karim</div>
+                      <div style="font-size:8px;color:var(--muted)">Monthly Unlimited · Active</div>
+                    </div>
+                    <div style="background:var(--brand);border-radius:8px;padding:10px;text-align:center;cursor:pointer" onclick="simulateAppScan()">
+                      <div style="font-size:10px;font-weight:700;color:#fff">📷 Scan Gym QR</div>
+                      <div style="font-size:8px;color:rgba(255,255,255,0.7);margin-top:2px">to check in</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div style="flex:1">
+                <div id="scan-result-panel" style="background:#f9f9f9;border-radius:10px;padding:14px;border:1px solid var(--border)">
+                  <div style="text-align:center;color:var(--muted);font-size:12px;padding:10px 0">
+                    <div style="font-size:24px;margin-bottom:6px">📱</div>
+                    Tap "Scan Gym QR" on the<br>phone mockup to simulate
+                  </div>
+                </div>
+                <div style="margin-top:12px;font-size:11px;color:var(--muted);line-height:1.6">
+                  <strong style="color:var(--text)">How it works:</strong><br>
+                  1. Member opens GymFlow Pro app<br>
+                  2. Taps the "Check In" button<br>
+                  3. Points phone camera at gym's printed QR<br>
+                  4. System reads Gym Code from QR<br>
+                  5. Backend validates member's active session<br>
+                  6. ✓ Green confirmation in &lt;300ms
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="card">
+            <div class="card-header"><span class="card-title">Today's Check-in Log</span></div>
+            <div class="card-body" style="padding:0;max-height:220px;overflow-y:auto">
+              <table>
+                <thead><tr><th>Member</th><th>Time</th><th>Method</th><th>Status</th></tr></thead>
+                <tbody id="qr-log">
+                  <tr><td>Ahmed Karim</td><td>8:03 AM</td><td><span class="method-qr">QR</span></td><td><span class="badge badge-green">✓ OK</span></td></tr>
+                  <tr><td>Sara Mohamed</td><td>7:51 AM</td><td><span class="method-qr">QR</span></td><td><span class="badge badge-green">✓ OK</span></td></tr>
+                  <tr><td>Layla Hassan</td><td>7:39 AM</td><td><span class="method-manual">Manual</span></td><td><span class="badge badge-green">✓ OK</span></td></tr>
+                  <tr><td>Mona Ahmed</td><td>7:30 AM</td><td><span class="method-qr">QR</span></td><td><span class="badge badge-red">✗ Expired</span></td></tr>
+                  <tr><td>Youssef Ali</td><td>7:22 AM</td><td><span class="method-qr">QR</span></td><td><span class="badge badge-green">✓ OK</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">Today's Stats</span></div>
+            <div class="card-body">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+                <div style="background:var(--brand-light);border-radius:9px;padding:12px;text-align:center"><div style="font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:var(--brand-dark)" id="ci-ok">67</div><div style="font-size:11px;color:var(--brand-dark)">Granted</div></div>
+                <div style="background:var(--red-light);border-radius:9px;padding:12px;text-align:center"><div style="font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:#a32d2d" id="ci-fail">4</div><div style="font-size:11px;color:#a32d2d">Denied</div></div>
+              </div>
+              <div style="margin-bottom:8px;font-size:12px;display:flex;justify-content:space-between"><span style="color:var(--muted)">QR Scans (member scans gym)</span><span id="qr-count">59</span></div>
+              <div class="prog-bar" style="margin-bottom:10px"><div class="prog-fill" style="width:88%"></div></div>
+              <div style="font-size:12px;display:flex;justify-content:space-between"><span style="color:var(--muted)">Manual Check-ins (reception)</span><span>8</span></div>
+              <div class="prog-bar"><div class="prog-fill" style="width:12%;background:var(--blue)"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ MANUAL CHECK-IN (NEW FEATURE) ═══ -->
+    <div class="page" id="page-manualcheckin">
+      <div style="background:var(--blue-light);border:1px solid rgba(55,138,221,0.3);border-radius:12px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:12px">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#185fa5" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div><strong style="color:#185fa5">Manual Check-In Mode</strong> — <span style="font-size:13px;color:#185fa5">Use when a member's phone is dead, forgotten, or app not yet set up. Full audit trail is recorded with your staff login.</span></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Search Member</span></div>
+          <div class="card-body">
+            <div class="checkin-search">
+              <input type="text" id="manual-search" placeholder="Name, phone, or email..." oninput="filterManualMembers(this.value)">
+              <button class="btn btn-primary" onclick="filterManualMembers(document.getElementById('manual-search').value)">Search</button>
+            </div>
+            <div id="manual-member-list"></div>
+            <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                <span style="font-size:12px;font-weight:600;color:var(--muted)">SELECTED MEMBER</span>
+                <span id="selected-member-badge" class="badge badge-gray">None selected</span>
+              </div>
+              <div id="selected-member-display" style="background:#f9f9f9;border-radius:10px;padding:14px;border:1px solid var(--border);min-height:80px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px">
+                Search and select a member above
+              </div>
+              <div class="form-actions">
+                <button class="btn btn-secondary" onclick="clearManualSelection()">Clear</button>
+                <button class="btn btn-primary" id="manual-checkin-btn" onclick="doManualCheckin()" disabled style="opacity:0.5">Confirm Check-In</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Manual Check-In Log</span><span class="badge badge-blue">Staff-logged entries</span></div>
+          <div class="card-body" style="padding:0">
+            <table>
+              <thead><tr><th>Member</th><th>Time</th><th>Staff</th><th>Reason</th></tr></thead>
+              <tbody id="manual-log">
+                <tr><td><div style="display:flex;align-items:center;gap:7px"><div class="av av-r">LH</div> Layla Hassan</div></td><td>7:39 AM</td><td>Ahmed H.</td><td><span class="badge badge-blue">Dead phone</span></td></tr>
+                <tr><td><div style="display:flex;align-items:center;gap:7px"><div class="av av-a">KG</div> Karim Gamal</div></td><td>9:12 AM</td><td>Ahmed H.</td><td><span class="badge badge-blue">No app yet</span></td></tr>
+                <tr><td><div style="display:flex;align-items:center;gap:7px"><div class="av av-b">DR</div> Dina Ramzy</div></td><td>10:05 AM</td><td>Sara M.</td><td><span class="badge badge-blue">App issue</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card-body" style="border-top:1px solid var(--border);padding:14px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px">Reason for Manual Entry</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <span class="badge badge-blue" style="cursor:pointer" onclick="setManualReason(this)" id="reason-dead">Dead phone</span>
+              <span class="badge badge-gray" style="cursor:pointer" onclick="setManualReason(this)" id="reason-noapp">No app yet</span>
+              <span class="badge badge-gray" style="cursor:pointer" onclick="setManualReason(this)" id="reason-appissue">App issue</span>
+              <span class="badge badge-gray" style="cursor:pointer" onclick="setManualReason(this)" id="reason-other">Other</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ MEMBERS ═══ -->
+    <div class="page" id="page-members">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Total Members</div><div class="stat-value">389</div><div class="stat-change up">↑ 12 new this month</div></div>
+        <div class="stat-card"><div class="stat-label">Active</div><div class="stat-value" style="color:var(--brand)">342</div><div class="stat-change">88% retention rate</div></div>
+        <div class="stat-card"><div class="stat-label">Frozen</div><div class="stat-value" style="color:var(--blue)">21</div><div class="stat-change">Medical / travel</div></div>
+        <div class="stat-card"><div class="stat-label">Expired</div><div class="stat-value" style="color:var(--red)">26</div><div class="stat-change down">Renewal campaign active</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">All Members</span>
+          <div style="display:flex;gap:8px">
+            <select style="font-size:12px;padding:5px 10px;border:1px solid var(--border);border-radius:7px" onchange="filterMembers(this.value)">
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="expired">Expired</option>
+              <option value="frozen">Frozen</option>
+            </select>
+            <button class="btn btn-primary" onclick="openModal('addMember')">+ Add Member</button>
+          </div>
+        </div>
+        <div class="card-body" style="padding:0">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Member</th><th>ID</th><th>Phone</th><th>Plan</th><th>Status</th><th>Invites Left</th><th>Actions</th></tr></thead>
+              <tbody id="members-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ MEMBERSHIPS ═══ -->
+    <div class="page" id="page-memberships">
+      <div class="grid-2" style="margin-bottom:14px">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Membership Plans</span><button class="btn btn-primary" onclick="openModal('addPlan')">+ New Plan</button></div>
+          <div class="card-body" style="padding:0">
+            <table>
+              <thead><tr><th>Plan</th><th>Type</th><th>Price</th><th>Duration</th><th>Inv/mo</th><th>Members</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Monthly Unlimited</strong></td><td><span class="badge badge-green">monthly</span></td><td>EGP 799</td><td>30 days</td><td><span class="badge badge-amber">2</span></td><td>148</td></tr>
+                <tr><td><strong>3-Month Plan</strong></td><td><span class="badge badge-green">monthly</span></td><td>EGP 2,100</td><td>90 days</td><td><span class="badge badge-amber">3</span></td><td>87</td></tr>
+                <tr><td><strong>Session Pack 20</strong></td><td><span class="badge badge-blue">session_pack</span></td><td>EGP 1,200</td><td>20 sessions</td><td><span class="badge badge-amber">1</span></td><td>54</td></tr>
+                <tr><td><strong>Morning Pass</strong></td><td><span class="badge badge-amber">time_limited</span></td><td>EGP 499</td><td>6AM–12PM</td><td><span class="badge badge-gray">0</span></td><td>38</td></tr>
+                <tr><td><strong>Premium Annual</strong></td><td><span class="badge badge-purple">premium</span></td><td>EGP 7,200</td><td>365 days</td><td><span class="badge badge-amber">4</span></td><td>15</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Assign Membership</span></div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="fg full"><label>Member</label><select><option>Ahmed Karim (GYM-001)</option><option>Sara Mohamed (GYM-002)</option><option>Omar Mostafa (GYM-003)</option></select></div>
+              <div class="fg full"><label>Plan</label><select><option>Monthly Unlimited — EGP 799</option><option>3-Month — EGP 2,100</option><option>Session Pack 20 — EGP 1,200</option><option>Morning Pass — EGP 499</option></select></div>
+              <div class="fg"><label>Start Date</label><input type="date" value="2025-05-01"></div>
+              <div class="fg"><label>Payment Method</label><select><option>Paymob</option><option>Fawry</option><option>Cash</option><option>Vodafone Cash</option></select></div>
+              <div class="fg full" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="auto-renew" style="width:auto"><label for="auto-renew" style="text-transform:none;font-size:13px">Enable Auto-Renewal via WhatsApp</label></div>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" onclick="toast('✓ Membership assigned! WhatsApp confirmation sent.','success')">Assign & Confirm</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ INVITATIONS (NEW FEATURE) ═══ -->
+    <div class="page" id="page-invitations">
+      <div style="background:linear-gradient(135deg,#0F1F1A,#1a3a2c);border-radius:14px;padding:22px 24px;margin-bottom:18px;color:#fff;display:flex;align-items:center;gap:20px">
+        <div style="flex:1">
+          <div style="font-size:11px;color:var(--brand);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">NEW FEATURE · MEMBER INVITATIONS</div>
+          <h2 style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;margin-bottom:8px">Quota-Based Guest Invitations</h2>
+          <p style="font-size:13px;color:rgba(255,255,255,0.65);line-height:1.6">Each member can invite friends as guests based on their plan's monthly quota. You control the quota per plan in Settings. Quotas reset every 1st of the month automatically.</p>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;flex-shrink:0">
+          <div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:14px;text-align:center"><div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800">42</div><div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px">Invites sent (May)</div></div>
+          <div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:14px;text-align:center"><div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800">18</div><div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px">Guests visited</div></div>
+          <div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:14px;text-align:center"><div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800">7</div><div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px">Converted to members</div></div>
+          <div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:14px;text-align:center"><div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800" style="color:var(--gold)">156</div><div style="font-size:11px;color:rgba(255,255,255,0.5);margin-top:2px">Total quota remaining</div></div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <!-- Member invitation cards -->
+          <div class="card">
+            <div class="card-header"><span class="card-title">Member Invitation Quotas</span><span style="font-size:11px;color:var(--muted)">Resets June 1st</span></div>
+            <div class="card-body" style="padding:0">
+              <table>
+                <thead><tr><th>Member</th><th>Plan</th><th>Used</th><th>Remaining</th><th></th></tr></thead>
+                <tbody id="invite-member-tbody">
+                  <tr><td><div style="display:flex;align-items:center;gap:7px"><div class="av av-g">AK</div> Ahmed Karim</div></td><td>Monthly</td><td>1</td><td><span class="badge badge-green">1 left</span></td><td><button class="btn btn-primary" style="font-size:11px;padding:3px 10px" onclick="openModal('sendInvite')">Send Invite</button></td></tr>
+                  <tr><td><div style="display:flex;align-items:center;gap:7px"><div class="av av-b">SM</div> Sara Mohamed</div></td><td>Session Pack</td><td>1</td><td><span class="badge badge-gray">0 left</span></td><td><button class="btn btn-secondary" style="font-size:11px;padding:3px 10px" disabled>Quota Full</button></td></tr>
+                  <tr><td><div style="display:flex;align-items:center;gap:7px"><div class="av av-a">OM</div> Omar Mostafa</div></td><td>3-Month</td><td>0</td><td><span class="badge badge-green">3 left</span></td><td><button class="btn btn-primary" style="font-size:11px;padding:3px 10px" onclick="openModal('sendInvite')">Send Invite</button></td></tr>
+                  <tr><td><div style="display:flex;align-items:center;gap:7px"><div class="av av-p">YA</div> Youssef Ali</div></td><td>Monthly</td><td>2</td><td><span class="badge badge-gray">0 left</span></td><td><button class="btn btn-secondary" style="font-size:11px;padding:3px 10px" disabled>Quota Full</button></td></tr>
+                  <tr><td><div style="display:flex;align-items:center;gap:7px"><div class="av av-r">LH</div> Layla Hassan</div></td><td>Premium Annual</td><td>1</td><td><span class="badge badge-green">3 left</span></td><td><button class="btn btn-primary" style="font-size:11px;padding:3px 10px" onclick="openModal('sendInvite')">Send Invite</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="card">
+            <div class="card-header"><span class="card-title">Recent Guest Visits</span></div>
+            <div class="card-body" style="padding:0">
+              <table>
+                <thead><tr><th>Guest</th><th>Invited By</th><th>Date</th><th>Status</th></tr></thead>
+                <tbody>
+                  <tr><td>Mohamed Saad</td><td>Ahmed Karim</td><td>May 1</td><td><span class="badge badge-green">Visited ✓</span></td></tr>
+                  <tr><td>Hana Nabil</td><td>Omar Mostafa</td><td>Apr 30</td><td><span class="badge badge-purple">Joined! 🎉</span></td></tr>
+                  <tr><td>Karim Tarek</td><td>Layla Hassan</td><td>Apr 29</td><td><span class="badge badge-green">Visited ✓</span></td></tr>
+                  <tr><td>Reem Fathy</td><td>Omar Mostafa</td><td>Apr 28</td><td><span class="badge badge-purple">Joined! 🎉</span></td></tr>
+                  <tr><td>Sami Ashraf</td><td>Ahmed Karim</td><td>Apr 27</td><td><span class="badge badge-amber">Pending visit</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">Member Invite Visualizer</span></div>
+            <div class="card-body">
+              <!-- Visual quota card for Ahmed Karim -->
+              <div class="invite-card">
+                <div style="font-size:11px;opacity:0.6;margin-bottom:6px">Ahmed Karim · Monthly Plan</div>
+                <div style="display:flex;align-items:baseline;gap:8px">
+                  <div class="invite-quota">1</div>
+                  <div style="font-size:13px;opacity:0.7">/ 2 invites used this month</div>
+                </div>
+                <div class="invite-dots">
+                  <div class="invite-dot used">✓</div>
+                  <div class="invite-dot avail">1</div>
+                </div>
+                <div style="font-size:10px;opacity:0.55;margin-top:10px">Resets June 1st · Next invite available now</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ CLASSES ═══ -->
+    <div class="page" id="page-classes">
+      <div style="margin-bottom:14px;display:flex;gap:8px;align-items:center;justify-content:space-between">
+        <div class="tabs" style="margin-bottom:0">
+          <button class="tab active" onclick="switchClassTab('calendar',this)">Calendar</button>
+          <button class="tab" onclick="switchClassTab('list',this)">List View</button>
+          <button class="tab" onclick="switchClassTab('booking',this)">Bookings</button>
+        </div>
+        <button class="btn btn-primary" onclick="openModal('addClass')">+ New Class</button>
+      </div>
+      <div id="class-calendar">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Week of May 1–7, 2025</span></div>
+          <div class="card-body">
+            <div class="cal-grid">
+              <div class="cal-header">Mon</div><div class="cal-header">Tue</div><div class="cal-header">Wed</div><div class="cal-header">Thu</div><div class="cal-header">Fri</div><div class="cal-header">Sat</div><div class="cal-header">Sun</div>
+              <div class="cal-day today"><div class="cal-day-num">1</div><div class="cal-event yoga" onclick="toast('Yoga 7AM · Sara Coach · 12/15 booked')">Yoga 7AM</div><div class="cal-event cross" onclick="toast('CrossFit 6PM · Ahmed Trainer · 18/20 booked')">CrossFit 6PM</div></div>
+              <div class="cal-day"><div class="cal-day-num">2</div><div class="cal-event spin" onclick="toast('Spinning 8AM · Coach Nadia · 10/12 booked')">Spinning 8AM</div><div class="cal-event boxing" onclick="toast('Boxing 7PM · Khaled · 8/15 booked')">Boxing 7PM</div></div>
+              <div class="cal-day"><div class="cal-day-num">3</div><div class="cal-event yoga" onclick="toast('Yoga 7AM · Sara Coach · 9/15 booked')">Yoga 7AM</div><div class="cal-event pilates" onclick="toast('Pilates 6PM · Hana · 11/12 booked')">Pilates 6PM</div></div>
+              <div class="cal-day"><div class="cal-day-num">4</div><div class="cal-event spin" onclick="toast('Spinning 8AM · 7/12 booked')">Spinning 8AM</div><div class="cal-event cross" onclick="toast('CrossFit 6PM · 15/20 booked')">CrossFit 6PM</div></div>
+              <div class="cal-day"><div class="cal-day-num">5</div><div class="cal-event boxing" onclick="toast('Boxing 9AM · 12/15 booked')">Boxing 9AM</div><div class="cal-event yoga" onclick="toast('Yoga 6:30PM · 14/15 booked')">Yoga 6:30PM</div></div>
+              <div class="cal-day"><div class="cal-day-num">6</div><div class="cal-event cross" onclick="toast('CrossFit 9AM · 19/20 booked')">CrossFit 9AM</div><div class="cal-event pilates" onclick="toast('Pilates 11AM · FULL 12/12')">Pilates FULL</div></div>
+              <div class="cal-day"><div class="cal-day-num">7</div><div class="cal-event yoga" onclick="toast('Yoga 10AM · 6/15 booked')">Yoga 10AM</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="class-list" style="display:none">
+        <div class="card">
+          <div class="card-body" style="padding:0">
+            <table>
+              <thead><tr><th>Class</th><th>Trainer</th><th>Schedule</th><th>Capacity</th><th>Fill Rate</th><th>Actions</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Yoga Flow</strong></td><td>Sara Coach</td><td>Mon/Wed/Fri 7AM</td><td>15</td><td><span class="badge badge-green">80%</span></td><td><button class="btn btn-secondary" style="font-size:11px;padding:3px 10px">Edit</button></td></tr>
+                <tr><td><strong>CrossFit WOD</strong></td><td>Ahmed Trainer</td><td>Mon/Wed/Thu 6PM</td><td>20</td><td><span class="badge badge-green">90%</span></td><td><button class="btn btn-secondary" style="font-size:11px;padding:3px 10px">Edit</button></td></tr>
+                <tr><td><strong>Spinning</strong></td><td>Nadia Coach</td><td>Tue/Thu/Sat 8AM</td><td>12</td><td><span class="badge badge-amber">75%</span></td><td><button class="btn btn-secondary" style="font-size:11px;padding:3px 10px">Edit</button></td></tr>
+                <tr><td><strong>Boxing</strong></td><td>Khaled Boxer</td><td>Tue/Fri 7PM</td><td>15</td><td><span class="badge badge-amber">67%</span></td><td><button class="btn btn-secondary" style="font-size:11px;padding:3px 10px">Edit</button></td></tr>
+                <tr><td><strong>Pilates Core</strong></td><td>Hana Coach</td><td>Wed/Sat 6PM</td><td>12</td><td><span class="badge badge-red">100%</span></td><td><button class="btn btn-secondary" style="font-size:11px;padding:3px 10px">Edit</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div id="class-booking" style="display:none">
+        <div class="card">
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="fg full"><label>Member</label><select><option>Ahmed Karim</option><option>Sara Mohamed</option><option>Omar Mostafa</option></select></div>
+              <div class="fg full"><label>Class</label><select id="book-sel"><option value="ok">Yoga Flow — Mon 7AM (3 spots left)</option><option value="ok2">CrossFit WOD — Mon 6PM (2 spots left)</option><option value="full">Pilates Core — Wed 6PM (FULL — waitlist)</option></select></div>
+            </div>
+            <div class="form-actions"><button class="btn btn-primary" onclick="bookClass()">Book / Join Waitlist</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ TRAINERS ═══ -->
+    <div class="page" id="page-trainers">
+      <div class="grid-3" style="margin-bottom:14px">
+        <div class="card"><div class="card-body" style="text-align:center;padding:20px">
+          <div class="av av-g" style="width:48px;height:48px;font-size:17px;margin:0 auto 10px">AT</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px">Ahmed Trainer</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px">CrossFit Specialist</div>
+          <div class="badge badge-green" style="margin-bottom:12px">25% commission</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div style="background:#f5f5f5;border-radius:8px;padding:10px;text-align:center"><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px">24</div><div style="font-size:10px;color:var(--muted)">PT sessions</div></div>
+            <div style="background:#f5f5f5;border-radius:8px;padding:10px;text-align:center"><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px">EGP 6k</div><div style="font-size:10px;color:var(--muted)">Commission</div></div>
+          </div>
+          <button class="btn btn-secondary" style="width:100%;margin-top:10px;font-size:12px" onclick="openModal('ptSession')">Log PT Session</button>
+        </div></div>
+        <div class="card"><div class="card-body" style="text-align:center;padding:20px">
+          <div class="av av-b" style="width:48px;height:48px;font-size:17px;margin:0 auto 10px">SC</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px">Sara Coach</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Yoga & Pilates</div>
+          <div class="badge badge-blue" style="margin-bottom:12px">30% commission</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div style="background:#f5f5f5;border-radius:8px;padding:10px;text-align:center"><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px">18</div><div style="font-size:10px;color:var(--muted)">PT sessions</div></div>
+            <div style="background:#f5f5f5;border-radius:8px;padding:10px;text-align:center"><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px">EGP 5.4k</div><div style="font-size:10px;color:var(--muted)">Commission</div></div>
+          </div>
+          <button class="btn btn-secondary" style="width:100%;margin-top:10px;font-size:12px" onclick="openModal('ptSession')">Log PT Session</button>
+        </div></div>
+        <div class="card"><div class="card-body" style="text-align:center;padding:20px">
+          <div class="av av-a" style="width:48px;height:48px;font-size:17px;margin:0 auto 10px">KB</div>
+          <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px">Khaled Boxer</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Boxing & HIIT</div>
+          <div class="badge badge-amber" style="margin-bottom:12px">20% commission</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div style="background:#f5f5f5;border-radius:8px;padding:10px;text-align:center"><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px">11</div><div style="font-size:10px;color:var(--muted)">PT sessions</div></div>
+            <div style="background:#f5f5f5;border-radius:8px;padding:10px;text-align:center"><div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px">EGP 2.2k</div><div style="font-size:10px;color:var(--muted)">Commission</div></div>
+          </div>
+          <button class="btn btn-secondary" style="width:100%;margin-top:10px;font-size:12px" onclick="openModal('ptSession')">Log PT Session</button>
+        </div></div>
+      </div>
+    </div>
+
+    <!-- ═══ NOTIFICATIONS ═══ -->
+    <div class="page" id="page-notifications">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Send WhatsApp Blast</span></div>
+          <div class="card-body">
+            <div class="fg" style="margin-bottom:12px"><label>Target Group</label>
+              <select><option>Expiring in 7 days (18 members)</option><option>Expired (26 members)</option><option>All active (342 members)</option><option>Birthdays this week (3 members)</option></select>
+            </div>
+            <div class="fg" style="margin-bottom:12px"><label>Template</label>
+              <select><option>Membership Renewal Reminder</option><option>Birthday Greeting + Discount</option><option>Class Reminder</option><option>Guest Invitation (member-sent)</option></select>
+            </div>
+            <div class="fg" style="margin-bottom:14px"><label>Message (Arabic)</label>
+              <textarea style="direction:rtl;text-align:right">مرحبا {اسم_العضو}! 👋
+عضويتك ستنتهي خلال 7 أيام بتاريخ {تاريخ_الانتهاء}.
+لتجديد عضويتك: {رابط_التجديد}
+فريق Iron Zone Gym 💪</textarea>
+            </div>
+            <button class="btn btn-primary" style="width:100%" onclick="toast('✓ WhatsApp blast sent to 18 members!','success')">Send Blast</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">WhatsApp Preview</span><span class="badge badge-green">4jawaly.com</span></div>
+          <div class="card-body" style="padding:12px">
+            <div class="wa-phone-wrap">
+              <div class="wa-header"><div class="wa-av">IZ</div><div><div class="wa-gname">Iron Zone Gym</div><div class="wa-status">Business · Verified</div></div></div>
+              <div class="wa-msgs">
+                <div class="wa-msg in">مرحبا أحمد! 👋<br>عضويتك ستنتهي خلال 7 أيام.<br><span style="color:#185fa5">pay.ironzone.gym/renew/AK001</span><div class="wa-msg-time">8:00 AM ✓✓</div></div>
+                <div class="wa-msg out">شكراً! سأجدد الآن 🙏<div class="wa-msg-time">8:04 AM ✓✓</div></div>
+                <div class="wa-msg in">🎉 تم التجديد! عضويتك تنتهي 1 يونيو.<br>نراك في الصالة! 💪<div class="wa-msg-time">8:05 AM ✓✓</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ ANALYTICS ═══ -->
+    <div class="page" id="page-analytics">
+      <div class="stats-grid">
+        <div class="stat-card accent"><div class="stat-label">Revenue (May)</div><div class="stat-value">EGP 84,200</div><div class="stat-change up" style="color:rgba(255,255,255,0.7)">↑ 8.4% MoM</div></div>
+        <div class="stat-card"><div class="stat-label">Churn Rate</div><div class="stat-value" style="color:var(--amber)">6.7%</div><div class="stat-change down">↑ 1.2% vs last month</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Daily Check-ins</div><div class="stat-value">71</div><div class="stat-change up">Peak 7–9 AM</div></div>
+        <div class="stat-card"><div class="stat-label">Renewal Rate</div><div class="stat-value" style="color:var(--brand)">88%</div><div class="stat-change up">↑ 3% vs last month</div></div>
+      </div>
+      <div class="grid-2" style="margin-bottom:14px">
+        <div class="card"><div class="card-header"><span class="card-title">Revenue by Plan</span></div><div class="card-body"><div class="chart-wrap-lg"><canvas id="revPlanChart"></canvas></div></div></div>
+        <div class="card"><div class="card-header"><span class="card-title">New Members vs Churned</span></div><div class="card-body"><div class="chart-wrap-lg"><canvas id="churnChart"></canvas></div></div></div>
+      </div>
+      <div class="grid-2">
+        <div class="card"><div class="card-header"><span class="card-title">Busiest Hours Heatmap</span></div><div class="card-body" id="heatmap-wrap"></div></div>
+        <div class="card"><div class="card-header"><span class="card-title">Invitation Conversion</span></div><div class="card-body"><div class="chart-wrap-lg"><canvas id="inviteChart"></canvas></div></div></div>
+      </div>
+    </div>
+
+    <!-- ═══ PAYMENTS ═══ -->
+    <div class="page" id="page-payments">
+      <div class="stats-grid">
+        <div class="stat-card accent"><div class="stat-label">Total Revenue (May)</div><div class="stat-value">EGP 84,200</div><div class="stat-change up" style="color:rgba(255,255,255,0.7)">↑ 8.4%</div></div>
+        <div class="stat-card"><div class="stat-label">Paymob</div><div class="stat-value">EGP 52,400</div><div class="stat-change">62% of total</div></div>
+        <div class="stat-card"><div class="stat-label">Cash / Fawry</div><div class="stat-value">EGP 24,800</div><div class="stat-change">29% of total</div></div>
+        <div class="stat-card"><div class="stat-label">Pending</div><div class="stat-value" style="color:var(--amber)">EGP 7,000</div><div class="stat-change down">5 transactions</div></div>
+      </div>
+      <div class="grid-2">
+        <div class="card"><div class="card-header"><span class="card-title">Payment Methods</span></div><div class="card-body"><div class="chart-wrap"><canvas id="payChart"></canvas></div></div></div>
+        <div class="card"><div class="card-header"><span class="card-title">Recent Transactions</span></div><div class="card-body" style="padding:0">
+          <table><thead><tr><th>Member</th><th>Amount</th><th>Method</th><th>Status</th><th>Date</th></tr></thead>
+          <tbody>
+            <tr><td>Ahmed Karim</td><td>EGP 799</td><td>Paymob</td><td><span class="badge badge-green">Completed</span></td><td>May 1</td></tr>
+            <tr><td>Sara Mohamed</td><td>EGP 1,200</td><td>Cash</td><td><span class="badge badge-green">Completed</span></td><td>May 1</td></tr>
+            <tr><td>Mona Ahmed</td><td>EGP 799</td><td>Fawry</td><td><span class="badge badge-amber">Pending</span></td><td>Apr 30</td></tr>
+            <tr><td>Omar Mostafa</td><td>EGP 1,199</td><td>Paymob</td><td><span class="badge badge-green">Completed</span></td><td>Apr 30</td></tr>
+          </tbody></table>
+        </div></div>
+      </div>
+    </div>
+
+    <!-- ═══ GYMFLOW APP MODEL (NEW) ═══ -->
+    <div class="page" id="page-appmodel">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="display:inline-flex;align-items:center;gap:8px;background:var(--brand-light);border:1px solid var(--brand-mid);border-radius:20px;padding:6px 16px;font-size:12px;font-weight:600;color:var(--brand-dark);margin-bottom:14px">Single App · Multi-Tenant · Zero Per-Gym Publishing</div>
+        <h2 style="font-family:'Syne',sans-serif;font-size:24px;font-weight:800;margin-bottom:8px">GymFlow Pro — One App for All Gyms</h2>
+        <p style="font-size:14px;color:var(--muted);max-width:560px;margin:0 auto;line-height:1.6">One app on the App Store and Google Play. Members download it once. They enter their Gym Code (or scan the gym's QR) to connect to their specific gym.</p>
+      </div>
+      <div class="grid-3" style="margin-bottom:20px">
+        <!-- Onboarding flow phone -->
+        <div class="card" style="overflow:visible">
+          <div class="card-header"><span class="card-title">Step 1 — Download App</span></div>
+          <div class="card-body" style="text-align:center">
+            <div style="font-size:36px;margin-bottom:10px">📲</div>
+            <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:6px">One App for Everyone</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">Members search "GymFlow Pro" on App Store or Google Play. One download, works with any gym using GymFlow.</div>
+            <div style="display:flex;gap:8px;justify-content:center">
+              <div style="background:#000;color:#fff;border-radius:8px;padding:8px 14px;font-size:11px;font-weight:600">🍎 App Store</div>
+              <div style="background:#000;color:#fff;border-radius:8px;padding:8px 14px;font-size:11px;font-weight:600">▶ Google Play</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Step 2 — Enter Gym Code</span></div>
+          <div class="card-body" style="display:flex;justify-content:center">
+            <div class="onboard-phone">
+              <div class="onboard-screen">
+                <div style="background:var(--brand-dark);padding:8px 12px;display:flex;align-items:center;gap:6px">
+                  <div class="logo-mark" style="width:22px;height:22px"><svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:#fff;fill:none;stroke-width:2.5"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg></div>
+                  <span style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;color:#fff">GymFlow Pro</span>
+                </div>
+                <div class="onboard-step" style="padding:20px 16px">
+                  <div class="onboard-icon" style="width:48px;height:48px;font-size:22px">🏋️</div>
+                  <div class="onboard-title">Join Your Gym</div>
+                  <div class="onboard-sub">Enter the Gym Code your gym gave you, or scan the QR at the entrance</div>
+                  <input class="onboard-input" id="gym-code-input" value="GYM-CAIRO-01" maxlength="14">
+                  <button class="onboard-btn" onclick="simulateGymCodeJoin()">Connect to Gym →</button>
+                  <div class="onboard-or">— or —</div>
+                  <button class="onboard-qr-btn" onclick="toast('Camera opened — point at gym entrance QR code','info')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+                    Scan Gym QR Code
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Step 3 — Member Home</span></div>
+          <div class="card-body" style="display:flex;justify-content:center">
+            <div class="onboard-phone">
+              <div class="onboard-screen">
+                <div style="background:var(--brand-dark);padding:8px 12px;display:flex;align-items:center;justify-content:space-between">
+                  <span style="font-family:'Syne',sans-serif;font-size:11px;font-weight:700;color:#fff">Iron Zone Gym</span>
+                  <div style="width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff">AK</div>
+                </div>
+                <div style="padding:10px">
+                  <div style="background:var(--brand-light);border-radius:8px;padding:10px;margin-bottom:8px">
+                    <div style="font-size:9px;color:var(--brand-dark);font-weight:600">Ahmed Karim · Monthly Unlimited</div>
+                    <div style="font-size:8px;color:var(--muted);margin-top:2px">Active · Expires May 31</div>
+                  </div>
+                  <div style="background:var(--brand);border-radius:8px;padding:10px;text-align:center;margin-bottom:6px;cursor:pointer" onclick="toast('Camera opened — scan gym QR to check in','info')">
+                    <div style="font-size:11px;font-weight:700;color:#fff">📷 Check In</div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">
+                    <div style="background:#f5f5f5;border-radius:7px;padding:8px;text-align:center;cursor:pointer" onclick="toast('Classes view opened','info')"><div style="font-size:10px">📅 Classes</div></div>
+                    <div style="background:#f5f5f5;border-radius:7px;padding:8px;text-align:center;cursor:pointer" onclick="openModal('sendInvite')"><div style="font-size:10px">👥 Invite<br><span style="font-size:8px;color:var(--brand);font-weight:700">1 left</span></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Registered Gym Tenants</span><button class="btn btn-primary" onclick="toast('New gym tenant onboarded!','success')">+ Onboard New Gym</button></div>
+        <div class="card-body" style="padding:0">
+          <table>
+            <thead><tr><th>Gym Name</th><th>Gym Code</th><th>Plan</th><th>Members</th><th>Check-ins Today</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Iron Zone Gym</strong> <span style="color:var(--muted);font-size:11px">— Cairo</span></td><td><span style="font-family:monospace;background:#f5f5f5;padding:2px 8px;border-radius:4px;font-size:12px">GYM-CAIRO-01</span></td><td><span class="badge badge-green">Professional</span></td><td>342</td><td>67</td><td><span class="badge badge-green">Active</span></td></tr>
+              <tr><td><strong>FitLife Center</strong> <span style="color:var(--muted);font-size:11px">— Giza</span></td><td><span style="font-family:monospace;background:#f5f5f5;padding:2px 8px;border-radius:4px;font-size:12px">GYM-GIZA-02</span></td><td><span class="badge badge-blue">Starter</span></td><td>187</td><td>34</td><td><span class="badge badge-green">Active</span></td></tr>
+              <tr><td><strong>Power Gym</strong> <span style="color:var(--muted);font-size:11px">— Alexandria</span></td><td><span style="font-family:monospace;background:#f5f5f5;padding:2px 8px;border-radius:4px;font-size:12px">GYM-ALEX-03</span></td><td><span class="badge badge-purple">Enterprise</span></td><td>520</td><td>112</td><td><span class="badge badge-green">Active</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ SETTINGS ═══ -->
+    <div class="page" id="page-settings">
+      <div class="tabs">
+        <button class="tab active" onclick="switchSettingsTab('invites',this)">Invitation Quotas</button>
+        <button class="tab" onclick="switchSettingsTab('gymcode',this)">Gym Code & QR</button>
+        <button class="tab" onclick="switchSettingsTab('general',this)">General</button>
+        <button class="tab" onclick="switchSettingsTab('notifs',this)">Notifications</button>
+      </div>
+      <!-- INVITATION QUOTAS TAB -->
+      <div id="settings-invites">
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-header">
+            <div>
+              <span class="card-title">Per-Plan Invitation Quota</span>
+              <div style="font-size:12px;color:var(--muted);margin-top:3px">Set how many guest invitations each plan type allows per month (0–10). Resets automatically on the 1st.</div>
+            </div>
+            <button class="btn btn-primary" onclick="saveInviteQuotas()">Save Changes</button>
+          </div>
+          <div class="card-body">
+            <div id="plan-quotas">
+              <div class="plan-invite-row">
+                <div><div style="font-weight:600;font-size:13px">Monthly Unlimited</div><div style="font-size:11px;color:var(--muted)">148 members on this plan</div></div>
+                <div class="qty-control">
+                  <button class="qty-btn" onclick="changeQuota('q1',-1)">−</button>
+                  <div class="qty-val" id="q1">2</div>
+                  <button class="qty-btn" onclick="changeQuota('q1',1)">+</button>
+                  <span style="font-size:11px;color:var(--muted);margin-left:4px">invites/month</span>
+                </div>
+              </div>
+              <div class="plan-invite-row">
+                <div><div style="font-weight:600;font-size:13px">3-Month Plan</div><div style="font-size:11px;color:var(--muted)">87 members on this plan</div></div>
+                <div class="qty-control">
+                  <button class="qty-btn" onclick="changeQuota('q2',-1)">−</button>
+                  <div class="qty-val" id="q2">3</div>
+                  <button class="qty-btn" onclick="changeQuota('q2',1)">+</button>
+                  <span style="font-size:11px;color:var(--muted);margin-left:4px">invites/month</span>
+                </div>
+              </div>
+              <div class="plan-invite-row">
+                <div><div style="font-weight:600;font-size:13px">Session Pack 20</div><div style="font-size:11px;color:var(--muted)">54 members on this plan</div></div>
+                <div class="qty-control">
+                  <button class="qty-btn" onclick="changeQuota('q3',-1)">−</button>
+                  <div class="qty-val" id="q3">1</div>
+                  <button class="qty-btn" onclick="changeQuota('q3',1)">+</button>
+                  <span style="font-size:11px;color:var(--muted);margin-left:4px">invites/month</span>
+                </div>
+              </div>
+              <div class="plan-invite-row">
+                <div><div style="font-weight:600;font-size:13px">Morning Pass</div><div style="font-size:11px;color:var(--muted)">38 members on this plan</div></div>
+                <div class="qty-control">
+                  <button class="qty-btn" onclick="changeQuota('q4',-1)">−</button>
+                  <div class="qty-val" id="q4">0</div>
+                  <button class="qty-btn" onclick="changeQuota('q4',1)">+</button>
+                  <span style="font-size:11px;color:var(--muted);margin-left:4px">invites/month</span>
+                </div>
+              </div>
+              <div class="plan-invite-row">
+                <div><div style="font-weight:600;font-size:13px">Premium Annual</div><div style="font-size:11px;color:var(--muted)">15 members on this plan</div></div>
+                <div class="qty-control">
+                  <button class="qty-btn" onclick="changeQuota('q5',-1)">−</button>
+                  <div class="qty-val" id="q5">4</div>
+                  <button class="qty-btn" onclick="changeQuota('q5',1)">+</button>
+                  <span style="font-size:11px;color:var(--muted);margin-left:4px">invites/month</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- GYM CODE TAB -->
+      <div id="settings-gymcode" style="display:none">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header"><span class="card-title">Your Gym Code</span></div>
+            <div class="card-body">
+              <div style="background:var(--brand-dark);border-radius:12px;padding:24px;text-align:center;margin-bottom:16px">
+                <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">Gym Code</div>
+                <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:#fff;letter-spacing:3px" id="display-gym-code">GYM-CAIRO-01</div>
+                <div style="font-size:12px;color:rgba(255,255,255,0.5);margin-top:6px">Share this with your members so they can join on GymFlow Pro</div>
+              </div>
+              <div style="font-size:12px;color:var(--muted);line-height:1.8">
+                <strong>How to share:</strong><br>
+                • Put it on your entrance poster<br>
+                • Share in your WhatsApp group<br>
+                • Print on membership cards<br>
+                • Or just let members scan the QR →
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">Entrance QR Poster</span><button class="btn btn-primary" onclick="toast('QR poster PDF downloading...','success')">Download PDF</button></div>
+            <div class="card-body" style="display:flex;justify-content:center">
+              <div style="background:#fff;border:2px dashed var(--border);border-radius:12px;padding:24px;text-align:center;width:200px">
+                <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:800;color:var(--brand-dark);margin-bottom:4px" id="poster-gym-name">IRON ZONE GYM</div>
+                <div style="font-size:9px;color:var(--muted);margin-bottom:10px">Scan to check in with GymFlow Pro</div>
+                <div id="poster-qr" style="margin-bottom:10px"></div>
+                <div style="background:var(--brand);color:#fff;border-radius:6px;padding:4px 0;font-size:10px;font-weight:700" id="poster-code">GYM-CAIRO-01</div>
+                <div style="font-size:8px;color:var(--muted);margin-top:6px">Open GymFlow Pro → Tap Check-In</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- GENERAL TAB -->
+      <div id="settings-general" style="display:none">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Gym Information</span><button class="btn btn-primary" onclick="toast('Settings saved!','success')">Save</button></div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="fg"><label>Gym Name (English)</label><input id="gym-name-input" value="Iron Zone Gym"></div>
+              <div class="fg"><label>Gym Name (Arabic)</label><input value="Iron Zone Gym" style="direction:rtl"></div>
+              <div class="fg"><label>Owner Phone</label><input value="+20 100 000 0000"></div>
+              <div class="fg"><label>City</label><select><option>Cairo</option><option>Giza</option><option>Alexandria</option></select></div>
+              <div class="fg full"><label>Address</label><input value="123 Nasr City, Cairo, Egypt"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- NOTIFICATIONS TAB -->
+      <div id="settings-notifs" style="display:none">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Notification Settings</span><button class="btn btn-primary" onclick="toast('Notification settings saved!','success')">Save</button></div>
+          <div class="card-body">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div class="plan-invite-row"><div><div style="font-weight:600;font-size:13px">Expiry Reminder (7 days)</div><div style="font-size:11px;color:var(--muted)">WhatsApp message</div></div><input type="checkbox" checked style="width:auto;transform:scale(1.3)"></div>
+              <div class="plan-invite-row"><div><div style="font-weight:600;font-size:13px">Expiry Reminder (3 days)</div><div style="font-size:11px;color:var(--muted)">WhatsApp message</div></div><input type="checkbox" checked style="width:auto;transform:scale(1.3)"></div>
+              <div class="plan-invite-row"><div><div style="font-weight:600;font-size:13px">Birthday Greetings</div><div style="font-size:11px;color:var(--muted)">WhatsApp + discount code</div></div><input type="checkbox" checked style="width:auto;transform:scale(1.3)"></div>
+              <div class="plan-invite-row"><div><div style="font-weight:600;font-size:13px">Class Reminders (2h before)</div><div style="font-size:11px;color:var(--muted)">WhatsApp push</div></div><input type="checkbox" checked style="width:auto;transform:scale(1.3)"></div>
+              <div class="plan-invite-row"><div><div style="font-weight:600;font-size:13px">Guest Invitation Sent</div><div style="font-size:11px;color:var(--muted)">Notify guest via WhatsApp</div></div><input type="checkbox" checked style="width:auto;transform:scale(1.3)"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════ MODALS ═══════ -->
+<div class="modal-overlay" id="modal-addMember">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">Register New Member</span><button class="modal-close" onclick="closeModal('addMember')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="fg"><label>Full Name (EN)</label><input placeholder="Ahmed Mohamed"></div>
+        <div class="fg"><label>Full Name (AR)</label><input placeholder="أحمد محمد" style="direction:rtl"></div>
+        <div class="fg"><label>WhatsApp Phone</label><input placeholder="+20 1X XXXX XXXX"></div>
+        <div class="fg"><label>National ID</label><input placeholder="14-digit ID"></div>
+        <div class="fg"><label>Date of Birth</label><input type="date"></div>
+        <div class="fg"><label>Gender</label><select><option>Male</option><option>Female</option></select></div>
+        <div class="fg full"><label>Health Notes</label><textarea placeholder="Injuries, conditions, allergies..."></textarea></div>
+        <div class="fg full"><label>Initial Plan</label><select><option>Monthly Unlimited — EGP 799</option><option>Session Pack 20 — EGP 1,200</option><option>Morning Pass — EGP 499</option><option>No plan yet</option></select></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-secondary" onclick="closeModal('addMember')">Cancel</button>
+        <button class="btn btn-primary" onclick="addMember()">Register & Generate QR</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-addPlan">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">Create Membership Plan</span><button class="modal-close" onclick="closeModal('addPlan')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="fg"><label>Plan Name (EN)</label><input placeholder="Monthly Unlimited"></div>
+        <div class="fg"><label>Plan Name (AR)</label><input placeholder="شهري" style="direction:rtl"></div>
+        <div class="fg full"><label>Plan Type</label><select id="pt-sel" onchange="togglePlanFields()"><option value="m">Monthly Unlimited</option><option value="s">Session Pack</option><option value="t">Time-Limited</option><option value="p">PT Credits</option><option value="f">Family</option></select></div>
+        <div class="fg"><label>Price (EGP)</label><input type="number" placeholder="799"></div>
+        <div class="fg"><label>Duration (days)</label><input type="number" placeholder="30"></div>
+        <div class="fg" id="pf-sessions" style="display:none"><label>Session Count</label><input type="number" placeholder="20"></div>
+        <div class="fg" id="pf-ts"><label>Time Start</label><input type="time" value="06:00"></div>
+        <div class="fg" id="pf-te"><label>Time End</label><input type="time" value="23:59"></div>
+        <div class="fg full"><label>Monthly Invitation Quota (0–10)</label>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
+            <button class="qty-btn" onclick="changeQuota('plan-q',-1)">−</button>
+            <div class="qty-val" id="plan-q">2</div>
+            <button class="qty-btn" onclick="changeQuota('plan-q',1)">+</button>
+            <span style="font-size:12px;color:var(--muted)">guest invitations per member per month</span>
+          </div>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-secondary" onclick="closeModal('addPlan')">Cancel</button>
+        <button class="btn btn-primary" onclick="toast('Plan created!','success');closeModal('addPlan')">Create Plan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-addClass">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">Create New Class</span><button class="modal-close" onclick="closeModal('addClass')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="fg"><label>Class Name</label><input placeholder="CrossFit WOD"></div>
+        <div class="fg"><label>Trainer</label><select><option>Ahmed Trainer</option><option>Sara Coach</option><option>Khaled Boxer</option></select></div>
+        <div class="fg"><label>Capacity</label><input type="number" placeholder="20"></div>
+        <div class="fg"><label>Start Time</label><input type="time" value="07:00"></div>
+        <div class="fg full"><label>Recurring Schedule</label><select><option>Mon/Wed/Fri</option><option>Tue/Thu/Sat</option><option>Daily</option><option>One-time</option></select></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-secondary" onclick="closeModal('addClass')">Cancel</button>
+        <button class="btn btn-primary" onclick="toast('Class created & added to schedule!','success');closeModal('addClass')">Create Class</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-ptSession">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">Log PT Session</span><button class="modal-close" onclick="closeModal('ptSession')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="fg"><label>Member</label><select><option>Ahmed Karim (6 credits)</option><option>Layla Hassan (6 credits)</option></select></div>
+        <div class="fg"><label>Trainer</label><select><option>Ahmed Trainer</option><option>Sara Coach</option><option>Khaled Boxer</option></select></div>
+        <div class="fg"><label>Date</label><input type="date" value="2025-05-01"></div>
+        <div class="fg"><label>Duration (min)</label><input type="number" value="60"></div>
+        <div class="fg full"><label>Exercises (name · sets · reps · weight)</label><textarea placeholder="Bench Press · 4 × 10 × 60kg&#10;Squat · 4 × 8 × 80kg&#10;Deadlift · 3 × 6 × 100kg"></textarea></div>
+        <div class="fg full"><label>Notes</label><textarea placeholder="Session observations, progress..."></textarea></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-secondary" onclick="closeModal('ptSession')">Cancel</button>
+        <button class="btn btn-primary" onclick="toast('PT session logged! Commission: EGP 62.50','success');closeModal('ptSession')">Log Session</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-sendInvite">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">Send Guest Invitation</span><button class="modal-close" onclick="closeModal('sendInvite')">✕</button></div>
+    <div class="modal-body">
+      <div style="background:var(--brand-light);border-radius:10px;padding:14px;margin-bottom:16px;font-size:13px;color:var(--brand-dark)">
+        <strong>Ahmed Karim</strong> has <strong>1 invitation remaining</strong> this month (Monthly Unlimited plan · 2 total/month).
+      </div>
+      <div class="form-grid">
+        <div class="fg full"><label>Guest Name</label><input placeholder="Friend's full name"></div>
+        <div class="fg full"><label>Guest WhatsApp Number</label><input placeholder="+20 1X XXXX XXXX"></div>
+        <div class="fg full"><label>Visit Date</label><input type="date" value="2025-05-05"></div>
+        <div class="fg full"><label>Message to Guest (Arabic)</label><textarea style="direction:rtl;text-align:right">مرحباً! صديقك أحمد كريم يدعوك لزيارة Iron Zone Gym مجاناً.
+يرجى إحضار هذه الرسالة للاستقبال. الزيارة ليوم واحد فقط. 💪</textarea></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-secondary" onclick="closeModal('sendInvite')">Cancel</button>
+        <button class="btn btn-primary" onclick="toast('✓ Guest invitation sent via WhatsApp! Quota: 0 remaining.','success');closeModal('sendInvite')">Send Invitation</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── GYMS DATA ──
+const GYMS = {
+  cairo:{name:'Iron Zone Gym',city:'Cairo',code:'GYM-CAIRO-01',members:342,rev:'84,200',checkins:67,owner:'Ahmed Hassan',ownerInit:'AH'},
+  giza:{name:'FitLife Center',city:'Giza',code:'GYM-GIZA-02',members:187,rev:'41,500',checkins:34,owner:'Omar Saad',ownerInit:'OS'},
+  alex:{name:'Power Gym',city:'Alexandria',code:'GYM-ALEX-03',members:520,rev:'118,000',checkins:112,owner:'Khaled Nasser',ownerInit:'KN'},
+};
+let currentGym = 'cairo';
+
+// ── MEMBERS DATA ──
+const MEMBERS = [
+  {id:'GYM-001',name:'Ahmed Karim',nameAr:'أحمد كريم',phone:'+20 100 123 4567',plan:'Monthly Unlimited',status:'active',joined:'Jan 15',av:'AK',avc:'av-g',invLeft:1},
+  {id:'GYM-002',name:'Sara Mohamed',nameAr:'سارة محمد',phone:'+20 101 234 5678',plan:'Session Pack (8 left)',status:'active',joined:'Feb 3',av:'SM',avc:'av-b',invLeft:0},
+  {id:'GYM-003',name:'Omar Mostafa',nameAr:'عمر مصطفى',phone:'+20 102 345 6789',plan:'Family Plan',status:'active',joined:'Dec 20',av:'OM',avc:'av-a',invLeft:3},
+  {id:'GYM-004',name:'Layla Hassan',nameAr:'ليلى حسن',phone:'+20 103 456 7890',plan:'PT Credits x10',status:'active',joined:'Mar 8',av:'LH',avc:'av-r',invLeft:3},
+  {id:'GYM-005',name:'Youssef Ali',nameAr:'يوسف علي',phone:'+20 104 567 8901',plan:'Monthly Unlimited',status:'active',joined:'Jan 22',av:'YA',avc:'av-p',invLeft:0},
+  {id:'GYM-006',name:'Mona Ahmed',nameAr:'منى أحمد',phone:'+20 105 678 9012',plan:'Monthly Unlimited',status:'expired',joined:'Feb 1',av:'MA',avc:'av-r',invLeft:0},
+  {id:'GYM-007',name:'Khaled Said',nameAr:'خالد سعيد',phone:'+20 106 789 0123',plan:'3-Month Plan',status:'frozen',joined:'Nov 10',av:'KS',avc:'av-b',invLeft:0},
+  {id:'GYM-008',name:'Rania Atef',nameAr:'رانيا عاطف',phone:'+20 107 890 1234',plan:'Morning Pass',status:'active',joined:'Mar 15',av:'RA',avc:'av-g',invLeft:0},
+];
+
+// ── INIT ──
+window.onload = function(){
+  renderMembers(MEMBERS);
+  initCharts();
+  buildHeatmap();
+  buildPosterQR();
+  initManualSearch();
+  setInterval(liveCheckin, 9000);
+};
+
+// ── GYM SWITCHER ──
+function switchGym(key){
+  currentGym = key;
+  const g = GYMS[key];
+  document.getElementById('gym-code-display').textContent = g.code;
+  document.getElementById('user-av-init').textContent = g.ownerInit;
+  document.getElementById('user-name-disp').textContent = g.owner;
+  const sa = document.getElementById('s-active');
+  const sr = document.getElementById('s-rev');
+  const sc = document.getElementById('s-checkins');
+  if(sa) sa.textContent = g.members;
+  if(sr) sr.textContent = g.rev;
+  if(sc) sc.textContent = g.checkins;
+  const dc = document.getElementById('display-gym-code');
+  if(dc) dc.textContent = g.code;
+  const pc = document.getElementById('poster-code');
+  if(pc) pc.textContent = g.code;
+  const pn = document.getElementById('poster-gym-name');
+  if(pn) pn.textContent = g.name.toUpperCase();
+  const gi = document.getElementById('gym-name-input');
+  if(gi) gi.value = g.name;
+  toast(`Switched to ${g.name} (${g.code})`,'info');
+}
+
+// ── RENDER MEMBERS ──
+function renderMembers(data){
+  const tb = document.getElementById('members-tbody');
+  tb.innerHTML = data.map(m=>`
+    <tr>
+      <td><div style="display:flex;align-items:center;gap:8px"><div class="av ${m.avc}">${m.av}</div><div><div style="font-weight:500">${m.name}</div><div style="font-size:11px;color:var(--muted)">${m.nameAr}</div></div></div></td>
+      <td style="font-size:12px;color:var(--muted);font-family:monospace">${m.id}</td>
+      <td style="font-size:12px">${m.phone}</td>
+      <td><span class="badge badge-${m.status==='active'?'green':m.status==='frozen'?'blue':'red'}">${m.plan}</span></td>
+      <td><span class="badge badge-${m.status==='active'?'green':m.status==='frozen'?'blue':'red'}">${m.status}</span></td>
+      <td>${m.invLeft>0?`<span class="badge badge-green">${m.invLeft} left</span>`:`<span class="badge badge-gray">0 left</span>`}</td>
+      <td><div style="display:flex;gap:5px">
+        <button class="btn btn-secondary" style="font-size:11px;padding:3px 9px" onclick="toast('Profile for ${m.name}','info')">View</button>
+        ${m.status==='expired'?`<button class="btn btn-primary" style="font-size:11px;padding:3px 9px" onclick="toast('WhatsApp renewal sent!','success')">Renew</button>`:''}
+        ${m.invLeft>0?`<button class="btn btn-primary" style="font-size:11px;padding:3px 9px;background:var(--blue)" onclick="openModal('sendInvite')">+ Invite</button>`:''}
+      </div></td>
+    </tr>`).join('');
+}
+
+function filterMembers(s){
+  renderMembers(s==='all'?MEMBERS:MEMBERS.filter(m=>m.status===s));
+}
+
+// ── QR SCANNER SIMULATION ──
+function simulateAppScan(){
+  const p = document.getElementById('phone-content');
+  p.innerHTML = `<div style="background:#111;border-radius:8px;overflow:hidden;position:relative;height:120px">
+    <div style="position:absolute;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px">
+      <div style="border:2px solid var(--brand);width:60px;height:60px;border-radius:6px;position:relative">
+        <div style="position:absolute;top:0;left:0;width:10px;height:10px;border-top:2px solid var(--brand);border-left:2px solid var(--brand)"></div>
+        <div style="position:absolute;top:0;right:0;width:10px;height:10px;border-top:2px solid var(--brand);border-right:2px solid var(--brand)"></div>
+        <div style="position:absolute;bottom:0;left:0;width:10px;height:10px;border-bottom:2px solid var(--brand);border-left:2px solid var(--brand)"></div>
+        <div style="position:absolute;bottom:0;right:0;width:10px;height:10px;border-bottom:2px solid var(--brand);border-right:2px solid var(--brand)"></div>
+        <div class="scan-line" style="height:1px;background:var(--brand);position:absolute;left:2px;right:2px;animation:scan 1.2s ease-in-out infinite"></div>
+      </div>
+      <div style="font-size:9px;color:rgba(255,255,255,0.7);margin-top:4px">Point at gym QR code...</div>
+    </div>
+  </div>`;
+  setTimeout(()=>{
+    p.innerHTML = `<div style="background:var(--brand-light);border-radius:8px;padding:12px;text-align:center;margin-bottom:8px">
+      <div style="font-size:18px;margin-bottom:4px">✅</div>
+      <div style="font-size:10px;font-weight:700;color:var(--brand-dark)">Checked In!</div>
+      <div style="font-size:9px;color:var(--muted);margin-top:2px">Ahmed Karim · ${new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</div>
+    </div>
+    <div style="background:#f5f5f5;border-radius:7px;padding:8px;text-align:center"><div style="font-size:9px;color:var(--muted)">Monthly Unlimited · 28 days left</div></div>`;
+    const p2 = document.getElementById('scan-result-panel');
+    p2.innerHTML = `<div style="background:var(--brand-light);border-radius:10px;padding:16px;border:1px solid var(--brand-mid);text-align:center">
+      <div style="font-size:32px;margin-bottom:8px">✅</div>
+      <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--brand-dark)">Access Granted</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px">Ahmed Karim · Monthly Unlimited<br>Validated in ~280ms</div>
+    </div>`;
+    const log = document.getElementById('qr-log');
+    const row = document.createElement('tr');
+    row.innerHTML = `<td>Ahmed Karim</td><td>${new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</td><td><span class="method-qr">QR</span></td><td><span class="badge badge-green">✓ OK</span></td>`;
+    log.insertBefore(row, log.firstChild);
+    const ci = document.getElementById('ci-ok');
+    if(ci) ci.textContent = parseInt(ci.textContent)+1;
+    toast('✓ Ahmed Karim checked in via QR — 280ms','success');
+  }, 1800);
+}
+
+// ── MANUAL CHECK-IN ──
+let selectedMember = null;
+let manualReason = 'Dead phone';
+
+function initManualSearch(){
+  renderManualMembers('');
+}
+
+function renderManualMembers(q){
+  const list = document.getElementById('manual-member-list');
+  const data = q ? MEMBERS.filter(m=>m.name.toLowerCase().includes(q.toLowerCase())||m.phone.includes(q)) : MEMBERS.slice(0,4);
+  list.innerHTML = data.map(m=>{
+    const ok = m.status==='active';
+    const cls = ok ? 'member-row-select' : 'member-row-select denied';
+    return `<div class="${cls}" onclick="${ok?`selectManualMember('${m.id}','${m.name}','${m.plan}','${m.avc}','${m.av}')`:``}">
+      <div class="av ${m.avc}">${m.av}</div>
+      <div style="flex:1"><div style="font-weight:500;font-size:13px">${m.name}</div><div style="font-size:11px;color:var(--muted)">${m.plan}</div></div>
+      <span class="badge badge-${ok?'green':m.status==='frozen'?'blue':'red'}">${m.status}</span>
+    </div>`;
+  }).join('') || '<div style="color:var(--muted);text-align:center;padding:12px;font-size:12px">No members found</div>';
+}
+
+function filterManualMembers(q){renderManualMembers(q)}
+
+function selectManualMember(id, name, plan, avc, av){
+  selectedMember = {id, name, plan, avc, av};
+  document.querySelectorAll('.member-row-select').forEach(r=>r.classList.remove('selected'));
+  document.getElementById('selected-member-badge').textContent = name;
+  document.getElementById('selected-member-badge').className = 'badge badge-green';
+  document.getElementById('selected-member-display').innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;width:100%">
+      <div class="av ${avc}" style="width:44px;height:44px;font-size:16px">${av}</div>
+      <div>
+        <div style="font-weight:600;font-size:14px">${name}</div>
+        <div style="font-size:12px;color:var(--muted)">${plan}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Reason: <strong>${manualReason}</strong></div>
+      </div>
+    </div>`;
+  const btn = document.getElementById('manual-checkin-btn');
+  btn.disabled = false; btn.style.opacity = '1';
+}
+
+function setManualReason(el){
+  manualReason = el.textContent;
+  document.querySelectorAll('[id^="reason-"]').forEach(r=>r.className='badge badge-gray');
+  el.className = 'badge badge-blue';
+  if(selectedMember) selectManualMember(selectedMember.id, selectedMember.name, selectedMember.plan, selectedMember.avc, selectedMember.av);
+}
+
+function clearManualSelection(){
+  selectedMember = null;
+  document.getElementById('selected-member-badge').textContent = 'None selected';
+  document.getElementById('selected-member-badge').className = 'badge badge-gray';
+  document.getElementById('selected-member-display').innerHTML = '<span style="color:var(--muted);font-size:12px">Search and select a member above</span>';
+  const btn = document.getElementById('manual-checkin-btn');
+  btn.disabled = true; btn.style.opacity = '0.5';
+}
+
+function doManualCheckin(){
+  if(!selectedMember) return;
+  const log = document.getElementById('manual-log');
+  const row = document.createElement('tr');
+  const t = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  row.innerHTML = `<td><div style="display:flex;align-items:center;gap:7px"><div class="av ${selectedMember.avc}">${selectedMember.av}</div> ${selectedMember.name}</div></td><td>${t}</td><td>You</td><td><span class="badge badge-blue">${manualReason}</span></td>`;
+  log.insertBefore(row, log.firstChild);
+  toast(`✓ ${selectedMember.name} manually checked in (${manualReason})`, 'success');
+  clearManualSelection();
+}
+
+// ── CHARTS ──
+const C = {brand:'#1D9E75',gold:'#EF9F27',blue:'#378ADD',red:'#E24B4A',purple:'#7F77DD'};
+Chart.defaults.font.family = "'DM Sans', sans-serif";
+Chart.defaults.font.size = 11;
+
+function initCharts(){
+  new Chart(document.getElementById('revChart'),{type:'bar',data:{labels:['Dec','Jan','Feb','Mar','Apr','May'],datasets:[{data:[62000,68000,71000,74000,77700,84200],backgroundColor:'rgba(29,158,117,0.15)',borderColor:C.brand,borderWidth:2,borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{callback:v=>'EGP '+v.toLocaleString()}}}}});
+
+  new Chart(document.getElementById('pieChart'),{type:'doughnut',data:{labels:['Monthly','3-Month','Session Pack','Morning Pass','PT Credits','Family'],datasets:[{data:[148,87,54,38,29,12],backgroundColor:[C.brand,C.blue,C.gold,C.red,C.purple,'#5DCAA5'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{boxWidth:10,padding:10}}}}});
+
+  new Chart(document.getElementById('revPlanChart'),{type:'bar',data:{labels:['Monthly','3-Month','Session Pack','Morning','PT Credits','Family'],datasets:[{data:[28552,21000,14400,5562,7250,5436],backgroundColor:[C.brand,C.blue,C.gold,C.red,C.purple,'#5DCAA5'],borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(0,0,0,0.04)'}}}}});
+
+  new Chart(document.getElementById('churnChart'),{type:'line',data:{labels:['Dec','Jan','Feb','Mar','Apr','May'],datasets:[{label:'New',data:[28,34,31,42,38,44],borderColor:C.brand,backgroundColor:'rgba(29,158,117,0.1)',fill:true,tension:0.4},{label:'Churned',data:[8,6,9,7,11,8],borderColor:C.red,backgroundColor:'rgba(226,75,74,0.1)',fill:true,tension:0.4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:10}}},scales:{y:{grid:{color:'rgba(0,0,0,0.04)'}}}}});
+
+  new Chart(document.getElementById('inviteChart'),{type:'bar',data:{labels:['Jan','Feb','Mar','Apr','May'],datasets:[{label:'Invites Sent',data:[18,22,28,35,42],backgroundColor:'rgba(55,138,221,0.3)',borderColor:C.blue,borderWidth:2,borderRadius:4},{label:'Guests Visited',data:[8,10,14,16,18],backgroundColor:'rgba(29,158,117,0.3)',borderColor:C.brand,borderWidth:2,borderRadius:4},{label:'Converted',data:[2,3,4,5,7],backgroundColor:'rgba(239,159,39,0.3)',borderColor:C.gold,borderWidth:2,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:10}}},scales:{y:{grid:{color:'rgba(0,0,0,0.04)'}}}}});
+
+  new Chart(document.getElementById('payChart'),{type:'doughnut',data:{labels:['Paymob','Cash','Fawry','Vodafone Cash'],datasets:[{data:[52400,14200,10600,7000],backgroundColor:[C.brand,C.gold,C.blue,C.red],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:10}}}}});
+}
+
+// ── HEATMAP ──
+function buildHeatmap(){
+  const c = document.getElementById('heatmap-wrap'); if(!c) return;
+  const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const hours = ['6AM','7AM','8AM','9AM','10AM','12PM','5PM','6PM','7PM','8PM'];
+  const data = {'6AM':[8,6,7,5,9,15,4],'7AM':[22,18,24,20,19,30,8],'8AM':[34,28,36,31,27,38,6],'9AM':[28,22,30,25,20,25,5],'10AM':[18,15,20,17,14,20,12],'12PM':[8,7,9,8,7,12,10],'5PM':[28,32,30,35,40,14,0],'6PM':[42,38,44,40,36,20,0],'7PM':[38,34,40,36,30,18,0],'8PM':[20,18,22,20,16,10,0]};
+  const max = 44;
+  let html = '<div class="heatmap">';
+  html += '<div class="hm-label"></div>'+days.map(d=>`<div class="hm-day-label">${d}</div>`).join('');
+  hours.forEach(h=>{
+    html += `<div class="hm-label">${h}</div>`;
+    days.forEach((_,di)=>{
+      const v = data[h][di]; const i = v/max;
+      const bg = v===0?'#f5f5f5':`rgba(29,158,117,${0.1+i*0.85})`;
+      const tc = i>0.5?'#fff':'var(--brand-dark)';
+      html += `<div class="hm-cell" style="background:${bg};color:${tc}" title="${days[di]} ${h}: ${v}">${v||''}</div>`;
+    });
+  });
+  html += '</div>';
+  c.innerHTML = html;
+}
+
+// ── POSTER QR ──
+function buildPosterQR(){
+  const el = document.getElementById('poster-qr');
+  if(el) el.innerHTML = buildQRSVG(100);
+}
+
+function buildQRSVG(size){
+  const cells = 17; const cs = size/cells; let rects = '';
+  for(let r=0;r<cells;r++) for(let c=0;c<cells;c++){
+    const corner=(r<6&&c<6)||(r<6&&c>=cells-6)||(r>=cells-6&&c<6);
+    const border=corner&&((r===0||r===5||c===0||c===5)||(r>=2&&r<=3&&c>=2&&c<=3)||(r>=2&&r<=3&&c>=cells-4&&c<=cells-3)||(r>=cells-4&&r<=cells-3&&c>=2&&c<=3));
+    if(border||(!corner&&Math.random()>0.6)) rects+=`<rect x="${c*cs}" y="${r*cs}" width="${cs-.5}" height="${cs-.5}" fill="#1a1a1a"/>`;
+  }
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">${rects}</svg>`;
+}
+
+// ── NAV ──
+const PAGE_META = {
+  dashboard:{title:'Dashboard',btn:'+ Add Member'},
+  qrcheckin:{title:'QR Check-In — Live',btn:'Print QR Poster'},
+  manualcheckin:{title:'Manual Check-In',btn:'Log Check-In'},
+  members:{title:'Members',btn:'+ Add Member'},
+  memberships:{title:'Memberships & Plans',btn:'+ Assign Plan'},
+  invitations:{title:'Invitations & Guest Passes',btn:'+ Send Invite'},
+  classes:{title:'Class Schedule',btn:'+ New Class'},
+  trainers:{title:'Trainers & PT',btn:'+ Log Session'},
+  notifications:{title:'WhatsApp & Notifications',btn:'Send Blast'},
+  analytics:{title:'Analytics',btn:'Export PDF'},
+  payments:{title:'Payments',btn:'Record Payment'},
+  appmodel:{title:'GymFlow Pro App Model',btn:'Onboard New Gym'},
+  settings:{title:'Settings',btn:'Save Changes'},
+};
+
+function showPage(name, el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  if(el) el.classList.add('active');
+  const meta = PAGE_META[name]||{title:name,btn:'Action'};
+  document.getElementById('page-title').textContent = meta.title;
+  document.getElementById('topbar-btn').textContent = meta.btn;
+}
+
+function handleTopAction(){
+  const active = document.querySelector('.page.active').id.replace('page-','');
+  const map = {members:'addMember',memberships:'addPlan',classes:'addClass',trainers:'ptSession',invitations:'sendInvite'};
+  if(map[active]) openModal(map[active]);
+  else if(active==='qrcheckin') toast('QR Poster PDF downloading...','success');
+  else if(active==='settings') toast('Settings saved!','success');
+  else toast('Action triggered!','info');
+}
+
+// ── CLASS TABS ──
+function switchClassTab(tab, el){
+  ['calendar','list','booking'].forEach(t=>{const e=document.getElementById('class-'+t);if(e)e.style.display=t===tab?'block':'none';});
+  document.querySelectorAll('#page-classes .tab').forEach(t=>t.classList.remove('active'));
+  if(el) el.classList.add('active');
+}
+
+// ── SETTINGS TABS ──
+function switchSettingsTab(tab, el){
+  ['invites','gymcode','general','notifs'].forEach(t=>{const e=document.getElementById('settings-'+t);if(e)e.style.display=t===tab?'block':'none';});
+  document.querySelectorAll('#page-settings .tab').forEach(t=>t.classList.remove('active'));
+  if(el) el.classList.add('active');
+}
+
+// ── MODALS ──
+function openModal(n){document.getElementById('modal-'+n).classList.add('open')}
+function closeModal(n){document.getElementById('modal-'+n).classList.remove('open')}
+document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open')}));
+
+// ── HELPERS ──
+function addMember(){toast('✓ Member registered! QR generated & WhatsApp welcome sent.','success');closeModal('addMember')}
+function bookClass(){const s=document.getElementById('book-sel').value;toast(s==='full'?'Class full — added to waitlist! WhatsApp sent.':'✓ Class booked! Confirmation WhatsApp sent.','success')}
+function sendAllReminders(){toast('✓ WhatsApp reminders sent to all 18 expiring members!','success')}
+function saveInviteQuotas(){toast('✓ Invitation quotas saved! All plans updated.','success')}
+function simulateGymCodeJoin(){toast('✓ Linked to Iron Zone Gym (GYM-CAIRO-01)! Welcome Ahmed 🎉','success')}
+
+function changeQuota(id, delta){
+  const el = document.getElementById(id);
+  let v = parseInt(el.textContent)+delta;
+  v = Math.max(0, Math.min(10, v));
+  el.textContent = v;
+}
+
+function togglePlanFields(){
+  const t = document.getElementById('pt-sel').value;
+  document.getElementById('pf-sessions').style.display = t==='s'?'flex':'none';
+  document.getElementById('pf-ts').style.display = t==='t'?'flex':'none';
+  document.getElementById('pf-te').style.display = t==='t'?'flex':'none';
+}
+
+// ── LIVE CHECKIN TICKER ──
+const LIVE = [['Dina Yasser','DY','av-g','Monthly','QR'],['Karim Nasser','KN','av-b','Session Pack','QR'],['Hana Samir','HS','av-a','Morning Pass','QR'],['Tarek Fahmy','TF','av-p','3-Month','Manual']];
+let li = 0;
+function liveCheckin(){
+  const tb = document.getElementById('checkin-tb'); if(!tb) return;
+  const m = LIVE[li%LIVE.length]; li++;
+  const t = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  const row = tb.insertRow(0);
+  row.style.background = 'rgba(29,158,117,0.06)';
+  row.innerHTML = `<td><div style="display:flex;align-items:center;gap:7px"><div class="av ${m[2]}">${m[0].split(' ').map(x=>x[0]).join('')}</div> ${m[0]}</div></td><td><span class="badge badge-green">${m[3]}</span></td><td>${t}</td><td><span class="method-${m[4]==='QR'?'qr':'manual'}">${m[4]}</span></td>`;
+  if(tb.rows.length>6) tb.deleteRow(tb.rows.length-1);
+  const sc = document.getElementById('s-checkins');
+  if(sc) sc.textContent = parseInt(sc.textContent)+1;
+  setTimeout(()=>row.style.background='',1500);
+}
+
+// ── TOAST ──
+let toastTimer;
+function toast(msg, type=''){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.className='',3500);
+}
+</script>
+</body>
+</html>

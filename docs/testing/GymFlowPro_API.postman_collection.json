@@ -1,0 +1,874 @@
+{
+  "info": {
+    "name": "GymFlowPro API",
+    "description": "Complete REST API for multi-tenant gym management system",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login as Owner",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('TOKEN', jsonData.token);",
+                  "    console.log('✅ Token saved:', jsonData.token.substring(0, 20) + '...');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"owner@gymflow.test\",\n  \"password\": \"Test@1234\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/login",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login as Manager",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('MANAGER_TOKEN', jsonData.token);",
+                  "    console.log('✅ Manager token saved');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"manager@gymflow.test\",\n  \"password\": \"Test@1234\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/login",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Membership Plans",
+      "item": [
+        {
+          "name": "List All Plans",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/membership-plans",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "membership-plans"]
+            }
+          }
+        },
+        {
+          "name": "Get Plan Details",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/membership-plans/{{PLAN_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "membership-plans", "{{PLAN_ID}}"]
+            }
+          }
+        },
+        {
+          "name": "Create New Plan",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('NEW_PLAN_ID', jsonData.id);",
+                  "    console.log('✅ New plan created:', jsonData.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Premium Package\",\n  \"nameAr\": \"الحزمة المميزة\",\n  \"description\": \"Premium gym access with all facilities\",\n  \"descriptionAr\": \"وصول متميز للصالة مع جميع المرافق\",\n  \"planType\": \"monthly_unlimited\",\n  \"price\": 699,\n  \"durationDays\": 30,\n  \"invitationQuota\": 2\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/membership-plans",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "membership-plans"]
+            }
+          }
+        },
+        {
+          "name": "Update Plan",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Plan Name\",\n  \"nameAr\": \"اسم الخطة المحدث\",\n  \"description\": \"Updated description\",\n  \"descriptionAr\": \"الوصف المحدث\",\n  \"planType\": \"monthly_unlimited\",\n  \"price\": 599,\n  \"durationDays\": 30,\n  \"invitationQuota\": 3\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/membership-plans/{{PLAN_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "membership-plans", "{{PLAN_ID}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Plan",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/membership-plans/{{PLAN_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "membership-plans", "{{PLAN_ID}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Memberships",
+      "item": [
+        {
+          "name": "Get Current Membership",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/memberships/{{MEMBER_ID}}/current",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "memberships", "{{MEMBER_ID}}", "current"]
+            }
+          }
+        },
+        {
+          "name": "Get Membership History",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/memberships/{{MEMBER_ID}}/history?page=1&pageSize=10",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "memberships", "{{MEMBER_ID}}", "history"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Assign Membership",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    console.log('✅ Membership assigned');",
+                  "    console.log('Status:', jsonData.status);",
+                  "    console.log('Start Date:', jsonData.startDate);",
+                  "    console.log('End Date:', jsonData.endDate);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planId\": \"{{PLAN_ID}}\",\n  \"paymentMethod\": \"cash\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/memberships/{{MEMBER_ID}}/assign",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "memberships", "{{MEMBER_ID}}", "assign"]
+            }
+          }
+        },
+        {
+          "name": "Renew Membership",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    console.log('✅ Membership renewed');",
+                  "    console.log('New Start Date:', jsonData.startDate);",
+                  "    console.log('New End Date:', jsonData.endDate);",
+                  "    console.log('(Continuous timeline - no gap between memberships)');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planId\": \"{{PLAN_ID}}\",\n  \"paymentMethod\": \"cash\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/memberships/{{MEMBER_ID}}/renew",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "memberships", "{{MEMBER_ID}}", "renew"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Staff Management",
+      "item": [
+        {
+          "name": "List All Staff",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/admin/staff",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "admin", "staff"]
+            }
+          }
+        },
+        {
+          "name": "Get Staff Details",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/admin/staff/{{STAFF_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "admin", "staff", "{{STAFF_ID}}"]
+            }
+          }
+        },
+        {
+          "name": "Create New Staff",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.environment.set('NEW_STAFF_ID', jsonData.id);",
+                  "    console.log('✅ New staff created:', jsonData.email);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newstaff@gymflow.test\",\n  \"firstName\": \"New\",\n  \"lastName\": \"Staff\",\n  \"role\": \"Manager\",\n  \"password\": \"NewStaff@123\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/admin/staff",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "admin", "staff"]
+            }
+          }
+        },
+        {
+          "name": "Update Staff",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Updated\",\n  \"lastName\": \"Name\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/admin/staff/{{STAFF_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "admin", "staff", "{{STAFF_ID}}"]
+            }
+          }
+        },
+        {
+          "name": "Reset Staff Password",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newPassword\": \"ResetPassword@456\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/admin/staff/{{STAFF_ID}}/reset-password",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "admin", "staff", "{{STAFF_ID}}", "reset-password"]
+            }
+          }
+        },
+        {
+          "name": "Delete Staff",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/admin/staff/{{STAFF_ID}}",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "admin", "staff", "{{STAFF_ID}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tenant Settings",
+      "item": [
+        {
+          "name": "Get Tenant Settings",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/settings",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "settings"]
+            }
+          }
+        },
+        {
+          "name": "Update Tenant Settings",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gymName\": \"Iron Zone Gym - Updated\",\n  \"gymNameAr\": \"صالة حديد زون - المحدثة\",\n  \"city\": \"Cairo\",\n  \"address\": \"123 New Street\",\n  \"phone\": \"+201111111111\",\n  \"email\": \"newemail@gymflow.test\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/settings",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "settings"]
+            }
+          }
+        },
+        {
+          "name": "Get Gym Code",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/settings/gym-code",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "settings", "gym-code"]
+            }
+          }
+        },
+        {
+          "name": "Get QR Poster",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/settings/qr-poster",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "settings", "qr-poster"]
+            }
+          }
+        },
+        {
+          "name": "Update Invitation Quotas",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlyUnlimited\": 3,\n  \"sessionPack\": 2,\n  \"timeLimited\": 1,\n  \"ptCredits\": 0,\n  \"family\": 5\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/settings/invitation-quotas",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "settings", "invitation-quotas"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Authorization Tests",
+      "item": [
+        {
+          "name": "TEST: Manager Cannot Create Plan (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Manager cannot create plan (403)', function() {",
+                  "    pm.expect(pm.response.code).to.equal(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{MANAGER_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Plan\",\n  \"nameAr\": \"خطة اختبار\",\n  \"planType\": \"monthly_unlimited\",\n  \"price\": 500,\n  \"durationDays\": 30\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/membership-plans",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "membership-plans"]
+            }
+          }
+        },
+        {
+          "name": "TEST: Trainer Can List Plans (200)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Trainer can list plans (200)', function() {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TRAINER_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/membership-plans",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "membership-plans"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "BASE_URL",
+      "value": "https://localhost:5001",
+      "type": "string"
+    },
+    {
+      "key": "TOKEN",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "MANAGER_TOKEN",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "TRAINER_TOKEN",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "PLAN_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "MEMBER_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "STAFF_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "NEW_PLAN_ID",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "NEW_STAFF_ID",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

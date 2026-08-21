@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GymFlowPro — Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--c900:#0D0D0D;--c800:#1A1A1A;--c700:#2A2A2A;--c600:#3A3A3A;--c500:#4A4A4A;--c400:#6B6B6B;--c300:#8C8C8C;--c200:#B0B0B0;--c100:#D4D4D4;--c50:#F0F0F0;
+--l600:#5EAF00;--l500:#7ACC00;--l400:#A0E040;--l300:#BEEC73;--l200:#D8F5A6;--l100:#EDFCD8;--lglow:rgba(160,224,64,0.25);
+--t700:#0A4D4D;--t600:#0D6B6B;--t500:#148F8F;--t400:#3DB5B5;--t300:#70CECE;--t200:#A8E4E4;--t100:#D9F2F2;
+--suc600:#16A34A;--suc500:#22C55E;--suc100:#DCFCE7;--suctxt:#166534;
+--wrn600:#D97706;--wrn500:#F59E0B;--wrn100:#FEF3C7;--wrntxt:#92400E;
+--dng600:#DC2626;--dng500:#EF4444;--dng100:#FEE2E2;--dngtxt:#991B1B;
+--inf600:#2563EB;--inf500:#3B82F6;--inf100:#DBEAFE;--inftxt:#1E40AF;
+--frz600:#0891B2;--frz500:#22D3EE;--frz100:#CFFAFE;--frztxt:#155E75;
+--pnd600:#D97706;--pnd500:#FBBF24;--pnd100:#FEF3C7;--pndtxt:#92400E;
+--lbg:#FAFAFA;--ls1:#FFF;--ls2:#F5F5F5;--ls3:#EBEBEB;--ltp:#1A1A1A;--lts:#4A4A4A;--ltt:#8C8C8C;--lbd:#D4D4D4;
+--dbg:#0D0D0D;--ds1:#1A1A1A;--ds2:#2A2A2A;--ds3:#3A3A3A;--dtp:#F0F0F0;--dts:#B0B0B0;--dtt:#6B6B6B;--dbd:#4A4A4A;
+--fd:'Space Grotesk',sans-serif;--fb:'IBM Plex Sans','IBM Plex Sans Arabic',sans-serif;--fa:'IBM Plex Sans Arabic',sans-serif;
+--rsm:6px;--rmd:10px;--rlg:16px;--rxl:24px;--rpl:9999px;--rfl:50%;
+--sh1:0 1px 2px rgba(0,0,0,.06);--sh2:0 2px 8px rgba(0,0,0,.08);--sh3:0 4px 16px rgba(0,0,0,.12);--sh4:0 8px 32px rgba(0,0,0,.18);--shg:0 0 20px var(--lglow);
+--tf:150ms ease;--tb:250ms ease;--ts:400ms ease;
+}
+body{font-family:var(--fb);background:var(--c900);color:var(--dtp);line-height:1.6;-webkit-font-smoothing:antialiased}
+.page{max-width:1440px;margin:0 auto;padding:48px 32px}
+.hero{text-align:center;padding:64px 0 48px;border-bottom:1px solid var(--c600);margin-bottom:48px}
+.hero-logo{display:inline-flex;align-items:center;gap:12px;margin-bottom:24px}
+.hero-logo svg{width:56px;height:56px}
+.hero-logo span{font-family:var(--fd);font-size:40px;font-weight:700;letter-spacing:-1px;color:var(--l400)}
+.hero-tag{font-size:18px;color:var(--c300);max-width:600px;margin:0 auto 8px}
+.hero-tag-ar{font-family:var(--fa);font-size:18px;color:var(--c400);direction:rtl}
+.hero-meta{display:flex;justify-content:center;gap:24px;margin-top:24px;font-size:13px;color:var(--c400)}
+.hero-meta span{display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.sec{margin-bottom:64px}
+.sec-hdr{display:flex;align-items:center;gap:12px;margin-bottom:32px;padding-bottom:16px;border-bottom:2px solid var(--c700)}
+.sec-num{font-family:var(--fd);font-size:14px;font-weight:700;background:var(--l500);color:var(--c900);width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
+.sec-title{font-family:var(--fd);font-size:28px;font-weight:700;color:var(--l400)}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:32px}
+.mode{border-radius:var(--rlg);padding:32px;border:1px solid var(--c600)}
+.mode-l{background:var(--lbg);color:var(--ltp)}
+.mode-d{background:var(--dbg);color:var(--dtp)}
+.mode-lbl{font-family:var(--fd);font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:24px;padding-bottom:12px;border-bottom:1px solid}
+.mode-l .mode-lbl{color:var(--c400);border-color:var(--lbd)}
+.mode-d .mode-lbl{color:var(--c400);border-color:var(--dbd)}
+.sub{font-family:var(--fd);font-size:16px;font-weight:600;margin-bottom:16px;margin-top:32px;color:var(--l400)}
+.mode-l .sub{color:var(--c600)}
+.note{font-size:12px;padding:12px 16px;border-radius:var(--rmd);border-left:3px solid var(--l500);margin-bottom:24px}
+.mode-l .note{background:var(--l100);color:var(--c700)}
+.mode-d .note{background:rgba(160,224,64,.08);color:var(--c200)}
+/* Palette */
+.pal-grp{margin-bottom:24px}
+.pal-grp-t{font-family:var(--fd);font-size:14px;font-weight:600;color:var(--l400);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px}
+.pal-row{display:flex;gap:8px;flex-wrap:wrap}
+.sw{width:100px;border-radius:var(--rmd);overflow:hidden;border:1px solid var(--c600)}
+.sw-c{height:60px}
+.sw-i{padding:8px;background:var(--c800);font-size:11px;line-height:1.4}
+.sw-n{font-weight:600;color:var(--c200)}
+.sw-h{color:var(--c400);font-family:var(--fd)}
+.sw-u{color:var(--c500);font-size:10px;margin-top:2px}
+/* Typography */
+.tp-row{display:flex;align-items:baseline;gap:24px;padding:12px 0;border-bottom:1px solid var(--c700)}
+.tp-lbl{width:80px;flex-shrink:0;font-family:var(--fd);font-size:11px;color:var(--c400);text-transform:uppercase;letter-spacing:1px}
+.tp-spec{width:140px;flex-shrink:0;font-family:var(--fd);font-size:12px;color:var(--l400)}
+.tp-en{flex:1}
+.tp-ar{flex:1;direction:rtl;text-align:right;font-family:var(--fa)}
+/* Buttons */
+.btn-row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:16px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--fb);font-size:14px;font-weight:600;padding:10px 24px;border-radius:var(--rpl);border:2px solid transparent;cursor:pointer;transition:all var(--tf);white-space:nowrap;line-height:1;height:44px}
+.btn:active{transform:scale(.97)}
+.btn-p{background:var(--l500);color:var(--c900);border-color:var(--l500)}
+.btn-p:hover{background:var(--l400);border-color:var(--l400);box-shadow:var(--shg)}
+.btn-s{background:var(--t500);color:#fff;border-color:var(--t500)}
+.btn-s:hover{background:var(--t400);border-color:var(--t400)}
+.btn-g{background:transparent;border-color:var(--c400);color:var(--c200)}
+.btn-g:hover{border-color:var(--l400);color:var(--l400)}
+.btn-d{background:var(--dng500);color:#fff;border-color:var(--dng500)}
+.btn-d:hover{background:var(--dng600);border-color:var(--dng600)}
+.btn-i{width:44px;height:44px;padding:0;border-radius:50%}
+.btn-sm{font-size:12px;padding:6px 16px;height:34px}
+.btn-sm.btn-i{width:34px;height:34px}
+.mode-l .btn-g{border-color:var(--c300);color:var(--c600)}
+.mode-l .btn-g:hover{border-color:var(--l600);color:var(--l600)}
+/* Inputs */
+.inp-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.inp-grp{display:flex;flex-direction:column;gap:4px}
+.inp-lbl{font-size:13px;font-weight:600}
+.inp-lbl .req{color:var(--dng500)}
+.inp{font-family:var(--fb);font-size:14px;padding:10px 16px;border-radius:var(--rmd);border:2px solid;outline:none;transition:all var(--tf);height:44px}
+.inp-hlp{font-size:11px;margin-top:2px}
+.mode-l .inp-lbl{color:var(--c700)}.mode-l .inp{background:#fff;border-color:var(--lbd);color:var(--ltp)}
+.mode-l .inp:focus{border-color:var(--l500);box-shadow:0 0 0 3px var(--lglow)}
+.mode-l .inp.err{border-color:var(--dng500)}
+.mode-l .inp:disabled{background:var(--ls2);color:var(--ltt);cursor:not-allowed}
+.mode-l .inp-hlp{color:var(--ltt)}.mode-l .inp-err{color:var(--dng600);font-size:12px}
+.mode-d .inp-lbl{color:var(--c200)}.mode-d .inp{background:var(--ds2);border-color:var(--dbd);color:var(--dtp)}
+.mode-d .inp:focus{border-color:var(--l400);box-shadow:0 0 0 3px var(--lglow)}
+.mode-d .inp.err{border-color:var(--dng500)}
+.mode-d .inp:disabled{background:var(--ds3);color:var(--dtt);cursor:not-allowed}
+.mode-d .inp-hlp{color:var(--dtt)}.mode-d .inp-err{color:var(--dng500);font-size:12px}
+/* Cards */
+.cards-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.card{border-radius:var(--rlg);padding:24px;border:1px solid;transition:all var(--tb)}
+.card:hover{transform:translateY(-2px)}
+.mode-l .card{background:#fff;border-color:var(--lbd);box-shadow:var(--sh2)}.mode-l .card:hover{box-shadow:var(--sh3)}
+.mode-d .card{background:var(--ds1);border-color:var(--dbd);box-shadow:var(--sh2)}.mode-d .card:hover{box-shadow:var(--sh4)}
+.sc-lbl{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+.sc-val{font-family:var(--fd);font-size:36px;font-weight:700;line-height:1.1}
+.sc-chg{font-size:13px;margin-top:8px;display:flex;align-items:center;gap:4px}
+.mode-l .sc-lbl{color:var(--ltt)}.mode-l .sc-val{color:var(--ltp)}.mode-l .sc-chg{color:var(--suc600)}
+.mode-d .sc-lbl{color:var(--dtt)}.mode-d .sc-val{color:var(--l400)}.mode-d .sc-chg{color:var(--suc500)}
+.mc{display:flex;align-items:center;gap:16px}.mc-info{flex:1}
+.mc-name{font-weight:600;font-size:15px}.mc-name-ar{font-family:var(--fa);direction:rtl;font-size:13px}.mc-plan{font-size:12px;margin-top:2px}
+.mode-l .mc-name{color:var(--c800)}.mode-l .mc-name-ar{color:var(--c500)}.mode-l .mc-plan{color:var(--c400)}
+.mode-d .mc-name{color:var(--dtp)}.mode-d .mc-name-ar{color:var(--dts)}.mode-d .mc-plan{color:var(--dtt)}
+.msc{position:relative;overflow:hidden}.msc-acc{position:absolute;top:0;left:0;right:0;height:4px}
+.msc-plan{font-family:var(--fd);font-size:20px;font-weight:700;margin-bottom:4px}
+.msc-plan-ar{font-family:var(--fa);direction:rtl;font-size:14px;margin-bottom:16px}
+.msc-dates{font-size:13px;margin-bottom:12px}
+.msc-prog{height:6px;border-radius:var(--rpl);overflow:hidden;margin-bottom:8px}
+.msc-prog-fill{height:100%;border-radius:var(--rpl)}
+.msc-days{font-family:var(--fd);font-size:13px;font-weight:600}
+.mode-l .msc-plan{color:var(--c800)}.mode-l .msc-plan-ar{color:var(--c500)}.mode-l .msc-dates{color:var(--c500)}.mode-l .msc-days{color:var(--c700)}.mode-l .msc-prog{background:var(--ls3)}
+.mode-d .msc-plan{color:var(--l400)}.mode-d .msc-plan-ar{color:var(--dts)}.mode-d .msc-dates{color:var(--dtt)}.mode-d .msc-days{color:var(--l400)}.mode-d .msc-prog{background:var(--ds3)}
+/* Badges */
+.badge-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 14px;border-radius:var(--rpl);letter-spacing:.3px}
+.badge-dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.badge-active{background:var(--suc100);color:var(--suctxt)}.badge-active .badge-dot{background:var(--suc500)}
+.badge-expired{background:var(--dng100);color:var(--dngtxt)}.badge-expired .badge-dot{background:var(--dng500)}
+.badge-frozen{background:var(--frz100);color:var(--frztxt)}.badge-frozen .badge-dot{background:var(--frz500)}
+.badge-cancelled{background:var(--ls2);color:var(--ltt)}.badge-cancelled .badge-dot{background:var(--c400)}
+.badge-pending{background:var(--pnd100);color:var(--pndtxt)}.badge-pending .badge-dot{background:var(--pnd500)}
+.mode-d .badge-active{background:rgba(34,197,94,.15);color:var(--suc500)}
+.mode-d .badge-expired{background:rgba(239,68,68,.15);color:var(--dng500)}
+.mode-d .badge-frozen{background:rgba(34,211,238,.15);color:var(--frz500)}
+.mode-d .badge-cancelled{background:var(--ds3);color:var(--dtt)}
+.mode-d .badge-pending{background:rgba(251,191,36,.15);color:var(--pnd500)}
+/* Avatar */
+.av-row{display:flex;align-items:flex-end;gap:24px;margin-bottom:24px}
+.av{border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--fd);font-weight:700;flex-shrink:0;position:relative;text-transform:uppercase}
+.av-xs{width:24px;height:24px;font-size:9px}.av-sm{width:32px;height:32px;font-size:11px}.av-md{width:40px;height:40px;font-size:13px}.av-lg{width:56px;height:56px;font-size:18px}.av-xl{width:80px;height:80px;font-size:26px}
+.av-ini{color:var(--c900)}.av-lime{background:var(--l300)}.av-teal{background:var(--t300)}.av-amber{background:#FCD34D}.av-rose{background:#FCA5A5}.av-violet{background:#C4B5FD}
+.av-dot{position:absolute;bottom:0;right:0;width:10px;height:10px;border-radius:50%;border:2px solid}
+.av-dot.staff{background:var(--inf500)}.av-dot.member{background:var(--suc500)}.av-dot.inactive{background:var(--c400)}
+.mode-l .av-dot{border-color:#fff}.mode-d .av-dot{border-color:var(--ds1)}
+.av-sk{background:var(--c600);border-radius:50%;animation:shim 1.5s infinite}
+@keyframes shim{0%{opacity:1}50%{opacity:.4}100%{opacity:1}}
+/* Skeleton */
+.sk-demo{max-width:400px}
+.sk-ln{height:14px;border-radius:var(--rsm);margin-bottom:8px;animation:shim 1.5s infinite}
+.sk-ln.w100{width:100%}.sk-ln.w75{width:75%}.sk-ln.w50{width:50%}.sk-ln.hlg{height:20px}.sk-ln.hxl{height:32px}
+.mode-l .sk-ln{background:var(--ls3)}.mode-d .sk-ln{background:var(--c600)}
+.sk-card{border-radius:var(--rlg);padding:24px;border:1px solid}
+.mode-l .sk-card{background:#fff;border-color:var(--lbd)}.mode-d .sk-card{background:var(--ds1);border-color:var(--dbd)}
+/* Toast */
+.toasts{display:flex;flex-direction:column;gap:12px;max-width:420px}
+.toast{display:flex;align-items:flex-start;gap:12px;padding:16px;border-radius:var(--rmd);border:1px solid;font-size:14px;animation:slideR .3s ease}
+@keyframes slideR{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.toast-ic{width:20px;height:20px;flex-shrink:0;margin-top:1px}
+.toast-body{flex:1}.toast-ttl{font-weight:600;font-size:14px}.toast-msg{font-size:13px;margin-top:2px;opacity:.85}
+.toast-x{background:none;border:none;cursor:pointer;font-size:18px;line-height:1;opacity:.5;padding:0;color:inherit}
+.toast-x:hover{opacity:1}
+.toast-suc{background:var(--suc100);border-color:var(--suc500);color:var(--suctxt)}
+.toast-wrn{background:var(--wrn100);border-color:var(--wrn500);color:var(--wrntxt)}
+.toast-dng{background:var(--dng100);border-color:var(--dng500);color:var(--dngtxt)}
+.toast-inf{background:var(--inf100);border-color:var(--inf500);color:var(--inftxt)}
+.mode-d .toast-suc{background:rgba(34,197,94,.12);color:var(--suc500);border-color:rgba(34,197,94,.3)}
+.mode-d .toast-wrn{background:rgba(245,158,11,.12);color:var(--wrn500);border-color:rgba(245,158,11,.3)}
+.mode-d .toast-dng{background:rgba(239,68,68,.12);color:var(--dng500);border-color:rgba(239,68,68,.3)}
+.mode-d .toast-inf{background:rgba(59,130,246,.12);color:var(--inf500);border-color:rgba(59,130,246,.3)}
+/* Nav */
+.nav-cmp{display:grid;grid-template-columns:1fr 1fr;gap:32px}
+.sb{width:220px;border-radius:var(--rlg);overflow:hidden;border:1px solid var(--c600)}
+.sb-hdr{padding:20px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--c700)}
+.sb-hdr span{font-family:var(--fd);font-weight:700;font-size:16px;color:var(--l400)}
+.sb-hdr svg{width:28px;height:28px}
+.sb-nav{padding:8px 0}
+.sb-item{display:flex;align-items:center;gap:12px;padding:10px 20px;font-size:13px;font-weight:500;cursor:pointer;transition:all var(--tf);border-left:3px solid transparent;color:var(--c300)}
+.sb-item:hover{background:var(--c700)}
+.sb-item.act{background:rgba(160,224,64,.08);color:var(--l400);border-left-color:var(--l500)}
+.sb-item svg{width:18px;height:18px;opacity:.7}.sb-item.act svg{opacity:1}
+.sb-ft{padding:16px;border-top:1px solid var(--c700);display:flex;align-items:center;gap:12px}
+.sb-ft-info{flex:1}.sb-ft-name{font-size:13px;font-weight:600}.sb-ft-role{font-size:11px;color:var(--c400)}
+.mode-l .sb{background:#fff;border-color:var(--lbd)}.mode-l .sb-hdr{border-bottom-color:var(--lbd)}.mode-l .sb-hdr span{color:var(--l600)}
+.mode-l .sb-item{color:var(--c600)}.mode-l .sb-item:hover{background:var(--ls2)}
+.mode-l .sb-item.act{background:var(--l100);color:var(--l600);border-left-color:var(--l600)}
+.mode-l .sb-ft{border-top-color:var(--lbd)}.mode-l .sb-ft-name{color:var(--c800)}.mode-l .sb-ft-role{color:var(--c400)}
+.mode-d .sb{background:var(--ds1)}
+.mb-nav{width:375px;border-radius:var(--rlg);overflow:hidden;border:1px solid var(--c600)}
+.mb-screen{height:200px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:500}
+.mb-bar{display:flex;border-top:1px solid var(--c700)}
+.mb-tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 0 14px;font-size:10px;font-weight:600;cursor:pointer;transition:color var(--tf);position:relative;color:var(--c400)}
+.mb-tab svg{width:22px;height:22px}
+.mb-tab.act{color:var(--l400)}
+.mb-tab .nav-bdg{position:absolute;top:6px;right:calc(50% - 16px);background:var(--dng500);color:#fff;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:var(--rpl);display:flex;align-items:center;justify-content:center;padding:0 4px}
+.mode-l .mb-nav{background:#fff;border-color:var(--lbd)}.mode-l .mb-bar{border-top-color:var(--lbd)}.mode-l .mb-tab{color:var(--c400)}.mode-l .mb-tab.act{color:var(--l600)}.mode-l .mb-screen{background:var(--ls2);color:var(--ltt)}
+.mode-d .mb-nav{background:var(--ds1)}.mode-d .mb-screen{background:var(--ds2);color:var(--dtt)}
+@media(max-width:900px){.modes,.nav-cmp{grid-template-columns:1fr}.cards-grid{grid-template-columns:1fr}.inp-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="page">
+<!-- HERO -->
+<header class="hero">
+<div class="hero-logo">
+<svg viewBox="0 0 56 56" fill="none"><rect width="56" height="56" rx="14" fill="#A0E040"/><path d="M18 38L28 16L38 38" stroke="#0D0D0D" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 32H34" stroke="#0D0D0D" stroke-width="3" stroke-linecap="round"/></svg>
+<span>GymFlowPro</span>
+</div>
+<p class="hero-tag">Design System — Deep Charcoal & Electric Lime</p>
+<p class="hero-tag-ar">نظام التصميم — فحم داكن و ليمون كهربائي</p>
+<div class="hero-meta">
+<span><span class="dot" style="background:var(--l500)"></span> v1.0</span>
+<span><span class="dot" style="background:var(--t500)"></span> Bilingual EN/AR</span>
+<span><span class="dot" style="background:var(--c300)"></span> Light + Dark</span>
+<span><span class="dot" style="background:var(--suc500)"></span> Flutter + Web</span>
+</div>
+</header>
+
+<!-- 1. COLOR PALETTE -->
+<section class="sec">
+<div class="sec-hdr"><span class="sec-num">1</span><h2 class="sec-title">Color Palette</h2></div>
+<div class="pal-grp"><div class="pal-grp-t">Primary — Charcoal</div><div class="pal-row">
+<div class="sw"><div class="sw-c" style="background:#0D0D0D"></div><div class="sw-i"><div class="sw-n">900</div><div class="sw-h">#0D0D0D</div><div class="sw-u">Dark BG</div></div></div>
+<div class="sw"><div class="sw-c" style="background:#1A1A1A"></div><div class="sw-i"><div class="sw-n">800</div><div class="sw-h">#1A1A1A</div><div class="sw-u">Surface 1</div></div></div>
+<div class="sw"><div class="sw-c" style="background:#2A2A2A"></div><div class="sw-i"><div class="sw-n">700</div><div class="sw-h">#2A2A2A</div><div class="sw-u">Surface 2</div></div></div>
+<div class="sw"><div class="sw-c" style="background:#3A3A3A"></div><div class="sw-i"><div class="sw-n">600</div><div class="sw-h">#3A3A3A</div><div class="sw-u">Surface 3</div></div></div>
+<div class="sw"><div class="sw-c" style="background:#4A4A4A"></div><div class="sw-i"><div class="sw-n">500</div><div class="sw-h">#4A4A4A</div><div class="sw-u">Border</div></div></div>
+<div class="sw"><div class="sw-c" style="background:#6B6B6B"></div><div class="sw-i"><div class="sw-n">400</div><div class="sw-h">#6B6B6B</div><div class="sw-u">Tertiary</div></div></div>
+<div class="sw"><div class="sw-c" style="background:#B0B0B0"></div><div class="sw-i"><div class="sw-n">200</div><div class="sw-h">#B0B0B0</div><div class="sw-u">Secondary</div></div></div>
+<div class="sw"><div class="sw-c" style="background:#F0F0F0"></div><div class="sw-i"><div class="sw-n">50</div><div class="sw-h">#F0F0F0</div><div class="sw-u">Light BG</div></div></div>
+</div></div>
+<div class="pal-grp"><div class="pal-grp-t">Accent — Electric Lime</div><div class="pal-row">
+<div class="sw"><div class="sw-c" style="background:#5EAF00"></div><div class="sw-i"><div class="sw-n">600</div><div class="sw-h">#5EAF00</div><div class="sw-u">Hover</div></div></div>
+<div class="sw"><div class="sw-c" style="background:#7ACC00"></div><div class="sw-i"><div class="sw-n">500</div><div class="sw-h">#7ACC00</div><div class="sw-u">Primary CTA</div></div></div>
+<div class="sw"><div class="sw-c" style="background:#A0E040"></div><div class="sw-i"><div class="sw-n">400</div><div class="sw-h">#A0E040</div><div class="sw-u">Focus/Glow</div></div></div>
+<div class="sw"><div class="sw-c" style="background:#BEEC73"></div><div class="sw-i"><div class="sw-n">300</div><div class="sw-h">#BEEC73</div><div class="sw-u">Avatar BG</div></div></div>
+<div class="sw"><div class="sw-c" style="background:#EDFCD8"></div><div class="sw-i"><div class="sw-n">100</div><div class="sw-h">#EDFCD8</div><div class="sw-u">Light tint</div></div></div>
+</div></div>
+<div class="pal-grp"><div class="pal-grp-t">Secondary — Deep Teal</div><div class="pal-row">
+<div class="sw"><div class="sw-c" style="background:#0A4D4D"></div><div class="sw-i"><div class="sw-n">700</div><div class="sw-h">#0A4D4D</div><div class="sw-u">Deep</div></div></div>
+<div class="sw"><div class="sw-c" style="background:#148F8F"></div><div class="sw-i"><div class="sw-n">500</div><div class="sw-h">#148F8F</div><div class="sw-u">Secondary CTA</div></div></div>
+<div class="sw"><div class="sw-c" style="background:#3DB5B5"></div><div class="sw-i"><div class="sw-n">400</div><div class="sw-h">#3DB5B5</div><div class="sw-u">Links</div></div></div>
+<div class="sw"><div class="sw-c" style="background:#D9F2F2"></div><div class="sw-i"><div class="sw-n">100</div><div class="sw-h">#D9F2F2</div><div class="sw-u">Light tint</div></div></div>
+</div></div>
+<div class="pal-grp"><div class="pal-grp-t">Semantic</div><div class="pal-row">
+<div class="sw"><div class="sw-c" style="background:#22C55E"></div><div class="sw-i"><div class="sw-n">Success</div><div class="sw-h">#22C55E</div><div class="sw-u">Active</div></div></div>
+<div class="sw"><div class="sw-c" style="background:#F59E0B"></div><div class="sw-i"><div class="sw-n">Warning</div><div class="sw-h">#F59E0B</div><div class="sw-u">Expiring</div></div></div>
+<div class="sw"><div class="sw-c" style="background:#EF4444"></div><div class="sw-i"><div class="sw-n">Danger</div><div class="sw-h">#EF4444</div><div class="sw-u">Expired</div></div></div>
+<div class="sw"><div class="sw-c" style="background:#3B82F6"></div><div class="sw-i"><div class="sw-n">Info</div><div class="sw-h">#3B82F6</div><div class="sw-u">Frozen</div></div></div>
+<div class="sw"><div class="sw-c" style="background:#22D3EE"></div><div class="sw-i"><div class="sw-n">Frozen</div><div class="sw-h">#22D3EE</div><div class="sw-u">Freeze</div></div></div>
+<div class="sw"><div class="sw-c" style="background:#FBBF24"></div><div class="sw-i"><div class="sw-n">Pending</div><div class="sw-h">#FBBF24</div><div class="sw-u">Awaiting</div></div></div>
+</div></div>
+</section>
+
+<!-- 2. TYPOGRAPHY -->
+<section class="sec">
+<div class="sec-hdr"><span class="sec-num">2</span><h2 class="sec-title">Typography</h2></div>
+<div class="note">Display: <b>Space Grotesk</b> (headings, KPIs) — Body: <b>IBM Plex Sans</b> + <b>IBM Plex Sans Arabic</b></div>
+<h3 class="sub">English Scale</h3>
+<div class="tp-row"><span class="tp-lbl">H1</span><span class="tp-spec">36px/700/1.1</span><span class="tp-en" style="font-family:var(--fd);font-size:36px;font-weight:700">Dashboard Overview</span></div>
+<div class="tp-row"><span class="tp-lbl">H2</span><span class="tp-spec">28px/700/1.2</span><span class="tp-en" style="font-family:var(--fd);font-size:28px;font-weight:700">Member Details</span></div>
+<div class="tp-row"><span class="tp-lbl">H3</span><span class="tp-spec">22px/600/1.3</span><span class="tp-en" style="font-family:var(--fd);font-size:22px;font-weight:600">Active Memberships</span></div>
+<div class="tp-row"><span class="tp-lbl">H4</span><span class="tp-spec">18px/600/1.4</span><span class="tp-en" style="font-family:var(--fd);font-size:18px;font-weight:600">Payment History</span></div>
+<div class="tp-row"><span class="tp-lbl">H5</span><span class="tp-spec">15px/600/1.4</span><span class="tp-en" style="font-family:var(--fd);font-size:15px;font-weight:600">Section Header</span></div>
+<div class="tp-row"><span class="tp-lbl">H6</span><span class="tp-spec">13px/700</span><span class="tp-en" style="font-family:var(--fd);font-size:13px;font-weight:700;letter-spacing:.8px;text-transform:uppercase">OVERLINE LABEL</span></div>
+<div class="tp-row"><span class="tp-lbl">Body</span><span class="tp-spec">14px/400/1.6</span><span class="tp-en" style="font-size:14px">The member has 22 days remaining on their monthly plan.</span></div>
+<div class="tp-row"><span class="tp-lbl">Caption</span><span class="tp-spec">12px/400/1.5</span><span class="tp-en" style="font-size:12px;color:var(--c400)">Last updated 3 minutes ago</span></div>
+<div class="tp-row"><span class="tp-lbl">Label</span><span class="tp-spec">13px/600</span><span class="tp-en" style="font-size:13px;font-weight:600">Full Name (English)</span></div>
+<div class="tp-row"><span class="tp-lbl">KPI</span><span class="tp-spec">36px/700/1.1</span><span class="tp-en" style="font-family:var(--fd);font-size:36px;font-weight:700;color:var(--l400)">EGP 75,000</span></div>
+<h3 class="sub">Arabic Scale / مقياس العربية</h3>
+<div class="tp-row"><span class="tp-lbl">H1</span><span class="tp-spec">36px/700</span><span class="tp-ar" style="font-size:36px;font-weight:700">لوحة التحكم</span></div>
+<div class="tp-row"><span class="tp-lbl">H2</span><span class="tp-spec">28px/700</span><span class="tp-ar" style="font-size:28px;font-weight:700">تفاصيل العضو</span></div>
+<div class="tp-row"><span class="tp-lbl">H3</span><span class="tp-spec">22px/600</span><span class="tp-ar" style="font-size:22px;font-weight:600">الاشتراكات النشطة</span></div>
+<div class="tp-row"><span class="tp-lbl">Body</span><span class="tp-spec">14px/400</span><span class="tp-ar" style="font-size:14px">يتبقى للعضو ٢٢ يوماً على خطته الشهرية.</span></div>
+<div class="tp-row"><span class="tp-lbl">Label</span><span class="tp-spec">13px/600</span><span class="tp-ar" style="font-size:13px;font-weight:600">الاسم الكامل (عربي)</span></div>
+</section>
+
+<!-- 3. BUTTONS -->
+<section class="sec">
+<div class="sec-hdr"><span class="sec-num">3</span><h2 class="sec-title">Buttons</h2></div>
+<div class="modes">
+<div class="mode mode-l"><div class="mode-lbl">☀️ Light Mode</div>
+<h3 class="sub" style="color:var(--c600)">Default</h3><div class="btn-row"><button class="btn btn-p">Primary</button><button class="btn btn-s">Secondary</button><button class="btn btn-g">Ghost</button><button class="btn btn-d">Danger</button></div>
+<h3 class="sub" style="color:var(--c600)">Small</h3><div class="btn-row"><button class="btn btn-p btn-sm">Primary</button><button class="btn btn-s btn-sm">Secondary</button><button class="btn btn-g btn-sm">Ghost</button><button class="btn btn-d btn-sm">Danger</button></div>
+<h3 class="sub" style="color:var(--c600)">Icon Only</h3><div class="btn-row"><button class="btn btn-p btn-i">✚</button><button class="btn btn-s btn-i">✎</button><button class="btn btn-g btn-i">⋮</button><button class="btn btn-d btn-i">✕</button></div>
+<h3 class="sub" style="color:var(--c600)">With Icons</h3><div class="btn-row"><button class="btn btn-p">▶ Check In</button><button class="btn btn-s">↻ Renew</button><button class="btn btn-g">⊕ Add Member</button></div>
+<h3 class="sub" style="color:var(--c600)">Disabled</h3><div class="btn-row"><button class="btn btn-p" disabled style="opacity:.5;cursor:not-allowed">Disabled</button><button class="btn btn-g" disabled style="opacity:.5;cursor:not-allowed">Disabled</button></div>
+</div>
+<div class="mode mode-d"><div class="mode-lbl">🌙 Dark Mode</div>
+<h3 class="sub">Default</h3><div class="btn-row"><button class="btn btn-p">Primary</button><button class="btn btn-s">Secondary</button><button class="btn btn-g">Ghost</button><button class="btn btn-d">Danger</button></div>
+<h3 class="sub">Small</h3><div class="btn-row"><button class="btn btn-p btn-sm">Primary</button><button class="btn btn-s btn-sm">Secondary</button><button class="btn btn-g btn-sm">Ghost</button><button class="btn btn-d btn-sm">Danger</button></div>
+<h3 class="sub">Icon Only</h3><div class="btn-row"><button class="btn btn-p btn-i">✚</button><button class="btn btn-s btn-i">✎</button><button class="btn btn-g btn-i">⋮</button><button class="btn btn-d btn-i">✕</button></div>
+<h3 class="sub">With Icons</h3><div class="btn-row"><button class="btn btn-p">▶ Check In</button><button class="btn btn-s">↻ Renew</button><button class="btn btn-g">⊕ Add Member</button></div>
+<h3 class="sub">Disabled</h3><div class="btn-row"><button class="btn btn-p" disabled style="opacity:.5;cursor:not-allowed">Disabled</button><button class="btn btn-g" disabled style="opacity:.5;cursor:not-allowed">Disabled</button></div>
+</div>
+</div>
+</section>
+
+<!-- 4. INPUT FIELDS -->
+<section class="sec">
+<div class="sec-hdr"><span class="sec-num">4</span><h2 class="sec-title">Input Fields</h2></div>
+<div class="modes">
+<div class="mode mode-l"><div class="mode-lbl">☀️ Light Mode</div>
+<div class="inp-grid">
+<div class="inp-grp"><label class="inp-lbl">Default <span class="req">*</span></label><input class="inp" type="text" placeholder="Enter member name"><span class="inp-hlp">Helper text</span></div>
+<div class="inp-grp"><label class="inp-lbl">Focused</label><input class="inp" type="text" value="Ahmed Ali" style="border-color:var(--l500);box-shadow:0 0 0 3px rgba(160,224,64,.25)"></div>
+<div class="inp-grp"><label class="inp-lbl">Error <span class="req">*</span></label><input class="inp err" type="text" value="abc" style="border-color:var(--dng500)"><span class="inp-err">Phone already registered / رقم الهاتف مسجل مسبقاً</span></div>
+<div class="inp-grp"><label class="inp-lbl">Disabled</label><input class="inp" type="text" value="GYM-CAIRO-01" disabled><span class="inp-hlp">System-generated gym code</span></div>
+</div>
+<div style="margin-top:16px;max-width:300px"><div class="inp-grp"><label class="inp-lbl">Arabic (RTL) <span class="req">*</span></label><input class="inp" type="text" placeholder="الاسم الكامل" dir="rtl" style="font-family:var(--fa)"></div></div>
+</div>
+<div class="mode mode-d"><div class="mode-lbl">🌙 Dark Mode</div>
+<div class="inp-grid">
+<div class="inp-grp"><label class="inp-lbl">Default <span class="req">*</span></label><input class="inp" type="text" placeholder="Enter member name"><span class="inp-hlp">Helper text</span></div>
+<div class="inp-grp"><label class="inp-lbl">Focused</label><input class="inp" type="text" value="Ahmed Ali" style="border-color:var(--l400);box-shadow:0 0 0 3px rgba(160,224,64,.25)"></div>
+<div class="inp-grp"><label class="inp-lbl">Error <span class="req">*</span></label><input class="inp err" type="text" value="abc" style="border-color:var(--dng500)"><span class="inp-err">Phone already registered / رقم الهاتف مسجل مسبقاً</span></div>
+<div class="inp-grp"><label class="inp-lbl">Disabled</label><input class="inp" type="text" value="GYM-CAIRO-01" disabled><span class="inp-hlp">System-generated gym code</span></div>
+</div>
+<div style="margin-top:16px;max-width:300px"><div class="inp-grp"><label class="inp-lbl">Arabic (RTL) <span class="req">*</span></label><input class="inp" type="text" placeholder="الاسم الكامل" dir="rtl" style="font-family:var(--fa)"></div></div>
+</div>
+</div>
+</section>
+
+<!-- 5. CARDS -->
+<section class="sec">
+<div class="sec-hdr"><span class="sec-num">5</span><h2 class="sec-title">Card Variants</h2></div>
+<div class="modes">
+<div class="mode mode-l"><div class="mode-lbl">☀️ Light Mode</div>
+<h3 class="sub" style="color:var(--c600)">Stat Cards</h3>
+<div class="cards-grid">
+<div class="card"><div class="sc-lbl">Active Members</div><div class="sc-val">150</div><div class="sc-chg">↑ 12 this month</div></div>
+<div class="card"><div class="sc-lbl">Revenue</div><div class="sc-val">EGP 75K</div><div class="sc-chg">↑ 8% vs last</div></div>
+<div class="card"><div class="sc-lbl">Check-ins Today</div><div class="sc-val">45</div><div class="sc-chg">Live</div></div>
+</div>
+<h3 class="sub" style="color:var(--c600)">Member Card</h3>
+<div class="card mc">
+<div class="av av-md av-lime av-ini">AA</div>
+<div class="mc-info"><div class="mc-name">Ahmed Ali</div><div class="mc-name-ar">أحمد علي</div><div class="mc-plan">Monthly Unlimited</div></div>
+<span class="badge badge-active"><span class="badge-dot"></span>Active</span>
+</div>
+<h3 class="sub" style="color:var(--c600)">Membership Card</h3>
+<div class="card msc">
+<div class="msc-acc" style="background:var(--l500)"></div>
+<div class="msc-plan">Monthly Unlimited</div>
+<div class="msc-plan-ar">شهري غير محدود</div>
+<div class="msc-dates">May 1 – Jun 1, 2026</div>
+<div class="msc-prog"><div class="msc-prog-fill" style="width:73%;background:var(--l500)"></div></div>
+<div class="msc-days">22 days remaining</div>
+</div>
+</div>
+<div class="mode mode-d"><div class="mode-lbl">🌙 Dark Mode</div>
+<h3 class="sub">Stat Cards</h3>
+<div class="cards-grid">
+<div class="card"><div class="sc-lbl">Active Members</div><div class="sc-val">150</div><div class="sc-chg">↑ 12 this month</div></div>
+<div class="card"><div class="sc-lbl">Revenue</div><div class="sc-val">EGP 75K</div><div class="sc-chg">↑ 8% vs last</div></div>
+<div class="card"><div class="sc-lbl">Check-ins Today</div><div class="sc-val">45</div><div class="sc-chg">Live</div></div>
+</div>
+<h3 class="sub">Member Card</h3>
+<div class="card mc">
+<div class="av av-md av-lime av-ini">AA</div>
+<div class="mc-info"><div class="mc-name">Ahmed Ali</div><div class="mc-name-ar">أحمد علي</div><div class="mc-plan">Monthly Unlimited</div></div>
+<span class="badge badge-active"><span class="badge-dot"></span>Active</span>
+</div>
+<h3 class="sub">Membership Card</h3>
+<div class="card msc">
+<div class="msc-acc" style="background:var(--l500)"></div>
+<div class="msc-plan">Monthly Unlimited</div>
+<div class="msc-plan-ar">شهري غير محدود</div>
+<div class="msc-dates">May 1 – Jun 1, 2026</div>
+<div class="msc-prog"><div class="msc-prog-fill" style="width:73%;background:var(--l500)"></div></div>
+<div class="msc-days">22 days remaining</div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- 6. STATUS BADGES -->
+<section class="sec">
+<div class="sec-hdr"><span class="sec-num">6</span><h2 class="sec-title">Status Badges</h2></div>
+<div class="modes">
+<div class="mode mode-l"><div class="mode-lbl">☀️ Light Mode</div>
+<div class="badge-row"><span class="badge badge-active"><span class="badge-dot"></span>Active</span><span class="badge badge-expired"><span class="badge-dot"></span>Expired</span><span class="badge badge-frozen"><span class="badge-dot"></span>Frozen</span><span class="badge badge-cancelled"><span class="badge-dot"></span>Cancelled</span><span class="badge badge-pending"><span class="badge-dot"></span>Pending</span></div>
+<div class="badge-row"><span class="badge badge-active">نشط</span><span class="badge badge-expired">منتهي</span><span class="badge badge-frozen">مجمد</span><span class="badge badge-cancelled">ملغي</span><span class="badge badge-pending">قيد الانتظار</span></div>
+</div>
+<div class="mode mode-d"><div class="mode-lbl">🌙 Dark Mode</div>
+<div class="badge-row"><span class="badge badge-active"><span class="badge-dot"></span>Active</span><span class="badge badge-expired"><span class="badge-dot"></span>Expired</span><span class="badge badge-frozen"><span class="badge-dot"></span>Frozen</span><span class="badge badge-cancelled"><span class="badge-dot"></span>Cancelled</span><span class="badge badge-pending"><span class="badge-dot"></span>Pending</span></div>
+<div class="badge-row"><span class="badge badge-active">نشط</span><span class="badge badge-expired">منتهي</span><span class="badge badge-frozen">مجمد</span><span class="badge badge-cancelled">ملغي</span><span class="badge badge-pending">قيد الانتظار</span></div>
+</div>
+</div>
+</section>
+
+<!-- 7. NAVIGATION -->
+<section class="sec">
+<div class="sec-hdr"><span class="sec-num">7</span><h2 class="sec-title">Navigation</h2></div>
+<div class="modes">
+<div class="mode mode-l"><div class="mode-lbl">☀️ Light Mode</div>
+<h3 class="sub" style="color:var(--c600)">Web Sidebar</h3>
+<div class="sb">
+<div class="sb-hdr"><svg viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="7" fill="#7ACC00"/><path d="M9 19L14 8L19 19" stroke="#0D0D0D" stroke-width="2" stroke-linecap="round"/><path d="M11 16H17" stroke="#0D0D0D" stroke-width="1.5" stroke-linecap="round"/></svg><span>GymFlowPro</span></div>
+<div class="sb-nav">
+<div class="sb-item act">📊 Dashboard</div>
+<div class="sb-item">👥 Members</div>
+<div class="sb-item">🏅 Memberships</div>
+<div class="sb-item">📦 Plans</div>
+<div class="sb-item">🚪 Attendance</div>
+<div class="sb-item">📈 Reports</div>
+<div class="sb-item">🔔 Notifications</div>
+<div class="sb-item">🛡️ Staff</div>
+<div class="sb-item">⚙️ Settings</div>
+</div>
+<div class="sb-ft"><div class="av av-sm av-teal av-ini">SM</div><div class="sb-ft-info"><div class="sb-ft-name">Sara Manager</div><div class="sb-ft-role">Manager</div></div></div>
+</div>
+<h3 class="sub" style="color:var(--c600)">Mobile Bottom Nav</h3>
+<div class="mb-nav">
+<div class="mb-screen">🏠 Home Screen Content</div>
+<div class="mb-bar">
+<div class="mb-tab act">🏠<br>Home</div>
+<div class="mb-tab">🏅<br>Membership</div>
+<div class="mb-tab">👤⊕<br>Invite</div>
+<div class="mb-tab">🔔<br>Alerts<span class="nav-bdg">3</span></div>
+</div>
+</div>
+</div>
+<div class="mode mode-d"><div class="mode-lbl">🌙 Dark Mode</div>
+<h3 class="sub">Web Sidebar</h3>
+<div class="sb">
+<div class="sb-hdr"><svg viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="7" fill="#7ACC00"/><path d="M9 19L14 8L19 19" stroke="#0D0D0D" stroke-width="2" stroke-linecap="round"/><path d="M11 16H17" stroke="#0D0D0D" stroke-width="1.5" stroke-linecap="round"/></svg><span>GymFlowPro</span></div>
+<div class="sb-nav">
+<div class="sb-item act">📊 Dashboard</div>
+<div class="sb-item">👥 Members</div>
+<div class="sb-item">🏅 Memberships</div>
+<div class="sb-item">📦 Plans</div>
+<div class="sb-item">🚪 Attendance</div>
+<div class="sb-item">📈 Reports</div>
+<div class="sb-item">🔔 Notifications</div>
+<div class="sb-item">🛡️ Staff</div>
+<div class="sb-item">⚙️ Settings</div>
+</div>
+<div class="sb-ft"><div class="av av-sm av-lime av-ini">SM</div><div class="sb-ft-info"><div class="sb-ft-name">Sara Manager</div><div class="sb-ft-role">Manager</div></div></div>
+</div>
+<h3 class="sub">Mobile Bottom Nav</h3>
+<div class="mb-nav">
+<div class="mb-screen">🏠 Home Screen Content</div>
+<div class="mb-bar">
+<div class="mb-tab act">🏠<br>Home</div>
+<div class="mb-tab">🏅<br>Membership</div>
+<div class="mb-tab">👤⊕<br>Invite</div>
+<div class="mb-tab">🔔<br>Alerts<span class="nav-bdg">3</span></div>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- 8. AVATAR -->
+<section class="sec">
+<div class="sec-hdr"><span class="sec-num">8</span><h2 class="sec-title">Avatar Component</h2></div>
+<div class="modes">
+<div class="mode mode-l"><div class="mode-lbl">☀️ Light Mode</div>
+<h3 class="sub" style="color:var(--c600)">Sizes — Initials Fallback</h3>
+<div class="av-row">
+<div class="av av-xs av-lime av-ini">AA</div>
+<div class="av av-sm av-teal av-ini">SM</div>
+<div class="av av-md av-amber av-ini">MD</div>
+<div class="av av-lg av-rose av-ini">LG</div>
+<div class="av av-xl av-violet av-ini">XL</div>
+</div>
+<h3 class="sub" style="color:var(--c600)">With Role Indicator</h3>
+<div class="av-row">
+<div class="av av-md av-lime av-ini">AA<span class="av-dot member"></span></div>
+<div class="av av-md av-teal av-ini">SM<span class="av-dot staff"></span></div>
+<div class="av av-md av-amber av-ini" style="opacity:.5">IN<span class="av-dot inactive"></span></div>
+</div>
+<h3 class="sub" style="color:var(--c600)">Skeleton Loading</h3>
+<div class="av-row">
+<div class="av-xs av-sk"></div>
+<div class="av-sm av-sk"></div>
+<div class="av-md av-sk"></div>
+<div class="av-lg av-sk"></div>
+</div>
+</div>
+<div class="mode mode-d"><div class="mode-lbl">🌙 Dark Mode</div>
+<h3 class="sub">Sizes — Initials Fallback</h3>
+<div class="av-row">
+<div class="av av-xs av-lime av-ini">AA</div>
+<div class="av av-sm av-teal av-ini">SM</div>
+<div class="av av-md av-amber av-ini">MD</div>
+<div class="av av-lg av-rose av-ini">LG</div>
+<div class="av av-xl av-violet av-ini">XL</div>
+</div>
+<h3 class="sub">With Role Indicator</h3>
+<div class="av-row">
+<div class="av av-md av-lime av-ini">AA<span class="av-dot member"></span></div>
+<div class="av av-md av-teal av-ini">SM<span class="av-dot staff"></span></div>
+<div class="av av-md av-amber av-ini" style="opacity:.5">IN<span class="av-dot inactive"></span></div>
+</div>
+<h3 class="sub">Skeleton Loading</h3>
+<div class="av-row">
+<div class="av-xs av-sk"></div>
+<div class="av-sm av-sk"></div>
+<div class="av-md av-sk"></div>
+<div class="av-lg av-sk"></div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- 9. SKELETON SHIMMER -->
+<section class="sec">
+<div class="sec-hdr"><span class="sec-num">9</span><h2 class="sec-title">Loading Skeleton</h2></div>
+<div class="modes">
+<div class="mode mode-l"><div class="mode-lbl">☀️ Light Mode</div>
+<h3 class="sub" style="color:var(--c600)">Text Lines</h3>
+<div class="sk-demo">
+<div class="sk-ln w100 hxl"></div>
+<div class="sk-ln w100 hlg"></div>
+<div class="sk-ln w75"></div>
+<div class="sk-ln w50"></div>
+</div>
+<h3 class="sub" style="color:var(--c600)">Card Skeleton</h3>
+<div class="sk-card" style="max-width:320px">
+<div style="display:flex;gap:12px;margin-bottom:16px"><div class="av-md av-sk"></div><div style="flex:1"><div class="sk-ln w75 hlg"></div><div class="sk-ln w50"></div></div></div>
+<div class="sk-ln w100"></div>
+<div class="sk-ln w100" style="height:6px;border-radius:9999px"></div>
+<div class="sk-ln w50"></div>
+</div>
+</div>
+<div class="mode mode-d"><div class="mode-lbl">🌙 Dark Mode</div>
+<h3 class="sub">Text Lines</h3>
+<div class="sk-demo">
+<div class="sk-ln w100 hxl"></div>
+<div class="sk-ln w100 hlg"></div>
+<div class="sk-ln w75"></div>
+<div class="sk-ln w50"></div>
+</div>
+<h3 class="sub">Card Skeleton</h3>
+<div class="sk-card" style="max-width:320px">
+<div style="display:flex;gap:12px;margin-bottom:16px"><div class="av-md av-sk"></div><div style="flex:1"><div class="sk-ln w75 hlg"></div><div class="sk-ln w50"></div></div></div>
+<div class="sk-ln w100"></div>
+<div class="sk-ln w100" style="height:6px;border-radius:9999px"></div>
+<div class="sk-ln w50"></div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- 10. TOAST / SNACKBAR -->
+<section class="sec">
+<div class="sec-hdr"><span class="sec-num">10</span><h2 class="sec-title">Toast / Snackbar</h2></div>
+<div class="modes">
+<div class="mode mode-l"><div class="mode-lbl">☀️ Light Mode</div>
+<div class="toasts">
+<div class="toast toast-suc"><span class="toast-ic">✓</span><div class="toast-body"><div class="toast-ttl">Check-in Successful</div><div class="toast-msg">Ahmed Ali checked in via QR at 8:30 AM</div></div><button class="toast-x">×</button></div>
+<div class="toast toast-wrn"><span class="toast-ic">⚠</span><div class="toast-body"><div class="toast-ttl">Membership Expiring</div><div class="toast-msg">3 members have memberships expiring within 7 days</div></div><button class="toast-x">×</button></div>
+<div class="toast toast-dng"><span class="toast-ic">✕</span><div class="toast-body"><div class="toast-ttl">Payment Failed</div><div class="toast-msg">Fawry payment for MEM-042 could not be verified</div></div><button class="toast-x">×</button></div>
+<div class="toast toast-inf"><span class="toast-ic">ℹ</span><div class="toast-body"><div class="toast-ttl">Membership Frozen</div><div class="toast-msg">Sara Mohamed's membership frozen until May 20</div></div><button class="toast-x">×</button></div>
+</div>
+</div>
+<div class="mode mode-d"><div class="mode-lbl">🌙 Dark Mode</div>
+<div class="toasts">
+<div class="toast toast-suc"><span class="toast-ic">✓</span><div class="toast-body"><div class="toast-ttl">Check-in Successful</div><div class="toast-msg">Ahmed Ali checked in via QR at 8:30 AM</div></div><button class="toast-x">×</button></div>
+<div class="toast toast-wrn"><span class="toast-ic">⚠</span><div class="toast-body"><div class="toast-ttl">Membership Expiring</div><div class="toast-msg">3 members have memberships expiring within 7 days</div></div><button class="toast-x">×</button></div>
+<div class="toast toast-dng"><span class="toast-ic">✕</span><div class="toast-body"><div class="toast-ttl">Payment Failed</div><div class="toast-msg">Fawry payment for MEM-042 could not be verified</div></div><button class="toast-x">×</button></div>
+<div class="toast toast-inf"><span class="toast-ic">ℹ</span><div class="toast-body"><div class="toast-ttl">Membership Frozen</div><div class="toast-msg">Sara Mohamed's membership frozen until May 20</div></div><button class="toast-x">×</button></div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- SPACING & ELEVATION REFERENCE -->
+<section class="sec">
+<div class="sec-hdr"><span class="sec-num">⚙</span><h2 class="sec-title">Design Tokens Reference</h2></div>
+<h3 class="sub">Spacing Scale (4px base)</h3>
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:32px">
+<div style="text-align:center"><div style="width:4px;height:24px;background:var(--l500);border-radius:2px"></div><div style="font-size:10px;color:var(--c400);margin-top:4px">4px</div></div>
+<div style="text-align:center"><div style="width:8px;height:24px;background:var(--l500);border-radius:2px"></div><div style="font-size:10px;color:var(--c400);margin-top:4px">8px</div></div>
+<div style="text-align:center"><div style="width:12px;height:24px;background:var(--l500);border-radius:2px"></div><div style="font-size:10px;color:var(--c400);margin-top:4px">12px</div></div>
+<div style="text-align:center"><div style="width:16px;height:24px;background:var(--l500);border-radius:2px"></div><div style="font-size:10px;color:var(--c400);margin-top:4px">16px</div></div>
+<div style="text-align:center"><div style="width:24px;height:24px;background:var(--l500);border-radius:2px"></div><div style="font-size:10px;color:var(--c400);margin-top:4px">24px</div></div>
+<div style="text-align:center"><div style="width:32px;height:24px;background:var(--l500);border-radius:2px"></div><div style="font-size:10px;color:var(--c400);margin-top:4px">32px</div></div>
+<div style="text-align:center"><div style="width:48px;height:24px;background:var(--l500);border-radius:2px"></div><div style="font-size:10px;color:var(--c400);margin-top:4px">48px</div></div>
+<div style="text-align:center"><div style="width:64px;height:24px;background:var(--l500);border-radius:2px"></div><div style="font-size:10px;color:var(--c400);margin-top:4px">64px</div></div>
+</div>
+
+<h3 class="sub">Border Radius</h3>
+<div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:32px">
+<div style="text-align:center"><div style="width:48px;height:48px;background:var(--c700);border:2px solid var(--l500);border-radius:6px"></div><div style="font-size:10px;color:var(--c400);margin-top:4px">sm 6px</div></div>
+<div style="text-align:center"><div style="width:48px;height:48px;background:var(--c700);border:2px solid var(--l500);border-radius:10px"></div><div style="font-size:10px;color:var(--c400);margin-top:4px">md 10px</div></div>
+<div style="text-align:center"><div style="width:48px;height:48px;background:var(--c700);border:2px solid var(--l500);border-radius:16px"></div><div style="font-size:10px;color:var(--c400);margin-top:4px">lg 16px</div></div>
+<div style="text-align:center"><div style="width:48px;height:48px;background:var(--c700);border:2px solid var(--l500);border-radius:24px"></div><div style="font-size:10px;color:var(--c400);margin-top:4px">xl 24px</div></div>
+<div style="text-align:center"><div style="width:48px;height:48px;background:var(--c700);border:2px solid var(--l500);border-radius:9999px"></div><div style="font-size:10px;color:var(--c400);margin-top:4px">pill</div></div>
+</div>
+
+<h3 class="sub">Elevation / Shadows</h3>
+<div style="display:flex;flex-wrap:wrap;gap:24px;margin-bottom:32px">
+<div style="text-align:center"><div style="width:80px;height:48px;background:var(--c800);border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,.06)"></div><div style="font-size:10px;color:var(--c400);margin-top:8px">Level 1</div></div>
+<div style="text-align:center"><div style="width:80px;height:48px;background:var(--c800);border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.08)"></div><div style="font-size:10px;color:var(--c400);margin-top:8px">Level 2</div></div>
+<div style="text-align:center"><div style="width:80px;height:48px;background:var(--c800);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.12)"></div><div style="font-size:10px;color:var(--c400);margin-top:8px">Level 3</div></div>
+<div style="text-align:center"><div style="width:80px;height:48px;background:var(--c800);border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.18)"></div><div style="font-size:10px;color:var(--c400);margin-top:8px">Level 4</div></div>
+<div style="text-align:center"><div style="width:80px;height:48px;background:var(--c800);border-radius:10px;box-shadow:0 0 20px rgba(160,224,64,.25)"></div><div style="font-size:10px;color:var(--c400);margin-top:8px">Glow</div></div>
+</div>
+
+<h3 class="sub">CSS Custom Properties (for Flutter/React implementation)</h3>
+<div class="note" style="max-width:800px">
+<pre style="font-size:11px;line-height:1.6;white-space:pre-wrap;font-family:monospace">
+/* Primary */   charcoal-900..50  → #0D0D0D → #F0F0F0
+/* Accent */    lime-600..100     → #5EAF00 → #EDFCD8
+/* Secondary */ teal-700..100     → #0A4D4D → #D9F2F2
+/* Semantic */  success #22C55E | warning #F59E0B | danger #EF4444 | info #3B82F6 | frozen #22D3EE | pending #FBBF24
+/* Surfaces */  light: bg #FAFAFA, s1 #FFF, s2 #F5F5F5, s3 #EBEBEB
+/* Surfaces */  dark:  bg #0D0D0D, s1 #1A1A1A, s2 #2A2A2A, s3 #3A3A3A
+/* Radius */    sm 6px | md 10px | lg 16px | xl 24px | pill 9999px
+/* Shadows */   1: 0 1px 2px | 2: 0 2px 8px | 3: 0 4px 16px | 4: 0 8px 32px | glow: 0 0 20px lime-glow
+/* Fonts */     display: 'Space Grotesk' | body: 'IBM Plex Sans' | arabic: 'IBM Plex Sans Arabic'
+/* Spacing */   4px base → 4, 8, 12, 16, 20, 24, 28, 32, 40, 48, 64, 80
+</pre>
+</div>
+</section>
+
+</div>
+</body>
+</html>
