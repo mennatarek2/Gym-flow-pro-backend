@@ -39,6 +39,7 @@ public class PlatformDataSeeder
             ct);
 
         await EnsureTierFeatureMapSeededAsync(ct);
+        await EnsureCommercialPlansSeededAsync(ct);
 
         var email = (_configuration["PlatformSeed:Email"] ?? string.Empty).Trim().ToLowerInvariant();
         var password = _configuration["PlatformSeed:Password"];
@@ -115,5 +116,25 @@ public class PlatformDataSeeder
         _db.TierFeatureMaps.AddRange(missing);
         await _db.SaveChangesAsync(ct);
         _logger.LogInformation("Seeded {Count} tier_feature_map row(s).", missing.Count);
+    }
+
+    private async Task EnsureCommercialPlansSeededAsync(CancellationToken ct)
+    {
+        var expected = CommercialPlanSeed.BuildAll();
+        var existingTiers = await _db.CommercialPlans
+            .Select(p => p.Tier)
+            .ToListAsync(ct);
+        var existingSet = existingTiers.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var missing = expected
+            .Where(p => !existingSet.Contains(p.Tier))
+            .ToList();
+
+        if (missing.Count == 0)
+            return;
+
+        _db.CommercialPlans.AddRange(missing);
+        await _db.SaveChangesAsync(ct);
+        _logger.LogInformation("Seeded {Count} commercial_plans row(s).", missing.Count);
     }
 }

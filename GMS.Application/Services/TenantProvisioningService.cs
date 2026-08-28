@@ -25,6 +25,7 @@ public class TenantProvisioningService : ITenantProvisioningService
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly RoleManager<IdentityRole<Guid>> _roleManager;
     private readonly ISubscriptionService _subscriptions;
+    private readonly ICommercialPlanService _commercialPlans;
     private readonly IPlatformAuditService _platformAudit;
     private readonly ILogger<TenantProvisioningService> _logger;
 
@@ -33,6 +34,7 @@ public class TenantProvisioningService : ITenantProvisioningService
         UserManager<ApplicationUser> userManager,
         RoleManager<IdentityRole<Guid>> roleManager,
         ISubscriptionService subscriptions,
+        ICommercialPlanService commercialPlans,
         IPlatformAuditService platformAudit,
         ILogger<TenantProvisioningService> logger)
     {
@@ -40,6 +42,7 @@ public class TenantProvisioningService : ITenantProvisioningService
         _userManager = userManager;
         _roleManager = roleManager;
         _subscriptions = subscriptions;
+        _commercialPlans = commercialPlans;
         _platformAudit = platformAudit;
         _logger = logger;
     }
@@ -53,11 +56,15 @@ public class TenantProvisioningService : ITenantProvisioningService
         var ownerEmail = request.OwnerEmail.Trim().ToLowerInvariant();
         var gymEmail = request.Email.Trim().ToLowerInvariant();
         var tier = string.IsNullOrWhiteSpace(request.Tier)
-            ? PlanTiers.Growth
+            ? await _commercialPlans.GetDefaultTierAsync(cancellationToken)
             : request.Tier.Trim().ToLowerInvariant();
 
         if (!PlanTiers.All.Contains(tier))
             return Result<ProvisionTenantResponse>.Failure($"Invalid plan tier '{request.Tier}'.");
+
+        var salesError = await _commercialPlans.ValidateTierForNewSalesAsync(tier, cancellationToken);
+        if (salesError != null)
+            return Result<ProvisionTenantResponse>.Failure(salesError);
 
         await EnsureIdentityRolesAsync(cancellationToken);
 
@@ -179,6 +186,7 @@ public class TenantProvisioningService : ITenantProvisioningService
             tier,
             SubscriptionInitiators.PlatformAdmin,
             actorPlatformUserId,
+            request.TrialDays,
             cancellationToken);
 
         if (!trial.Success)
@@ -217,7 +225,7 @@ public class TenantProvisioningService : ITenantProvisioningService
 
     private async Task EnsureIdentityRolesAsync(CancellationToken ct)
     {
-        foreach (var roleName in new[] { "Owner", "Manager", "Trainer", "Receptionist", "Member" })
+        foreach (var roleName in new[] { "Owner", "Manager", "Trainer", "Receptionist", "Member", "Employee" })
         {
             if (!await _roleManager.RoleExistsAsync(roleName))
                 await _roleManager.CreateAsync(new IdentityRole<Guid> { Name = roleName });

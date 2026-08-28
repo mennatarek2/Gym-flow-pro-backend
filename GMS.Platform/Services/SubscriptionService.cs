@@ -16,6 +16,7 @@ public class SubscriptionService : ISubscriptionService
     private readonly IFeatureAccessService _featureAccess;
     private readonly IPlatformProrationInvoiceService _prorationInvoices;
     private readonly IPlatformAuditService _audit;
+    private readonly ICommercialPlanService _commercialPlans;
     private readonly IConfiguration _configuration;
     private readonly ILogger<SubscriptionService> _logger;
 
@@ -25,6 +26,7 @@ public class SubscriptionService : ISubscriptionService
         IFeatureAccessService featureAccess,
         IPlatformProrationInvoiceService prorationInvoices,
         IPlatformAuditService audit,
+        ICommercialPlanService commercialPlans,
         IConfiguration configuration,
         ILogger<SubscriptionService> logger)
     {
@@ -33,6 +35,7 @@ public class SubscriptionService : ISubscriptionService
         _featureAccess = featureAccess;
         _prorationInvoices = prorationInvoices;
         _audit = audit;
+        _commercialPlans = commercialPlans;
         _configuration = configuration;
         _logger = logger;
     }
@@ -42,11 +45,20 @@ public class SubscriptionService : ISubscriptionService
         string tier = PlanTiers.Growth,
         string initiatedBy = SubscriptionInitiators.System,
         Guid? platformAdminUserId = null,
+        int? trialDays = null,
         CancellationToken cancellationToken = default)
     {
         tier = (tier ?? PlanTiers.Growth).Trim().ToLowerInvariant();
         if (!PlanTiers.IsValid(tier))
             return SubscriptionMutationResult.Fail("INVALID_TIER", $"Unknown plan tier '{tier}'.");
+
+        var salesError = await _commercialPlans.ValidateTierForNewSalesAsync(tier, cancellationToken);
+        if (salesError != null)
+            return SubscriptionMutationResult.Fail("PLAN_NOT_FOR_SALES", salesError);
+
+        var resolvedTrialDays = ResolveTrialDays(trialDays);
+        if (resolvedTrialDays == null)
+            return SubscriptionMutationResult.Fail("INVALID_TRIAL_DAYS", "trialDays must be between 1 and 90.");
 
         var existing = await _repo.GetLiveByTenantAsync(tenantId, cancellationToken);
         if (existing != null)
@@ -54,9 +66,14 @@ public class SubscriptionService : ISubscriptionService
                 "LIVE_SUBSCRIPTION_EXISTS",
                 "Tenant already has a live subscription (trialing/active/past_due).");
 
-        var trialDays = _configuration.GetValue("PlatformSubscription:TrialDays", 14);
+        if (await _repo.HasNonCancelledByTenantAsync(tenantId, cancellationToken))
+            return SubscriptionMutationResult.Fail(
+                "NON_CANCELLED_SUBSCRIPTION_EXISTS",
+                "Tenant has a non-cancelled subscription (e.g. suspended). Cancel or reactivate before starting a new trial.");
+
+        var days = resolvedTrialDays.Value;
         var today = MembershipOperational.TodayCairo();
-        var trialEnds = DateTime.UtcNow.AddDays(trialDays);
+        var trialEnds = DateTime.UtcNow.AddDays(days);
         var trialEndDate = DateOnly.FromDateTime(
             TimeZoneInfo.ConvertTimeFromUtc(trialEnds, EgyptTz()));
 
@@ -66,7 +83,7 @@ public class SubscriptionService : ISubscriptionService
             PlanTier = tier,
             Status = SubscriptionStatuses.Trialing,
             BillingCycle = BillingCycles.Monthly,
-            PriceEgp = PlatformListPrices.ForCycle(tier, BillingCycles.Monthly),
+            PriceEgp = await _commercialPlans.GetListPriceForCycleAsync(tier, BillingCycles.Monthly, cancellationToken),
             CurrentPeriodStart = today,
             CurrentPeriodEnd = trialEndDate,
             TrialEndsAtUtc = trialEnds,
@@ -93,6 +110,129 @@ public class SubscriptionService : ISubscriptionService
         return SubscriptionMutationResult.Ok(await MapAsync(subscription, cancellationToken));
     }
 
+    public async Task<SubscriptionMutationResult> ConvertTrialToPaidAsync(
+        Guid tenantId,
+        string reason,
+        string initiatedBy = SubscriptionInitiators.PlatformAdmin,
+        Guid? platformAdminUserId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+            return SubscriptionMutationResult.Fail(
+                "REASON_REQUIRED",
+                "Converting a trial to paid requires a mandatory reason.");
+
+        var subscription = await _repo.GetLiveByTenantAsync(tenantId, cancellationToken);
+        if (subscription == null)
+            return SubscriptionMutationResult.Fail("NO_LIVE_SUBSCRIPTION", "No live subscription for tenant.");
+
+        if (!string.Equals(subscription.Status, SubscriptionStatuses.Trialing, StringComparison.OrdinalIgnoreCase))
+            return SubscriptionMutationResult.Fail(
+                "NOT_TRIALING",
+                "Only trialing subscriptions can be converted to paid.");
+
+        var before = Snapshot(subscription);
+        subscription.Status = SubscriptionStatuses.Active;
+        subscription.TrialEndsAtUtc = null;
+
+        var change = new SubscriptionChange
+        {
+            TenantId = tenantId,
+            SubscriptionId = subscription.Id,
+            ChangeType = SubscriptionChangeTypes.Reactivation,
+            FromTier = subscription.PlanTier,
+            ToTier = subscription.PlanTier,
+            EffectiveAtUtc = DateTime.UtcNow,
+            InitiatedBy = initiatedBy,
+            PlatformAdminUserId = platformAdminUserId,
+            Reason = reason.Trim()
+        };
+
+        await _repo.SaveWithChangeAsync(subscription, change, cancellationToken);
+        await AfterWriteAsync(
+            tenantId, platformAdminUserId,
+            "platform.subscription.convert_trial",
+            before, subscription, cancellationToken);
+
+        return SubscriptionMutationResult.Ok(await MapAsync(subscription, cancellationToken));
+    }
+
+    public async Task<SubscriptionMutationResult> RestartPaidAsync(
+        Guid tenantId,
+        string tier,
+        string reason,
+        string initiatedBy = SubscriptionInitiators.PlatformAdmin,
+        Guid? platformAdminUserId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+            return SubscriptionMutationResult.Fail(
+                "REASON_REQUIRED",
+                "Restarting as paid requires a mandatory reason.");
+
+        tier = (tier ?? string.Empty).Trim().ToLowerInvariant();
+        if (!PlanTiers.IsValid(tier))
+            return SubscriptionMutationResult.Fail("INVALID_TIER", $"Unknown plan tier '{tier}'.");
+
+        var salesError = await _commercialPlans.ValidateTierForNewSalesAsync(tier, cancellationToken);
+        if (salesError != null)
+            return SubscriptionMutationResult.Fail("PLAN_NOT_FOR_SALES", salesError);
+
+        var live = await _repo.GetLiveByTenantAsync(tenantId, cancellationToken);
+        if (live != null)
+            return SubscriptionMutationResult.Fail(
+                "LIVE_SUBSCRIPTION_EXISTS",
+                "Tenant already has a live subscription (trialing/active/past_due).");
+
+        var latest = await _repo.GetLatestByTenantAsync(tenantId, cancellationToken);
+        if (latest == null || !string.Equals(latest.Status, SubscriptionStatuses.Cancelled, StringComparison.OrdinalIgnoreCase))
+            return SubscriptionMutationResult.Fail(
+                "NO_CANCELLED_SUBSCRIPTION",
+                "Tenant must have a cancelled subscription before restart-paid.");
+
+        var today = MembershipOperational.TodayCairo();
+        var periodEnd = AdvancePeriodEnd(today, BillingCycles.Monthly);
+        var priceEgp = await _commercialPlans.GetListPriceForCycleAsync(tier, BillingCycles.Monthly, cancellationToken);
+
+        var subscription = new PlatformSubscription
+        {
+            TenantId = tenantId,
+            PlanTier = tier,
+            Status = SubscriptionStatuses.Active,
+            BillingCycle = BillingCycles.Monthly,
+            PriceEgp = priceEgp,
+            CurrentPeriodStart = today,
+            CurrentPeriodEnd = periodEnd,
+            TrialEndsAtUtc = null,
+            CancelAtPeriodEnd = false,
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow
+        };
+
+        var change = new SubscriptionChange
+        {
+            TenantId = tenantId,
+            SubscriptionId = subscription.Id,
+            ChangeType = SubscriptionChangeTypes.Reactivation,
+            FromTier = latest.PlanTier,
+            ToTier = tier,
+            EffectiveAtUtc = DateTime.UtcNow,
+            InitiatedBy = initiatedBy,
+            PlatformAdminUserId = platformAdminUserId,
+            Reason = reason.Trim()
+        };
+
+        await _repo.SaveWithChangeAsync(subscription, change, cancellationToken);
+        await AfterWriteAsync(
+            tenantId, platformAdminUserId,
+            "platform.subscription.restart_paid",
+            before: new { cancelledSubscriptionId = latest.Id, latest.Status, latest.PlanTier },
+            subscription,
+            cancellationToken);
+
+        return SubscriptionMutationResult.Ok(await MapAsync(subscription, cancellationToken));
+    }
+
     public async Task<SubscriptionMutationResult> ChangeTierAsync(
         Guid tenantId,
         string newTier,
@@ -111,6 +251,13 @@ public class SubscriptionService : ISubscriptionService
             return SubscriptionMutationResult.Fail("NO_LIVE_SUBSCRIPTION", "No live subscription for tenant.");
 
         var fromTier = subscription.PlanTier;
+        if (!string.Equals(fromTier, newTier, StringComparison.OrdinalIgnoreCase))
+        {
+            var salesError = await _commercialPlans.ValidateTierForNewSalesAsync(newTier, cancellationToken);
+            if (salesError != null)
+                return SubscriptionMutationResult.Fail("PLAN_NOT_FOR_SALES", salesError);
+        }
+
         if (string.Equals(fromTier, newTier, StringComparison.OrdinalIgnoreCase))
             return SubscriptionMutationResult.Fail("SAME_TIER", "Subscription is already on that tier.");
 
@@ -121,12 +268,13 @@ public class SubscriptionService : ISubscriptionService
 
         if (isUpgrade || effectiveNow)
         {
-            var prorated = isUpgrade
-                ? EstimateProrationEgp(subscription, newTier)
-                : (decimal?)null;
-
             subscription.PlanTier = newTier;
-            subscription.PriceEgp = PlatformListPrices.ForCycle(newTier, subscription.BillingCycle);
+            subscription.PriceEgp = await _commercialPlans.GetListPriceForCycleAsync(
+                newTier, subscription.BillingCycle, cancellationToken);
+
+            var prorated = isUpgrade
+                ? await EstimateProrationEgpAsync(subscription, newTier, cancellationToken)
+                : (decimal?)null;
 
             var change = new SubscriptionChange
             {
@@ -236,6 +384,52 @@ public class SubscriptionService : ISubscriptionService
         return SubscriptionMutationResult.Ok(await MapAsync(subscription, cancellationToken));
     }
 
+    public async Task<SubscriptionMutationResult> UndoCancelAtPeriodEndAsync(
+        Guid tenantId,
+        string reason,
+        string initiatedBy = SubscriptionInitiators.PlatformAdmin,
+        Guid? platformAdminUserId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+            return SubscriptionMutationResult.Fail(
+                "REASON_REQUIRED",
+                "Undoing a scheduled cancellation requires a mandatory reason.");
+
+        var subscription = await _repo.GetLiveByTenantAsync(tenantId, cancellationToken);
+        if (subscription == null)
+            return SubscriptionMutationResult.Fail("NO_LIVE_SUBSCRIPTION", "No live subscription for tenant.");
+
+        if (!subscription.CancelAtPeriodEnd)
+            return SubscriptionMutationResult.Fail(
+                "CANCEL_NOT_SCHEDULED",
+                "Subscription does not have a cancellation scheduled at period end.");
+
+        var before = Snapshot(subscription);
+        subscription.CancelAtPeriodEnd = false;
+
+        var change = new SubscriptionChange
+        {
+            TenantId = tenantId,
+            SubscriptionId = subscription.Id,
+            ChangeType = SubscriptionChangeTypes.CancelUndo,
+            FromTier = subscription.PlanTier,
+            ToTier = subscription.PlanTier,
+            EffectiveAtUtc = DateTime.UtcNow,
+            InitiatedBy = initiatedBy,
+            PlatformAdminUserId = platformAdminUserId,
+            Reason = reason.Trim()
+        };
+
+        await _repo.SaveWithChangeAsync(subscription, change, cancellationToken);
+        await AfterWriteAsync(
+            tenantId, platformAdminUserId,
+            "platform.subscription.undo_cancel_at_period_end",
+            before, subscription, cancellationToken);
+
+        return SubscriptionMutationResult.Ok(await MapAsync(subscription, cancellationToken));
+    }
+
     public async Task<SubscriptionStatusDto?> GetStatusAsync(Guid tenantId, CancellationToken cancellationToken = default)
     {
         var cached = await _cache.GetAsync(tenantId, cancellationToken);
@@ -292,9 +486,24 @@ public class SubscriptionService : ISubscriptionService
             CancelledAtUtc = s.CancelledAtUtc,
             SuspendedAtUtc = s.SuspendedAtUtc,
             UpdatedAtUtc = s.UpdatedAtUtc,
-            PendingDowngradeTier = await _repo.GetPendingDowngradeTierAsync(s.Id, ct)
+            PendingDowngradeTier = await _repo.GetPendingDowngradeTierAsync(s.Id, ct),
+            HasPaymentMethodOnFile = !string.IsNullOrWhiteSpace(s.SavedCardToken)
         };
     }
+
+    private int? ResolveTrialDays(int? trialDays)
+    {
+        if (!trialDays.HasValue)
+            return _configuration.GetValue("PlatformSubscription:TrialDays", 14);
+        if (trialDays.Value < 1 || trialDays.Value > 90)
+            return null;
+        return trialDays.Value;
+    }
+
+    private static DateOnly AdvancePeriodEnd(DateOnly periodStart, string billingCycle) =>
+        string.Equals(billingCycle, BillingCycles.Annual, StringComparison.OrdinalIgnoreCase)
+            ? periodStart.AddYears(1).AddDays(-1)
+            : periodStart.AddMonths(1).AddDays(-1);
 
     private static object Snapshot(PlatformSubscription s) => new
     {
@@ -311,14 +520,17 @@ public class SubscriptionService : ISubscriptionService
         s.CancelledAtUtc
     };
 
-    /// <summary>Simple remaining-days / period-days * delta price. CP2 may refine.</summary>
-    private static decimal EstimateProrationEgp(PlatformSubscription subscription, string newTier)
+    private async Task<decimal> EstimateProrationEgpAsync(
+        PlatformSubscription subscription,
+        string newTier,
+        CancellationToken cancellationToken)
     {
         var today = MembershipOperational.TodayCairo();
         var totalDays = Math.Max(1, subscription.CurrentPeriodEnd.DayNumber - subscription.CurrentPeriodStart.DayNumber);
         var remaining = Math.Max(0, subscription.CurrentPeriodEnd.DayNumber - today.DayNumber);
         var oldPrice = subscription.PriceEgp;
-        var newPrice = PlatformListPrices.ForCycle(newTier, subscription.BillingCycle);
+        var newPrice = await _commercialPlans.GetListPriceForCycleAsync(
+            newTier, subscription.BillingCycle, cancellationToken);
         var delta = newPrice - oldPrice;
         if (delta <= 0)
             return 0m;

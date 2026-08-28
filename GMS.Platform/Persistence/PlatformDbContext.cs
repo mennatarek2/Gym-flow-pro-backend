@@ -23,6 +23,8 @@ public class PlatformDbContext : DbContext
     public DbSet<UsageCounter> UsageCounters => Set<UsageCounter>();
     public DbSet<FeatureOverride> FeatureOverrides => Set<FeatureOverride>();
     public DbSet<TierFeatureMap> TierFeatureMaps => Set<TierFeatureMap>();
+    public DbSet<CommercialPlan> CommercialPlans => Set<CommercialPlan>();
+    public DbSet<PlanChangeLog> PlanChangeLogs => Set<PlanChangeLog>();
     public DbSet<AutomationEnrollment> AutomationEnrollments => Set<AutomationEnrollment>();
     public DbSet<PriceOverride> PriceOverrides => Set<PriceOverride>();
     public DbSet<TenantHealthScore> TenantHealthScores => Set<TenantHealthScore>();

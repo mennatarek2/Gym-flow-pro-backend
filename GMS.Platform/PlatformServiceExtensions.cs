@@ -53,6 +53,7 @@ public static class PlatformServiceExtensions
         services.AddScoped<IPlatformBillingPaymentService, PlatformBillingPaymentService>();
         services.AddScoped<IPlatformInvoiceService, PlatformInvoiceService>();
         services.AddScoped<IPlatformProrationInvoiceService, PlatformInvoiceService>();
+        services.AddScoped<ICommercialPlanService, CommercialPlanService>();
         services.AddScoped<ISubscriptionService, SubscriptionService>();
         services.AddScoped<IPlatformTenantReadService, PlatformTenantReadService>();
         services.AddScoped<IPlatformTenantAdminService, PlatformTenantAdminService>();
@@ -60,6 +61,8 @@ public static class PlatformServiceExtensions
         services.AddScoped<IComputeTenantHealthScoresJob, TenantHealthScoreService>();
         services.AddScoped<IPlatformRiskQueueService, PlatformRiskQueueService>();
         services.AddScoped<IPlatformMetricsService, PlatformMetricsService>();
+        services.AddScoped<IPlatformUsageService, PlatformUsageService>();
+        services.AddScoped<IPlatformUserAdminService, PlatformUserAdminService>();
         services.AddScoped<IProcessSubscriptionRenewalsJob, ProcessSubscriptionRenewalsJob>();
         services.AddScoped<IFeatureAccessService, FeatureAccessService>();
         services.AddScoped<ITierEnforcementService, TierEnforcementService>();

@@ -163,7 +163,9 @@ public class Cp8PlatformMetricsTests
     private static PlatformMetricsService CreateMetrics(PlatformDbContext db)
     {
         var cache = new MemoryDistributedCache(Options.Create(new MemoryDistributedCacheOptions()));
-        return new PlatformMetricsService(db, cache, NullLogger<PlatformMetricsService>.Instance);
+        PlatformCommercialPlanTestHelper.SeedCommercialPlansAsync(db).GetAwaiter().GetResult();
+        var plans = PlatformCommercialPlanTestHelper.CreatePlanService(db);
+        return new PlatformMetricsService(db, cache, plans, NullLogger<PlatformMetricsService>.Instance);
     }
 
     private static PlatformSubscription Sub(

@@ -149,8 +149,12 @@ DELETE FROM dbo.tenants WHERE Id = {tenantId};
             })
             .Build();
 
+        PlatformCommercialPlanTestHelper.SeedCommercialPlansAsync(db).GetAwaiter().GetResult();
+        PlatformCommercialPlanTestHelper.SeedTierFeatureMapAsync(db).GetAwaiter().GetResult();
+        var commercialPlans = PlatformCommercialPlanTestHelper.CreatePlanService(db, audit);
+
         var svc = new SubscriptionService(
-            repo, cache, new AlwaysEnabledFeatureAccess(), invoices, audit, config, NullLogger<SubscriptionService>.Instance);
+            repo, cache, new AlwaysEnabledFeatureAccess(), invoices, audit, commercialPlans, config, NullLogger<SubscriptionService>.Instance);
         return (svc, db);
     }
 
@@ -209,6 +213,11 @@ END
             object? before = null,
             object? after = null,
             string? ipAddress = null) => Task.CompletedTask;
+
+        public Task<GMS.Platform.DTOs.PlatformPagedResult<GMS.Platform.DTOs.PlatformAuditLogDto>> ListAsync(
+            Guid? tenantId, string? action, DateOnly? from, DateOnly? to, int page, int pageSize,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new GMS.Platform.DTOs.PlatformPagedResult<GMS.Platform.DTOs.PlatformAuditLogDto> { Page = page, PageSize = pageSize });
     }
 
     private sealed class NoopProrationInvoiceService : IPlatformProrationInvoiceService

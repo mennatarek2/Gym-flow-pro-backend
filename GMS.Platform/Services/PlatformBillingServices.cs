@@ -472,6 +472,7 @@ public class ProcessSubscriptionRenewalsJob : IProcessSubscriptionRenewalsJob
     private readonly IPlatformAuditService _audit;
     private readonly IPlatformInvoiceService _invoiceService;
     private readonly IPlatformBillingPaymentService _payments;
+    private readonly ICommercialPlanService _commercialPlans;
     private readonly ILogger<ProcessSubscriptionRenewalsJob> _logger;
 
     public ProcessSubscriptionRenewalsJob(
@@ -481,6 +482,7 @@ public class ProcessSubscriptionRenewalsJob : IProcessSubscriptionRenewalsJob
         IPlatformAuditService audit,
         IPlatformInvoiceService invoiceService,
         IPlatformBillingPaymentService payments,
+        ICommercialPlanService commercialPlans,
         ILogger<ProcessSubscriptionRenewalsJob> logger)
     {
         _db = db;
@@ -489,6 +491,7 @@ public class ProcessSubscriptionRenewalsJob : IProcessSubscriptionRenewalsJob
         _audit = audit;
         _invoiceService = invoiceService;
         _payments = payments;
+        _commercialPlans = commercialPlans;
         _logger = logger;
     }
 
@@ -496,10 +499,15 @@ public class ProcessSubscriptionRenewalsJob : IProcessSubscriptionRenewalsJob
     public async Task ExecuteAsync(CancellationToken cancellationToken = default)
     {
         var today = MembershipOperational.TodayCairo();
+        // Catch-up safe: == today misses periods when Hangfire skipped a day.
+        // Idempotency relies on (1) period advance moving CurrentPeriodEnd forward so the
+        // row drops out of this filter, (2) EnsureRenewalInvoiceAsync unique per
+        // (subscriptionId, periodStart), (3) period-advance gated on start/end change,
+        // (4) dunning enroll idempotent on open enrollment.
         var due = await _db.Subscriptions
             .Where(s =>
                 (s.Status == SubscriptionStatuses.Active || s.Status == SubscriptionStatuses.Trialing) &&
-                s.CurrentPeriodEnd == today)
+                s.CurrentPeriodEnd <= today)
             .OrderBy(s => s.TenantId)
             .ToListAsync(cancellationToken);
 
@@ -569,7 +577,8 @@ public class ProcessSubscriptionRenewalsJob : IProcessSubscriptionRenewalsJob
         {
             var before = Snapshot(subscription);
             subscription.PlanTier = scheduledDowngrade.ToTier!;
-            subscription.PriceEgp = PlatformListPrices.ForCycle(subscription.PlanTier, subscription.BillingCycle);
+            subscription.PriceEgp = await _commercialPlans.GetListPriceForCycleAsync(
+                subscription.PlanTier, subscription.BillingCycle, cancellationToken);
 
             await _repo.SaveWithChangeAsync(subscription, new SubscriptionChange
             {

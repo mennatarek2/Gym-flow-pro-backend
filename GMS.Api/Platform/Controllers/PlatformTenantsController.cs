@@ -22,17 +22,20 @@ public class PlatformTenantsController : ControllerBase
     private readonly IPlatformTenantAdminService _admin;
     private readonly IPlatformImpersonationService _impersonation;
     private readonly ISubscriptionService _subscriptions;
+    private readonly ICommercialPlanService _commercialPlans;
 
     public PlatformTenantsController(
         IPlatformTenantReadService tenants,
         IPlatformTenantAdminService admin,
         IPlatformImpersonationService impersonation,
-        ISubscriptionService subscriptions)
+        ISubscriptionService subscriptions,
+        ICommercialPlanService commercialPlans)
     {
         _tenants = tenants;
         _admin = admin;
         _impersonation = impersonation;
         _subscriptions = subscriptions;
+        _commercialPlans = commercialPlans;
     }
 
     [HttpGet]
@@ -44,9 +47,12 @@ public class PlatformTenantsController : ControllerBase
         [FromQuery] string? search,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
+        [FromQuery] DateOnly? renewingBefore = null,
+        [FromQuery] bool? hasSubscription = null,
         CancellationToken ct = default)
     {
-        var result = await _tenants.ListAsync(status, tier, riskBand, search, page, pageSize, ct);
+        var result = await _tenants.ListAsync(
+            status, tier, riskBand, search, page, pageSize, renewingBefore, hasSubscription, ct);
         return Ok(result);
     }
 
@@ -132,10 +138,77 @@ public class PlatformTenantsController : ControllerBase
         if (detail == null)
             return NotFound(new { errorCode = "TENANT_NOT_FOUND", message = "Tenant not found." });
 
-        var tier = string.IsNullOrWhiteSpace(request?.Tier) ? PlanTiers.Growth : request.Tier!.Trim();
+        var tier = string.IsNullOrWhiteSpace(request?.Tier)
+            ? await _commercialPlans.GetDefaultTierAsync(ct)
+            : request!.Tier!.Trim();
         var result = await _subscriptions.StartTrialAsync(
             tenantId,
             tier,
+            SubscriptionInitiators.PlatformAdmin,
+            actor.Value,
+            request?.TrialDays,
+            ct);
+
+        if (!result.Success)
+        {
+            if (string.Equals(result.ErrorCode, "LIVE_SUBSCRIPTION_EXISTS", StringComparison.Ordinal) ||
+                string.Equals(result.ErrorCode, "NON_CANCELLED_SUBSCRIPTION_EXISTS", StringComparison.Ordinal))
+                return Conflict(result);
+            return BadRequest(result);
+        }
+
+        return Ok(result.Subscription);
+    }
+
+    /// <summary>
+    /// Sales-assisted trial → active conversion. Does not collect payment or create a new subscription row.
+    /// </summary>
+    [HttpPost("{tenantId:guid}/subscription/convert-trial")]
+    [Authorize(Policy = "PlatformOpsOrAbove")]
+    [ProducesResponseType(typeof(SubscriptionMutationResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ConvertTrial(
+        Guid tenantId,
+        [FromBody] ConvertTrialRequest request,
+        CancellationToken ct)
+    {
+        var actor = RequireActorId();
+        if (actor == null)
+            return Unauthorized();
+
+        var result = await _subscriptions.ConvertTrialToPaidAsync(
+            tenantId,
+            request?.Reason ?? string.Empty,
+            SubscriptionInitiators.PlatformAdmin,
+            actor.Value,
+            ct);
+
+        if (!result.Success)
+            return BadRequest(result);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Creates a new active paid subscription after cancel. Does not revive the cancelled row.
+    /// </summary>
+    [HttpPost("{tenantId:guid}/subscription/restart-paid")]
+    [Authorize(Policy = "PlatformOpsOrAbove")]
+    [ProducesResponseType(typeof(SubscriptionMutationResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> RestartPaid(
+        Guid tenantId,
+        [FromBody] RestartPaidRequest request,
+        CancellationToken ct)
+    {
+        var actor = RequireActorId();
+        if (actor == null)
+            return Unauthorized();
+
+        var result = await _subscriptions.RestartPaidAsync(
+            tenantId,
+            request?.Tier ?? string.Empty,
+            request?.Reason ?? string.Empty,
             SubscriptionInitiators.PlatformAdmin,
             actor.Value,
             ct);
@@ -146,8 +219,7 @@ public class PlatformTenantsController : ControllerBase
                 return Conflict(result);
             return BadRequest(result);
         }
-
-        return Ok(result.Subscription);
+        return Ok(result);
     }
 
     [HttpPost("{tenantId:guid}/force-suspend")]

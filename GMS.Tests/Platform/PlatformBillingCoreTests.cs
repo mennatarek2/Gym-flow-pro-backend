@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using GMS.Core.Entities;
@@ -439,13 +440,17 @@ public class PlatformBillingCoreTests
             new MemoryDistributedCache(Options.Create(new MemoryDistributedCacheOptions())),
             NullLogger<SubscriptionStatusCache>.Instance);
 
+        var audit = new NoOpAudit();
+        var commercialPlans = PlatformCommercialPlanTestHelper.CreatePlanService(ctx, audit);
+
         return new ProcessSubscriptionRenewalsJob(
             ctx,
             repo,
             cache,
-            new NoOpAudit(),
+            audit,
             CreateInvoiceService(ctx),
             payments,
+            commercialPlans,
             NullLogger<ProcessSubscriptionRenewalsJob>.Instance);
     }
 
@@ -469,8 +474,8 @@ public class PlatformBillingCoreTests
             new NoopAutomationEnrollment(),
             new NoOpAudit(),
             whatsApp,
-            new PlatformMerchantPaymobService(httpClient, config, NullLogger<PlatformMerchantPaymobService>.Instance),
-            new PlatformMerchantFawryService(httpClient, config, NullLogger<PlatformMerchantFawryService>.Instance),
+            new PlatformMerchantPaymobService(httpClient, config, FakeDevHost(), NullLogger<PlatformMerchantPaymobService>.Instance),
+            new PlatformMerchantFawryService(httpClient, config, FakeDevHost(), NullLogger<PlatformMerchantFawryService>.Instance),
             config,
             new MemoryDistributedCache(Options.Create(new MemoryDistributedCacheOptions())),
             NullLogger<PlatformBillingPaymentService>.Instance);
@@ -579,6 +584,11 @@ public class PlatformBillingCoreTests
             object? before = null,
             object? after = null,
             string? ipAddress = null) => Task.CompletedTask;
+
+        public Task<GMS.Platform.DTOs.PlatformPagedResult<GMS.Platform.DTOs.PlatformAuditLogDto>> ListAsync(
+            Guid? tenantId, string? action, DateOnly? from, DateOnly? to, int page, int pageSize,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new GMS.Platform.DTOs.PlatformPagedResult<GMS.Platform.DTOs.PlatformAuditLogDto> { Page = page, PageSize = pageSize });
     }
 
     private sealed class AlwaysPaidPaymentService : IPlatformBillingPaymentService
@@ -701,5 +711,16 @@ public class PlatformBillingCoreTests
             string subjectType, Guid subjectId, string? sequenceKey = null,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<AutomationEnrollment?>(null);
+    }
+
+    private static IHostEnvironment FakeDevHost() => new DevHostEnvironment();
+
+    private sealed class DevHostEnvironment : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = Environments.Development;
+        public string ApplicationName { get; set; } = "GymFlowPro.Tests";
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } =
+            new Microsoft.Extensions.FileProviders.NullFileProvider();
     }
 }

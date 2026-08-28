@@ -27,15 +27,18 @@ public class PlatformMetricsService : IPlatformMetricsService
 
     private readonly PlatformDbContext _db;
     private readonly IDistributedCache _cache;
+    private readonly ICommercialPlanService _commercialPlans;
     private readonly ILogger<PlatformMetricsService> _logger;
 
     public PlatformMetricsService(
         PlatformDbContext db,
         IDistributedCache cache,
+        ICommercialPlanService commercialPlans,
         ILogger<PlatformMetricsService> logger)
     {
         _db = db;
         _cache = cache;
+        _commercialPlans = commercialPlans;
         _logger = logger;
     }
 
@@ -164,10 +167,11 @@ public class PlatformMetricsService : IPlatformMetricsService
             if (change.ChangeType is SubscriptionChangeTypes.Upgrade or SubscriptionChangeTypes.Downgrade
                 && !string.IsNullOrWhiteSpace(change.FromTier) && !string.IsNullOrWhiteSpace(change.ToTier))
             {
-                var fromMrr = PlatformListPrices.MonthlyEgp(change.FromTier!);
+                var fromMrr = await _commercialPlans.GetListPriceForCycleAsync(
+                    change.FromTier!, BillingCycles.Monthly, ct);
                 var toMrr = string.Equals(change.ToTier, sub.PlanTier, StringComparison.OrdinalIgnoreCase)
                     ? ToMonthlyMrr(sub.PriceEgp, sub.BillingCycle)
-                    : PlatformListPrices.MonthlyEgp(change.ToTier!);
+                    : await _commercialPlans.GetListPriceForCycleAsync(change.ToTier!, BillingCycles.Monthly, ct);
 
                 var delta = toMrr - fromMrr;
                 if (delta > 0)
