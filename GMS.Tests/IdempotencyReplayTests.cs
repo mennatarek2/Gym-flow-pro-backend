@@ -184,6 +184,7 @@ public class IdempotencyReplayTests
             new UnlimitedTierEnforcement(),
             new NoOpReferralAttribution(),
             new NoOpMemberAppActivation(),
+            new ActivityEntitlementService(ctx),
             NullLogger<MemberService>.Instance);
         var auditService = new AuditService(ctx, new HttpContextAccessor(), tenantContext, NullLogger<AuditService>.Instance);
         var importService = new ImportService(ctx, memberService, new NoOpFileStorageService(), auditService, tenantContext, new AlwaysEnabledFeatureAccess(), NullLogger<ImportService>.Instance);

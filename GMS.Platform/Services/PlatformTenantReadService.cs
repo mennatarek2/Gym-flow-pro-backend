@@ -28,6 +28,8 @@ public class PlatformTenantReadService : IPlatformTenantReadService
         string? search,
         int page,
         int pageSize,
+        DateOnly? renewingBefore = null,
+        bool? hasSubscription = null,
         CancellationToken cancellationToken = default)
     {
         page = Math.Max(1, page);
@@ -35,10 +37,16 @@ public class PlatformTenantReadService : IPlatformTenantReadService
 
         var tenants = await LoadAllTenantsAsync(cancellationToken);
         var allSubs = await _db.Subscriptions.AsNoTracking().ToListAsync(cancellationToken);
+        var tenantIdsWithAnySub = allSubs.Select(s => s.TenantId).ToHashSet();
         var byTenant = PickDisplaySubscription(allSubs);
         var healthByTenant = await _db.TenantHealthScores.AsNoTracking()
             .ToDictionaryAsync(h => h.TenantId, cancellationToken);
         var lastLoginByTenant = await LoadLastLoginByTenantAsync(cancellationToken);
+        var ownerByTenant = await LoadOwnersByTenantAsync(cancellationToken);
+        var memberUsageByTenant = await _db.UsageCounters
+            .AsNoTracking()
+            .Where(c => c.Period == CurrentCairoPeriod() && c.Metric == UsageMetrics.ActiveMembers)
+            .ToDictionaryAsync(c => c.TenantId, cancellationToken);
 
         var statusFilter = ParseCsv(status);
         var tierFilter = ParseCsv(tier);
@@ -50,6 +58,8 @@ public class PlatformTenantReadService : IPlatformTenantReadService
             byTenant.TryGetValue(t.Id, out var sub);
             healthByTenant.TryGetValue(t.Id, out var health);
             lastLoginByTenant.TryGetValue(t.Id, out var lastLogin);
+            var hasOwner = ownerByTenant.TryGetValue(t.Id, out var owner);
+            memberUsageByTenant.TryGetValue(t.Id, out var memberUsage);
             return new PlatformTenantListItemDto
             {
                 Id = t.Id,
@@ -58,11 +68,17 @@ public class PlatformTenantReadService : IPlatformTenantReadService
                 PlanTier = sub?.PlanTier,
                 Status = sub?.Status,
                 BillingCycle = sub?.BillingCycle,
+                CurrentPeriodStart = sub?.CurrentPeriodStart,
                 CurrentPeriodEnd = sub?.CurrentPeriodEnd,
+                TrialEndsAtUtc = sub?.TrialEndsAtUtc,
                 PriceEgp = sub?.PriceEgp,
                 RiskBand = health?.RiskBand,
                 HealthScore = health?.Score,
-                LastLoginAtUtc = lastLogin
+                LastLoginAtUtc = lastLogin,
+                OwnerName = hasOwner ? owner.FullName : null,
+                OwnerEmail = hasOwner ? owner.Email : null,
+                MemberCount = memberUsage?.Count,
+                MemberCap = memberUsage?.Cap
             };
         });
 
@@ -78,6 +94,14 @@ public class PlatformTenantReadService : IPlatformTenantReadService
                 r.Name.Contains(searchNorm, StringComparison.OrdinalIgnoreCase) ||
                 r.GymCode.Contains(searchNorm, StringComparison.OrdinalIgnoreCase));
         }
+        if (renewingBefore.HasValue)
+        {
+            rows = rows.Where(r => r.CurrentPeriodEnd.HasValue && r.CurrentPeriodEnd.Value <= renewingBefore.Value);
+        }
+        if (hasSubscription == false)
+            rows = rows.Where(r => !tenantIdsWithAnySub.Contains(r.Id));
+        else if (hasSubscription == true)
+            rows = rows.Where(r => tenantIdsWithAnySub.Contains(r.Id));
 
         var materialised = rows
             .OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
@@ -216,6 +240,8 @@ public class PlatformTenantReadService : IPlatformTenantReadService
         var lastLogins = await LoadLastLoginByTenantAsync(cancellationToken);
         lastLogins.TryGetValue(tenantId, out var lastLogin);
 
+        var users = await LoadTenantUsersAsync(tenantId, cancellationToken);
+
         return new PlatformTenantDetailDto
         {
             Id = tenant.Id,
@@ -234,8 +260,56 @@ public class PlatformTenantReadService : IPlatformTenantReadService
             FeatureOverrides = overrides,
             PriceOverrides = coupons,
             RecentAudit = audit,
-            LastLoginAtUtc = lastLogin
+            LastLoginAtUtc = lastLogin,
+            Users = users
         };
+    }
+
+    /// <summary>Staff login accounts for the tenant (Member-role accounts excluded, mirroring
+    /// AdminService.GetStaffUsersAsync's own filter) — raw SQL against dbo.* since PlatformDbContext
+    /// deliberately has no EF model for tenant-side Identity tables.</summary>
+    private async Task<List<PlatformTenantUserDto>> LoadTenantUsersAsync(Guid tenantId, CancellationToken cancellationToken)
+    {
+        if (!_db.Database.IsRelational())
+            return new List<PlatformTenantUserDto>();
+
+        var connection = _db.Database.GetDbConnection();
+        if (connection.State != ConnectionState.Open)
+            await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT u.Id, u.FirstName, u.LastName, u.Email, u.IsActive, u.UpdatedAtUtc, r.Name AS RoleName
+            FROM dbo.AspNetUsers u
+            LEFT JOIN dbo.AspNetUserRoles ur ON ur.UserId = u.Id
+            LEFT JOIN dbo.AspNetRoles r ON r.Id = ur.RoleId
+            WHERE u.TenantId = @tenantId
+            """;
+        var param = command.CreateParameter();
+        param.ParameterName = "@tenantId";
+        param.Value = tenantId;
+        command.Parameters.Add(param);
+
+        var users = new List<PlatformTenantUserDto>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var role = reader["RoleName"]?.ToString();
+            if (string.IsNullOrEmpty(role) || string.Equals(role, "Member", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            users.Add(new PlatformTenantUserDto
+            {
+                Id = reader.GetGuid(reader.GetOrdinal("Id")),
+                FullName = $"{reader["FirstName"]} {reader["LastName"]}".Trim(),
+                Email = reader["Email"]?.ToString() ?? string.Empty,
+                Role = role,
+                IsActive = reader["IsActive"] is bool b && b,
+                UpdatedAtUtc = reader["UpdatedAtUtc"] is DateTime dt ? dt : null
+            });
+        }
+
+        return users.OrderBy(u => u.FullName, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     public async Task<IReadOnlyList<SubscriptionChangeDto>> GetSubscriptionChangesAsync(
@@ -294,6 +368,56 @@ public class PlatformTenantReadService : IPlatformTenantReadService
                 CreatedAtUtc = i.CreatedAtUtc
             })
             .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// One active Owner-role account per tenant, for the whole tenant list in a single bulk query —
+    /// the same "Owner" role relationship PlatformImpersonationService.CreateAsync uses to pick who
+    /// to impersonate. A tenant with more than one active Owner account (not expected, not prevented
+    /// either) deterministically picks the earliest-created one. Raw SQL against dbo.* since
+    /// PlatformDbContext has no EF model for tenant-side Identity tables.
+    /// </summary>
+    private async Task<Dictionary<Guid, (string FullName, string Email)>> LoadOwnersByTenantAsync(
+        CancellationToken cancellationToken)
+    {
+        if (!_db.Database.IsRelational())
+            return new Dictionary<Guid, (string, string)>();
+
+        var connection = _db.Database.GetDbConnection();
+        if (connection.State != ConnectionState.Open)
+            await connection.OpenAsync(cancellationToken);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT u.TenantId, u.FirstName, u.LastName, u.Email, u.CreatedAtUtc
+            FROM dbo.AspNetUsers u
+            JOIN dbo.AspNetUserRoles ur ON ur.UserId = u.Id
+            JOIN dbo.AspNetRoles r ON r.Id = ur.RoleId
+            WHERE r.Name = 'Owner' AND u.IsActive = 1 AND u.TenantId IS NOT NULL
+            """;
+
+        var rows = new List<(Guid TenantId, string FullName, string Email, DateTime CreatedAtUtc)>();
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                rows.Add((
+                    reader.GetGuid(reader.GetOrdinal("TenantId")),
+                    $"{reader["FirstName"]} {reader["LastName"]}".Trim(),
+                    reader["Email"]?.ToString() ?? string.Empty,
+                    reader.GetDateTime(reader.GetOrdinal("CreatedAtUtc"))));
+            }
+        }
+
+        return rows
+            .GroupBy(r => r.TenantId)
+            .ToDictionary(
+                g => g.Key,
+                g =>
+                {
+                    var first = g.OrderBy(r => r.CreatedAtUtc).First();
+                    return (first.FullName, first.Email);
+                });
     }
 
     private async Task<Dictionary<Guid, DateTime?>> LoadLastLoginByTenantAsync(CancellationToken cancellationToken)
@@ -365,7 +489,8 @@ public class PlatformTenantReadService : IPlatformTenantReadService
         CancelledAtUtc = s.CancelledAtUtc,
         SuspendedAtUtc = s.SuspendedAtUtc,
         UpdatedAtUtc = s.UpdatedAtUtc,
-        PendingDowngradeTier = pendingDowngradeTier
+        PendingDowngradeTier = pendingDowngradeTier,
+        HasPaymentMethodOnFile = !string.IsNullOrWhiteSpace(s.SavedCardToken)
     };
 
     private async Task<List<TenantRow>> LoadAllTenantsAsync(CancellationToken cancellationToken)
@@ -381,6 +506,7 @@ public class PlatformTenantReadService : IPlatformTenantReadService
         command.CommandText = """
             SELECT Id, Name, NameAr, GymCode, City, PhoneNumber, Email, IsActive
             FROM dbo.tenants
+            WHERE IsDeleted = 0
             """;
 
         var rows = new List<TenantRow>();
@@ -404,7 +530,7 @@ public class PlatformTenantReadService : IPlatformTenantReadService
         command.CommandText = """
             SELECT TOP (1) Id, Name, NameAr, GymCode, City, PhoneNumber, Email, IsActive
             FROM dbo.tenants
-            WHERE Id = @tenantId
+            WHERE Id = @tenantId AND IsDeleted = 0
             """;
 
         var param = command.CreateParameter();

@@ -78,7 +78,9 @@ public class AuditService : IAuditService
         catch (Exception ex)
         {
             // Detach failed insert so ChangeTracker poison cannot break the caller (e.g. member activate).
-            if (pending != null)
+            // ObjectDisposedException means the context itself is gone — there is nothing to detach
+            // and touching it would rethrow, violating the fire-and-forget-safe contract.
+            if (pending != null && ex is not ObjectDisposedException)
             {
                 var entry = _dbContext.Entry(pending);
                 if (entry.State != EntityState.Detached)

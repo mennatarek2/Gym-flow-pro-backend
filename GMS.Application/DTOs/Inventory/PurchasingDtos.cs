@@ -114,7 +114,8 @@ public class CreatePurchaseOrderLineRequest
 public class CreatePurchaseOrderRequest
 {
     public Guid SupplierId { get; set; }
-    public Guid WarehouseId { get; set; }
+    /// <summary>Optional — server auto-resolves to tenant default warehouse when null.</summary>
+    public Guid? WarehouseId { get; set; }
     public string? Notes { get; set; }
     public List<CreatePurchaseOrderLineRequest> Lines { get; set; } = new();
 }
@@ -122,7 +123,8 @@ public class CreatePurchaseOrderRequest
 public class CreatePoFromSuggestionsRequest
 {
     public Guid SupplierId { get; set; }
-    public Guid WarehouseId { get; set; }
+    /// <summary>Optional — server auto-resolves to tenant default warehouse when null.</summary>
+    public Guid? WarehouseId { get; set; }
     public string? Notes { get; set; }
     /// <summary>When empty, include all current reorder suggestions.</summary>
     public List<Guid>? ProductIds { get; set; }

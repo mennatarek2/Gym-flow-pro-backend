@@ -65,6 +65,7 @@ public class ReferralAttributionServiceTests
         var members = new MemberService(
             ctx, new MemberRepository(ctx), enc, new UnlimitedTierEnforcement(), attrib,
             new NoOpMemberAppActivation(),
+            new ActivityEntitlementService(ctx),
             NullLogger<MemberService>.Instance);
 
         return (ctx, attrib, members, tenantId, referrer.Id, referrer.ReferralCode!);

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using GMS.Application.Common;
 using GMS.Application.DTOs.CallSheet;
+using GMS.Application.DTOs.Notifications;
 using GMS.Application.Interfaces;
 using GMS.Core.Constants;
 using GMS.Core.Entities;
@@ -24,11 +25,16 @@ public class CallSheetService : ICallSheetService
 
     private readonly GymFlowProDbContext _db;
     private readonly ILogger<CallSheetService> _logger;
+    private readonly IStaffNotificationPublisher? _staffNotifications;
 
-    public CallSheetService(GymFlowProDbContext db, ILogger<CallSheetService> logger)
+    public CallSheetService(
+        GymFlowProDbContext db,
+        ILogger<CallSheetService> logger,
+        IStaffNotificationPublisher? staffNotifications = null)
     {
         _db = db;
         _logger = logger;
+        _staffNotifications = staffNotifications;
     }
 
     public async Task<Result<FollowUpListDto>> GetQueueAsync(
@@ -143,6 +149,27 @@ public class CallSheetService : ICallSheetService
             };
             _db.MemberFollowUps.Add(row);
             await _db.SaveChangesAsync();
+
+            // Manual follow-up create ≈ new lead/action for the desk.
+            if (_staffNotifications != null)
+            {
+                await _staffNotifications.TryPublishAsync(tenantId, new CreateStaffNotificationRequest
+                {
+                    Type = StaffNotificationTypes.LeadNew,
+                    Category = StaffNotificationCategories.Leads,
+                    Priority = StaffNotificationPriorities.ActionRequired,
+                    Title = "New follow-up",
+                    TitleAr = "متابعة جديدة",
+                    Body = $"{member.FullName}: {reason}",
+                    BodyAr = $"{member.FullName}: {reason}",
+                    EntityType = "MemberFollowUp",
+                    EntityId = row.Id,
+                    ActionUrl = "/dashboard/call-sheet/",
+                    DedupeKey = $"lead-new:{row.Id:N}",
+                    RecipientRoles = new[] { "Owner", "Manager", "Receptionist" },
+                    RecipientAppUserIds = assigned.HasValue ? new[] { assigned.Value } : null
+                });
+            }
 
             row.Member = member;
             return Result<FollowUpDto>.Success(await MapOneAsync(row, tenantId));
@@ -272,8 +299,8 @@ public class CallSheetService : ICallSheetService
             var membershipIds = memberships.Select(m => m.Id).ToList();
 
             var lastVisits = await _db.GymAttendances
-                .Where(a => a.TenantId == tenantId && memberIds.Contains(a.MemberId))
-                .GroupBy(a => a.MemberId)
+                .Where(a => a.TenantId == tenantId && a.MemberId.HasValue && memberIds.Contains(a.MemberId.Value))
+                .GroupBy(a => a.MemberId!.Value)
                 .Select(g => new { MemberId = g.Key, LastVisitAt = g.Max(a => a.CheckInAtUtc) })
                 .ToDictionaryAsync(g => g.MemberId, g => g.LastVisitAt);
 
@@ -512,8 +539,8 @@ public class CallSheetService : ICallSheetService
 
         var memberIds = covering.Select(m => m.MemberId).Distinct().ToList();
         var lastVisits = await _db.GymAttendances
-            .Where(a => a.TenantId == tenantId && memberIds.Contains(a.MemberId))
-            .GroupBy(a => a.MemberId)
+            .Where(a => a.TenantId == tenantId && a.MemberId.HasValue && memberIds.Contains(a.MemberId.Value))
+            .GroupBy(a => a.MemberId!.Value)
             .Select(g => new { MemberId = g.Key, Last = g.Max(a => a.CheckInAtUtc) })
             .ToDictionaryAsync(x => x.MemberId, x => x.Last);
 

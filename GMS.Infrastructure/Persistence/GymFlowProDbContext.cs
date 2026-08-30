@@ -42,6 +42,7 @@ public class GymFlowProDbContext : IdentityDbContext<ApplicationUser, IdentityRo
         typeof(MemberInvitation), typeof(AppUser), typeof(Notification), typeof(AuditEvent),
         typeof(PromoCode), typeof(Sale), typeof(SaleLine), typeof(Invoice),
         typeof(Shift), typeof(CashMovement), typeof(ZReport),
+        typeof(CashExpense),
         typeof(Refund), typeof(MemberCredit), typeof(CallOutcome), typeof(MemberFollowUp),
         typeof(ImportBatch), typeof(ImportRow),
         typeof(PaymentTransaction), typeof(AnalyticsSnapshot), typeof(GymAnalyticsSnapshot),
@@ -57,13 +58,19 @@ public class GymFlowProDbContext : IdentityDbContext<ApplicationUser, IdentityRo
         typeof(MemberOrder), typeof(MemberOrderLine),
         typeof(Offer),
         typeof(Activity), typeof(ActivitySchedule), typeof(ActivitySession),
-        typeof(ActivityBooking), typeof(PlanEntitlement)
+        typeof(ActivityBooking), typeof(PlanEntitlement),
+        typeof(Department), typeof(Position), typeof(Employee), typeof(EmployeeContract),
+        typeof(EmployeeShift), typeof(EmployeeScheduleAssignment), typeof(EmployeeAttendance),
+        typeof(LeaveRequest), typeof(LeaveBalance),
+        typeof(PayrollPeriod), typeof(PayrollLine), typeof(PayrollAdjustment),
+        typeof(EmployeeDocument)
     };
 
     // DbSets for all domain entities
     public DbSet<Tenant> Tenants { get; set; } = null!;
     public DbSet<GymMember> GymMembers { get; set; } = null!;
     public DbSet<MemberAppActivationCode> MemberAppActivationCodes { get; set; } = null!;
+    public DbSet<EmployeeAppActivationCode> EmployeeAppActivationCodes { get; set; } = null!;
     public DbSet<MembershipPlan> MembershipPlans { get; set; } = null!;
     public DbSet<Membership> Memberships { get; set; } = null!;
     public DbSet<GymAttendance> GymAttendances { get; set; } = null!;
@@ -83,6 +90,7 @@ public class GymFlowProDbContext : IdentityDbContext<ApplicationUser, IdentityRo
     public DbSet<InvoiceSequence> InvoiceSequences { get; set; } = null!;
     public DbSet<Shift> Shifts { get; set; } = null!;
     public DbSet<CashMovement> CashMovements { get; set; } = null!;
+    public DbSet<CashExpense> CashExpenses { get; set; } = null!;
     public DbSet<ZReport> ZReports { get; set; } = null!;
     public DbSet<Refund> Refunds { get; set; } = null!;
     public DbSet<MemberCredit> MemberCredits { get; set; } = null!;
@@ -117,6 +125,19 @@ public class GymFlowProDbContext : IdentityDbContext<ApplicationUser, IdentityRo
     public DbSet<ActivitySession> ActivitySessions { get; set; } = null!;
     public DbSet<ActivityBooking> ActivityBookings { get; set; } = null!;
     public DbSet<PlanEntitlement> PlanEntitlements { get; set; } = null!;
+    public DbSet<Department> Departments { get; set; } = null!;
+    public DbSet<Position> Positions { get; set; } = null!;
+    public DbSet<Employee> Employees { get; set; } = null!;
+    public DbSet<EmployeeContract> EmployeeContracts { get; set; } = null!;
+    public DbSet<EmployeeShift> EmployeeShifts { get; set; } = null!;
+    public DbSet<EmployeeScheduleAssignment> EmployeeScheduleAssignments { get; set; } = null!;
+    public DbSet<EmployeeAttendance> EmployeeAttendances { get; set; } = null!;
+    public DbSet<LeaveRequest> LeaveRequests { get; set; } = null!;
+    public DbSet<LeaveBalance> LeaveBalances { get; set; } = null!;
+    public DbSet<PayrollPeriod> PayrollPeriods { get; set; } = null!;
+    public DbSet<PayrollLine> PayrollLines { get; set; } = null!;
+    public DbSet<PayrollAdjustment> PayrollAdjustments { get; set; } = null!;
+    public DbSet<EmployeeDocument> EmployeeDocuments { get; set; } = null!;
 
     /// <summary>
     /// Constructor allowing optional ITenantContext for startup scenarios.
@@ -329,6 +350,9 @@ public class GymFlowProDbContext : IdentityDbContext<ApplicationUser, IdentityRo
         modelBuilder.Entity<Offer>().HasQueryFilter(o =>
             o.TenantId == _tenantContext.TenantId && !o.IsDeleted);
 
+        modelBuilder.Entity<CashExpense>().HasQueryFilter(e =>
+            e.TenantId == _tenantContext.TenantId && !e.IsDeleted);
+
         modelBuilder.Entity<Activity>().HasQueryFilter(a =>
             a.TenantId == _tenantContext.TenantId && !a.IsDeleted);
         modelBuilder.Entity<ActivitySchedule>().HasQueryFilter(s =>
@@ -339,6 +363,37 @@ public class GymFlowProDbContext : IdentityDbContext<ApplicationUser, IdentityRo
             b.TenantId == _tenantContext.TenantId && !b.IsDeleted);
         modelBuilder.Entity<PlanEntitlement>().HasQueryFilter(e =>
             e.TenantId == _tenantContext.TenantId && !e.IsDeleted);
+
+        modelBuilder.Entity<Department>().HasQueryFilter(d =>
+            d.TenantId == _tenantContext.TenantId && !d.IsDeleted);
+        modelBuilder.Entity<Position>().HasQueryFilter(p =>
+            p.TenantId == _tenantContext.TenantId && !p.IsDeleted);
+        modelBuilder.Entity<Employee>().HasQueryFilter(e =>
+            e.TenantId == _tenantContext.TenantId && !e.IsDeleted);
+        modelBuilder.Entity<EmployeeContract>().HasQueryFilter(c =>
+            c.TenantId == _tenantContext.TenantId && !c.IsDeleted);
+
+        modelBuilder.Entity<EmployeeShift>().HasQueryFilter(s =>
+            s.TenantId == _tenantContext.TenantId && !s.IsDeleted);
+        modelBuilder.Entity<EmployeeScheduleAssignment>().HasQueryFilter(a =>
+            a.TenantId == _tenantContext.TenantId && !a.IsDeleted);
+        modelBuilder.Entity<EmployeeAttendance>().HasQueryFilter(a =>
+            a.TenantId == _tenantContext.TenantId && !a.IsDeleted);
+
+        modelBuilder.Entity<LeaveRequest>().HasQueryFilter(l =>
+            l.TenantId == _tenantContext.TenantId && !l.IsDeleted);
+        modelBuilder.Entity<LeaveBalance>().HasQueryFilter(b =>
+            b.TenantId == _tenantContext.TenantId && !b.IsDeleted);
+
+        modelBuilder.Entity<PayrollPeriod>().HasQueryFilter(p =>
+            p.TenantId == _tenantContext.TenantId && !p.IsDeleted);
+        modelBuilder.Entity<PayrollLine>().HasQueryFilter(l =>
+            l.TenantId == _tenantContext.TenantId && !l.IsDeleted);
+        modelBuilder.Entity<PayrollAdjustment>().HasQueryFilter(a =>
+            a.TenantId == _tenantContext.TenantId && !a.IsDeleted);
+
+        modelBuilder.Entity<EmployeeDocument>().HasQueryFilter(d =>
+            d.TenantId == _tenantContext.TenantId && !d.IsDeleted);
 
         // NOTE: SaleIdempotencyKey and InvoiceSequence have no global query filter — neither is a
         // BaseEntity (no IsDeleted) and both are always queried by an explicit TenantId, per their

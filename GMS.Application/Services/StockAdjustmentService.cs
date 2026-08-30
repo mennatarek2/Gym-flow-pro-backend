@@ -15,17 +15,20 @@ public class StockAdjustmentService : IStockAdjustmentService
 {
     private readonly GymFlowProDbContext _db;
     private readonly IStockLedgerService _ledger;
+    private readonly IWarehouseService _warehouses;
     private readonly IAuditService _audit;
     private readonly ILogger<StockAdjustmentService> _logger;
 
     public StockAdjustmentService(
         GymFlowProDbContext db,
         IStockLedgerService ledger,
+        IWarehouseService warehouses,
         IAuditService audit,
         ILogger<StockAdjustmentService> logger)
     {
         _db = db;
         _ledger = ledger;
+        _warehouses = warehouses;
         _audit = audit;
         _logger = logger;
     }
@@ -51,10 +54,21 @@ public class StockAdjustmentService : IStockAdjustmentService
         if (request.Lines == null || request.Lines.Count == 0)
             return Result<StockAdjustmentDto>.Failure("At least one line is required / مطلوب سطر واحد على الأقل");
 
-        var warehouse = await _db.Warehouses
-            .FirstOrDefaultAsync(w => w.Id == request.WarehouseId && w.TenantId == tenantId);
-        if (warehouse == null || !warehouse.IsActive)
-            return Result<StockAdjustmentDto>.Failure("Warehouse not found or inactive / المخزن غير موجود أو غير نشط");
+        Warehouse? warehouse;
+        if (request.WarehouseId.HasValue && request.WarehouseId.Value != Guid.Empty)
+        {
+            warehouse = await _db.Warehouses
+                .FirstOrDefaultAsync(w => w.Id == request.WarehouseId.Value && w.TenantId == tenantId);
+            if (warehouse == null || !warehouse.IsActive)
+                return Result<StockAdjustmentDto>.Failure("Warehouse not found or inactive / المخزن غير موجود أو غير نشط");
+        }
+        else
+        {
+            var resolved = await _warehouses.GetOrCreateDefaultAsync(tenantId);
+            if (!resolved.IsSuccess || resolved.Data == null)
+                return Result<StockAdjustmentDto>.Failure("No usable warehouse for this tenant / لا يوجد مخزن متاح لهذا المستأجر");
+            warehouse = resolved.Data;
+        }
 
         var productIds = request.Lines.Select(l => l.ProductId).Distinct().ToList();
         var products = await _db.Products
@@ -127,7 +141,7 @@ public class StockAdjustmentService : IStockAdjustmentService
         var entity = new StockAdjustment
         {
             TenantId = tenantId,
-            WarehouseId = request.WarehouseId,
+            WarehouseId = warehouse!.Id,
             Status = StockAdjustmentStatuses.Draft,
             ReasonCode = reasonCode,
             Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),

@@ -337,5 +337,10 @@ public class Cp7TenantHealthScoreTests
             Guid actorPlatformUserId, string action, Guid? tenantId = null,
             object? before = null, object? after = null, string? ipAddress = null) =>
             Task.CompletedTask;
+
+        public Task<GMS.Platform.DTOs.PlatformPagedResult<GMS.Platform.DTOs.PlatformAuditLogDto>> ListAsync(
+            Guid? tenantId, string? action, DateOnly? from, DateOnly? to, int page, int pageSize,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new GMS.Platform.DTOs.PlatformPagedResult<GMS.Platform.DTOs.PlatformAuditLogDto> { Page = page, PageSize = pageSize });
     }
 }

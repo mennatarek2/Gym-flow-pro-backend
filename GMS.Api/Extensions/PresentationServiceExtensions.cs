@@ -13,6 +13,7 @@ public static class PresentationServiceExtensions
     {
         // SignalR real-time notifier for check-in events
         services.AddScoped<ICheckinNotifier, SignalRCheckinNotifier>();
+        services.AddSingleton<IStaffNotificationRealtimeNotifier, SignalRStaffNotificationNotifier>();
         services.AddScoped<IMemberOrderNotifier, SignalRMemberOrderNotifier>();
 
         return services;

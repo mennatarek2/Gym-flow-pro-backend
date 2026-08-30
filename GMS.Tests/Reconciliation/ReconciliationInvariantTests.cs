@@ -399,6 +399,7 @@ public class ReconciliationInvariantTests
             new UnlimitedTierEnforcement(),
             new NoOpReferralAttribution(),
             new NoOpMemberAppActivation(),
+            new ActivityEntitlementService(ctx),
             NullLogger<MemberService>.Instance);
         var promoService = new PromoService(ctx, new Repository<PromoCode>(ctx), tenantContext, NullLogger<PromoService>.Instance);
 
@@ -497,10 +498,11 @@ public class ReconciliationInvariantTests
         await ctx.MemberCredits.IgnoreQueryFilters().Where(c => c.TenantId == tenantId).ExecuteDeleteAsync();
         await ctx.CashMovements.IgnoreQueryFilters().Where(c => c.TenantId == tenantId).ExecuteDeleteAsync();
         await ctx.Shifts.IgnoreQueryFilters().Where(s => s.TenantId == tenantId).ExecuteDeleteAsync();
-        await ctx.PaymentTransactions.Where(p => p.TenantId == tenantId).ExecuteDeleteAsync();
-        await ctx.Memberships.IgnoreQueryFilters().Where(m => m.TenantId == tenantId).ExecuteDeleteAsync();
+        // payment_transactions references memberships (FK), so payments must go BEFORE memberships.
+        await ctx.PaymentTransactions.IgnoreQueryFilters().Where(p => p.TenantId == tenantId).ExecuteDeleteAsync();
         await ctx.SaleLines.IgnoreQueryFilters().Where(l => l.TenantId == tenantId).ExecuteDeleteAsync();
         await ctx.Sales.IgnoreQueryFilters().Where(s => s.TenantId == tenantId).ExecuteDeleteAsync();
+        await ctx.Memberships.IgnoreQueryFilters().Where(m => m.TenantId == tenantId).ExecuteDeleteAsync();
         await ctx.GymMembers.IgnoreQueryFilters().Where(m => m.TenantId == tenantId).ExecuteDeleteAsync();
         await ctx.PromoCodes.IgnoreQueryFilters().Where(p => p.TenantId == tenantId).ExecuteDeleteAsync();
         await ctx.MembershipPlans.IgnoreQueryFilters().Where(p => p.TenantId == tenantId).ExecuteDeleteAsync();

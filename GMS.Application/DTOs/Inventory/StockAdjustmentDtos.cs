@@ -42,7 +42,8 @@ public class CreateStockAdjustmentLineRequest
 
 public class CreateStockAdjustmentRequest
 {
-    public Guid WarehouseId { get; set; }
+    /// <summary>Optional — server auto-resolves to tenant default warehouse when null.</summary>
+    public Guid? WarehouseId { get; set; }
     public string ReasonCode { get; set; } = string.Empty;
     public string? Note { get; set; }
     public List<CreateStockAdjustmentLineRequest> Lines { get; set; } = new();

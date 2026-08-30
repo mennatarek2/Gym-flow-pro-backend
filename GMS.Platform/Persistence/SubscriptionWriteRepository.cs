@@ -74,6 +74,22 @@ public class SubscriptionWriteRepository : ISubscriptionWriteRepository
                 cancellationToken);
     }
 
+    public Task<PlatformSubscription?> GetLatestByTenantAsync(Guid tenantId, CancellationToken cancellationToken = default)
+    {
+        return _db.Subscriptions
+            .Where(s => s.TenantId == tenantId)
+            .OrderByDescending(s => s.UpdatedAtUtc)
+            .ThenByDescending(s => s.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public Task<bool> HasNonCancelledByTenantAsync(Guid tenantId, CancellationToken cancellationToken = default)
+    {
+        return _db.Subscriptions.AnyAsync(
+            s => s.TenantId == tenantId && s.Status != SubscriptionStatuses.Cancelled,
+            cancellationToken);
+    }
+
     public Task<PlatformSubscription?> GetByIdAsync(Guid subscriptionId, CancellationToken cancellationToken = default)
     {
         return _db.Subscriptions.FirstOrDefaultAsync(s => s.Id == subscriptionId, cancellationToken);

@@ -83,4 +83,37 @@ public class MockWhatsAppService : IWhatsAppService
             phone, templateName, string.Join(", ", parameters.Select(p => $"{p.Key}={p.Value}")));
         return Task.CompletedTask;
     }
+
+    public Task SendNotificationAsync(
+        string phone,
+        string title,
+        string body,
+        string? titleAr = null,
+        string? bodyAr = null)
+    {
+        var content = FormatDeskNotification(title, body, titleAr, bodyAr);
+
+        _logger.LogInformation(
+            "[MOCK WA] Notification → {Phone}: {Content}",
+            phone,
+            content);
+
+        return Task.CompletedTask;
+    }
+
+    private static string FormatDeskNotification(
+        string? title, string? body, string? titleAr, string? bodyAr)
+    {
+        var parts = new List<string>();
+        void Add(string? s)
+        {
+            if (!string.IsNullOrWhiteSpace(s))
+                parts.Add(s.Trim());
+        }
+        Add(title);
+        Add(titleAr);
+        Add(body);
+        Add(bodyAr);
+        return string.Join("\n", parts);
+    }
 }

@@ -6,30 +6,36 @@ using Microsoft.Extensions.Logging;
 using GMS.Application.Common;
 using GMS.Application.DTOs.Notifications;
 using GMS.Application.Interfaces;
+using GMS.Core.Constants;
 using GMS.Core.Entities;
 using GMS.Core.Interfaces;
 using GMS.Infrastructure.Persistence;
+using GMS.Infrastructure.Services;
 
 /// <summary>
 /// Notification service for in-app, push, and WhatsApp notifications.
-/// - Records every notification in the DB for history
-/// - Sends via appropriate channel (FCM / WhatsApp)
-/// - Supports bulk send to all active members or specific IDs
+/// Member rows use MemberId; staff inbox rows use AppUserId plus typed metadata.
 /// </summary>
 public class NotificationService : INotificationService
 {
     private readonly GymFlowProDbContext _dbContext;
     private readonly IPushNotificationService _pushService;
+    private readonly IPermissionProvider _permissionProvider;
+    private readonly IStaffNotificationRealtimeNotifier _realtime;
     private readonly ILogger<NotificationService> _logger;
 
     public NotificationService(
         GymFlowProDbContext dbContext,
         IPushNotificationService pushService,
-        ILogger<NotificationService> logger)
+        ILogger<NotificationService> logger,
+        IPermissionProvider? permissionProvider = null,
+        IStaffNotificationRealtimeNotifier? realtime = null)
     {
         _dbContext = dbContext;
         _pushService = pushService;
         _logger = logger;
+        _permissionProvider = permissionProvider ?? new DefaultPermissionProvider();
+        _realtime = realtime ?? new NullStaffNotificationRealtimeNotifier();
     }
 
     public async Task<Result<PagedResult<NotificationDto>>> GetMemberNotificationsAsync(
@@ -69,6 +75,28 @@ public class NotificationService : INotificationService
         });
     }
 
+    public async Task<Result<PagedResult<NotificationDto>>> GetMemberNotificationsForIdentityAsync(
+        Guid tenantId, Guid identityUserId, int page, int pageSize)
+    {
+        var member = await FindMemberByIdentityAsync(tenantId, identityUserId);
+        if (member == null)
+            return Result<PagedResult<NotificationDto>>.Failure(
+                "Member profile not linked / ملف العضو غير مرتبط");
+
+        return await GetMemberNotificationsAsync(member.Id, page, pageSize);
+    }
+
+    public async Task<Result<int>> GetMemberUnreadCountForIdentityAsync(Guid tenantId, Guid identityUserId)
+    {
+        var member = await FindMemberByIdentityAsync(tenantId, identityUserId);
+        if (member == null)
+            return Result<int>.Failure("Member profile not linked / ملف العضو غير مرتبط");
+
+        var count = await _dbContext.Set<Notification>()
+            .CountAsync(n => n.MemberId == member.Id && !n.IsDeleted && n.ReadAtUtc == null);
+        return Result<int>.Success(count);
+    }
+
     public async Task<Result<string>> MarkAsReadAsync(Guid notificationId, Guid memberId)
     {
         var notification = await _dbContext.Set<Notification>()
@@ -77,7 +105,6 @@ public class NotificationService : INotificationService
         if (notification == null)
             return Result<string>.Failure("Notification not found / الإشعار غير موجود");
 
-        // Ownership check — member can only mark their own notifications
         if (notification.MemberId != memberId)
             return Result<string>.Failure("Forbidden: this notification belongs to another member / غير مسموح");
 
@@ -91,10 +118,53 @@ public class NotificationService : INotificationService
         return Result<string>.Success("Notification marked as read / تم وضع علامة مقروء");
     }
 
+    public async Task<Result<string>> MarkAsReadForIdentityAsync(
+        Guid tenantId, Guid identityUserId, Guid notificationId)
+    {
+        var member = await FindMemberByIdentityAsync(tenantId, identityUserId);
+        if (member == null)
+            return Result<string>.Failure("Member profile not linked / ملف العضو غير مرتبط");
+
+        return await MarkAsReadAsync(notificationId, member.Id);
+    }
+
+    public async Task<Result<string>> MarkAllAsReadForIdentityAsync(Guid tenantId, Guid identityUserId)
+    {
+        var member = await FindMemberByIdentityAsync(tenantId, identityUserId);
+        if (member == null)
+            return Result<string>.Failure("Member profile not linked / ملف العضو غير مرتبط");
+
+        var unread = await _dbContext.Set<Notification>()
+            .Where(n => n.MemberId == member.Id && !n.IsDeleted && n.ReadAtUtc == null)
+            .ToListAsync();
+
+        var now = DateTime.UtcNow;
+        foreach (var n in unread)
+        {
+            n.ReadAtUtc = now;
+            n.UpdatedAtUtc = now;
+        }
+
+        if (unread.Count > 0)
+            await _dbContext.SaveChangesAsync();
+
+        return Result<string>.Success($"Marked {unread.Count} as read / تم تعليم {unread.Count} كمقروء");
+    }
+
+    private async Task<GymMember?> FindMemberByIdentityAsync(Guid tenantId, Guid identityUserId)
+    {
+        var identityKey = identityUserId.ToString();
+        return await _dbContext.GymMembers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m =>
+                m.TenantId == tenantId
+                && m.AppUser != null
+                && m.AppUser.UserId == identityKey);
+    }
+
     public async Task<Result<string>> SendBulkNotificationAsync(
         Guid tenantId, SendBulkNotificationRequest request)
     {
-        // Resolve target members
         List<GymMember> targetMembers;
 
         if (request.AllMembers)
@@ -123,7 +193,7 @@ public class NotificationService : INotificationService
 
         foreach (var member in targetMembers)
         {
-            var notification = new Notification
+            notifications.Add(new Notification
             {
                 TenantId = tenantId,
                 MemberId = member.Id,
@@ -134,30 +204,32 @@ public class NotificationService : INotificationService
                 BodyAr = request.BodyAr,
                 Status = "sent",
                 SentAtUtc = now
-            };
-            notifications.Add(notification);
+            });
         }
 
         await _dbContext.Set<Notification>().AddRangeAsync(notifications);
         await _dbContext.SaveChangesAsync();
 
-        // Enqueue actual delivery as background jobs
+        // Capture form content once — Hangfire serializes these args per job.
+        var title = request.Title ?? string.Empty;
+        var titleAr = request.TitleAr ?? string.Empty;
+        var body = request.Body ?? string.Empty;
+        var bodyAr = request.BodyAr ?? string.Empty;
+        var isWhatsApp = request.Channel.Equals("whatsapp", StringComparison.OrdinalIgnoreCase);
+
         foreach (var member in targetMembers)
         {
-            if (request.Channel.Equals("whatsapp", StringComparison.OrdinalIgnoreCase))
+            if (isWhatsApp)
             {
-                // Fire-and-forget WhatsApp via Hangfire
-                var phone = member.PhoneNumber;
-                var body = request.Body;
+                // Generic desk broadcast — exact Title/Body. Do NOT use SendExpiryReminderAsync.
+                var phone = member.PhoneNumber ?? string.Empty;
                 BackgroundJob.Enqueue<IWhatsAppService>(svc =>
-                    svc.SendExpiryReminderAsync(phone, member.FullName, 0));
+                    svc.SendNotificationAsync(phone, title, body, titleAr, bodyAr));
             }
-            else // push
+            else
             {
-                // Topic-based push: gym-{tenantId}
-                // For individual: would need FCM token stored on member
                 BackgroundJob.Enqueue<IPushNotificationService>(svc =>
-                    svc.SendToTopicAsync($"gym-{tenantId}", request.Title, request.Body));
+                    svc.SendToTopicAsync($"gym-{tenantId}", title, body));
             }
         }
 
@@ -171,7 +243,10 @@ public class NotificationService : INotificationService
 
     public async Task<Result<string>> CreateForStaffAsync(
         Guid tenantId, Guid appUserId, string title, string titleAr, string body, string bodyAr,
-        string? externalMessageId = null)
+        string? externalMessageId = null,
+        string? type = null, string? category = null, string? priority = null,
+        string? entityType = null, Guid? entityId = null, string? actionUrl = null,
+        DateTime? expiresAtUtc = null)
     {
         var notification = new Notification
         {
@@ -186,12 +261,253 @@ public class NotificationService : INotificationService
             SentAtUtc = DateTime.UtcNow,
             ExternalMessageId = string.IsNullOrWhiteSpace(externalMessageId)
                 ? null
-                : externalMessageId.Trim()
+                : externalMessageId.Trim(),
+            Type = type,
+            Category = category,
+            Priority = priority,
+            EntityType = entityType,
+            EntityId = entityId,
+            ActionUrl = actionUrl,
+            ExpiresAtUtc = expiresAtUtc
         };
 
         _dbContext.Set<Notification>().Add(notification);
         await _dbContext.SaveChangesAsync();
 
+        try
+        {
+            await _realtime.NotifyCreatedAsync(tenantId, new[] { appUserId });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Staff notification realtime push failed for tenant {TenantId}", tenantId);
+        }
+
         return Result<string>.Success("Notification created / تم إنشاء الإشعار");
     }
+
+    public async Task<Result<PagedResult<StaffNotificationDto>>> GetStaffNotificationsAsync(
+        Guid tenantId, Guid appUserId, int page, int pageSize, bool unreadOnly = false, string? category = null)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 50);
+
+        var now = DateTime.UtcNow;
+        var query = _dbContext.Set<Notification>().AsNoTracking()
+            .Where(n => n.TenantId == tenantId
+                && n.AppUserId == appUserId
+                && !n.IsDeleted
+                && (n.ExpiresAtUtc == null || n.ExpiresAtUtc > now));
+
+        if (unreadOnly)
+            query = query.Where(n => n.ReadAtUtc == null);
+
+        if (!string.IsNullOrWhiteSpace(category))
+            query = query.Where(n => n.Category == category);
+
+        query = query.OrderByDescending(n => n.SentAtUtc ?? n.CreatedAtUtc);
+
+        var totalCount = await query.CountAsync();
+        var rows = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+        var items = rows.Select(MapStaff).ToList();
+
+        return Result<PagedResult<StaffNotificationDto>>.Success(new PagedResult<StaffNotificationDto>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        });
+    }
+
+    public async Task<Result<int>> GetStaffUnreadCountAsync(Guid tenantId, Guid appUserId)
+    {
+        var now = DateTime.UtcNow;
+        var count = await _dbContext.Set<Notification>().AsNoTracking()
+            .CountAsync(n => n.TenantId == tenantId
+                && n.AppUserId == appUserId
+                && !n.IsDeleted
+                && n.ReadAtUtc == null
+                && (n.ExpiresAtUtc == null || n.ExpiresAtUtc > now));
+        return Result<int>.Success(count);
+    }
+
+    public async Task<Result<string>> MarkStaffAsReadAsync(Guid tenantId, Guid appUserId, Guid notificationId)
+    {
+        var notification = await _dbContext.Set<Notification>()
+            .FirstOrDefaultAsync(n => n.Id == notificationId && n.TenantId == tenantId && !n.IsDeleted);
+
+        if (notification == null)
+            return Result<string>.Failure("Notification not found / الإشعار غير موجود");
+
+        if (notification.AppUserId != appUserId)
+            return Result<string>.Failure("Forbidden: this notification belongs to another user / غير مسموح");
+
+        if (notification.ReadAtUtc != null)
+            return Result<string>.Success("Already read / تمت القراءة مسبقاً");
+
+        notification.ReadAtUtc = DateTime.UtcNow;
+        notification.UpdatedAtUtc = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync();
+        return Result<string>.Success("Notification marked as read / تم وضع علامة مقروء");
+    }
+
+    public async Task<Result<string>> MarkAllStaffAsReadAsync(Guid tenantId, Guid appUserId)
+    {
+        var now = DateTime.UtcNow;
+        var unread = await _dbContext.Set<Notification>()
+            .Where(n => n.TenantId == tenantId
+                && n.AppUserId == appUserId
+                && !n.IsDeleted
+                && n.ReadAtUtc == null)
+            .ToListAsync();
+
+        foreach (var n in unread)
+        {
+            n.ReadAtUtc = now;
+            n.UpdatedAtUtc = now;
+        }
+
+        if (unread.Count > 0)
+            await _dbContext.SaveChangesAsync();
+
+        return Result<string>.Success($"Marked {unread.Count} as read / تم تعليم {unread.Count} كمقروء");
+    }
+
+    public async Task<Result<int>> PublishStaffAsync(Guid tenantId, CreateStaffNotificationRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.Body))
+            return Result<int>.Failure("Title and body are required / العنوان والنص مطلوبان");
+
+        var dedupe = string.IsNullOrWhiteSpace(request.DedupeKey) ? null : request.DedupeKey.Trim();
+        if (dedupe != null)
+        {
+            var exists = await _dbContext.Set<Notification>().AsNoTracking()
+                .AnyAsync(n => n.TenantId == tenantId && n.ExternalMessageId == dedupe && !n.IsDeleted);
+            if (exists)
+                return Result<int>.Success(0);
+        }
+
+        var recipients = await ResolveRecipientsAsync(tenantId, request);
+        if (recipients.Count == 0)
+            return Result<int>.Success(0);
+
+        var now = DateTime.UtcNow;
+        var priority = string.IsNullOrWhiteSpace(request.Priority)
+            ? StaffNotificationPriorities.Info
+            : request.Priority.Trim();
+
+        var rows = recipients.Select(uid => new Notification
+        {
+            TenantId = tenantId,
+            AppUserId = uid,
+            Channel = "in_app",
+            Title = request.Title.Trim(),
+            TitleAr = (request.TitleAr ?? string.Empty).Trim(),
+            Body = request.Body.Trim(),
+            BodyAr = (request.BodyAr ?? string.Empty).Trim(),
+            Status = "sent",
+            SentAtUtc = now,
+            ExternalMessageId = dedupe,
+            Type = string.IsNullOrWhiteSpace(request.Type) ? null : request.Type.Trim(),
+            Category = string.IsNullOrWhiteSpace(request.Category) ? null : request.Category.Trim(),
+            Priority = priority,
+            EntityType = request.EntityType,
+            EntityId = request.EntityId,
+            ActionUrl = request.ActionUrl,
+            ExpiresAtUtc = request.ExpiresAtUtc
+        }).ToList();
+
+        await _dbContext.Set<Notification>().AddRangeAsync(rows);
+        await _dbContext.SaveChangesAsync();
+
+        try
+        {
+            await _realtime.NotifyCreatedAsync(tenantId, recipients);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Staff notification realtime push failed for tenant {TenantId}", tenantId);
+        }
+
+        _logger.LogInformation(
+            "[Notification] Staff publish {Type}: {Count} recipients in tenant {TenantId}",
+            request.Type, rows.Count, tenantId);
+
+        return Result<int>.Success(rows.Count);
+    }
+
+    private async Task<List<Guid>> ResolveRecipientsAsync(Guid tenantId, CreateStaffNotificationRequest request)
+    {
+        var ids = new HashSet<Guid>();
+
+        if (request.RecipientAppUserIds != null)
+        {
+            foreach (var id in request.RecipientAppUserIds.Where(x => x != Guid.Empty))
+                ids.Add(id);
+        }
+
+        var staff = await _dbContext.AppUsers.AsNoTracking()
+            .Where(u => u.TenantId == tenantId && u.IsActive && !u.IsDeleted)
+            .Select(u => new { u.Id, u.Role })
+            .ToListAsync();
+
+        if (request.RecipientRoles != null && request.RecipientRoles.Count > 0)
+        {
+            var roles = new HashSet<string>(
+                request.RecipientRoles.Select(RolePermissionResolver.CanonicalRole),
+                StringComparer.OrdinalIgnoreCase);
+            foreach (var u in staff.Where(u => roles.Contains(RolePermissionResolver.CanonicalRole(u.Role))))
+                ids.Add(u.Id);
+        }
+
+        if (request.RecipientPermissions != null && request.RecipientPermissions.Count > 0)
+        {
+            var needed = new HashSet<string>(request.RecipientPermissions, StringComparer.Ordinal);
+            var tenant = await _dbContext.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.Id == tenantId);
+            var overlay = RolePermissionResolver.ParseOverlay(tenant?.Settings);
+
+            foreach (var u in staff)
+            {
+                var role = RolePermissionResolver.CanonicalRole(u.Role);
+                if (role is "Member" or "Employee" or "")
+                    continue;
+                var perms = RolePermissionResolver.Resolve(new[] { role }, _permissionProvider, overlay);
+                if (needed.Any(perms.Contains))
+                    ids.Add(u.Id);
+            }
+        }
+
+        if (ids.Count == 0)
+            return new List<Guid>();
+
+        // Only active staff in this tenant
+        return await _dbContext.AppUsers.AsNoTracking()
+            .Where(u => u.TenantId == tenantId && u.IsActive && !u.IsDeleted && ids.Contains(u.Id))
+            .Select(u => u.Id)
+            .ToListAsync();
+    }
+
+    private static StaffNotificationDto MapStaff(Notification n) => new()
+    {
+        Id = n.Id,
+        Type = n.Type,
+        Category = n.Category,
+        Priority = n.Priority,
+        Title = n.Title,
+        TitleAr = n.TitleAr,
+        Body = n.Body,
+        BodyAr = n.BodyAr,
+        EntityType = n.EntityType,
+        EntityId = n.EntityId,
+        ActionUrl = n.ActionUrl,
+        IsRead = n.ReadAtUtc != null,
+        CreatedAtUtc = n.CreatedAtUtc,
+        SentAt = n.SentAtUtc,
+        SentAtUtc = n.SentAtUtc,
+        ReadAtUtc = n.ReadAtUtc
+    };
 }

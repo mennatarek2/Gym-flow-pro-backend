@@ -15,6 +15,8 @@ public class SaleConfiguration : IEntityTypeConfiguration<Sale>
 
         builder.Property(s => s.TenantId).IsRequired();
         builder.Property(s => s.MemberId);
+        builder.Property(s => s.GuestName).HasMaxLength(200).HasColumnType("NVARCHAR(200)");
+        builder.Property(s => s.GuestPhone).HasMaxLength(30).HasColumnType("NVARCHAR(30)");
         builder.Property(s => s.SoldByUserId).IsRequired();
 
         builder.Property(s => s.ShiftId);

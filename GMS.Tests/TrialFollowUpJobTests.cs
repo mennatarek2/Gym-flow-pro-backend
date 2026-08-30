@@ -51,6 +51,7 @@ public class TrialFollowUpJobTests
         var services = new ServiceCollection();
         services.AddSingleton(ctx);
         services.AddSingleton<IWhatsAppService>(whatsApp);
+        services.AddSingleton<IFeatureAccessService>(new AlwaysOnFeatureAccess());
         var provider = services.BuildServiceProvider();
 
         var job = new TrialFollowUpJob(provider.GetRequiredService<IServiceScopeFactory>(), NullLogger<TrialFollowUpJob>.Instance);
@@ -181,5 +182,12 @@ public class TrialFollowUpJobTests
 
         var reloaded = await ctx.GymMembers.SingleAsync(m => m.Id == twoDaysAgoMember.Id);
         Assert.Equal("expired", reloaded.TrialOutcome);
+    }
+
+    private sealed class AlwaysOnFeatureAccess : IFeatureAccessService
+    {
+        public Task<bool> IsEnabledAsync(Guid tenantId, string featureKey, CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
+        public Task InvalidateAsync(Guid tenantId, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

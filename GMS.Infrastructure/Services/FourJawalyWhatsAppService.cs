@@ -168,6 +168,35 @@ public class FourJawalyWhatsAppService : IWhatsAppService
         _logger.LogInformation("[4jawaly] Template '{Template}' sent to {Phone}", templateName, phone);
     }
 
+    /// <summary>
+    /// Generic desk broadcast — free-form body via existing SendMessageAsync path.
+    /// Does not use membership-expiry templates. No new provider.
+    /// </summary>
+    public Task SendNotificationAsync(
+        string phone,
+        string title,
+        string body,
+        string? titleAr = null,
+        string? bodyAr = null)
+    {
+        var parts = new List<string>();
+        void Add(string? s)
+        {
+            if (!string.IsNullOrWhiteSpace(s))
+                parts.Add(s.Trim());
+        }
+        Add(title);
+        Add(titleAr);
+        Add(body);
+        Add(bodyAr);
+        var message = string.Join("\n", parts);
+
+        if (string.IsNullOrWhiteSpace(phone) || string.IsNullOrWhiteSpace(message))
+            return Task.CompletedTask;
+
+        return SendMessageAsync(phone, message);
+    }
+
     // === Private Helpers ===
 
     private async Task SendMessageAsync(string phone, string message)

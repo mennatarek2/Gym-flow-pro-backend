@@ -105,8 +105,9 @@ public class PurchaseOrderServiceTests
 
         var ledger = new StockLedgerService(ctx, NullLogger<StockLedgerService>.Instance);
         var reorder = new InventoryReorderCalculator(ctx);
+        var warehouses = new WarehouseService(ctx, new NoOpAudit(), NullLogger<WarehouseService>.Instance);
         var svc = new PurchaseOrderService(
-            ctx, ledger, reorder, new NoOpAudit(), NullLogger<PurchaseOrderService>.Instance);
+            ctx, ledger, reorder, warehouses, new NoOpAudit(), NullLogger<PurchaseOrderService>.Instance);
         return (ctx, svc, ledger, tenantId, identityUserId, product.Id, warehouse.Id, supplier.Id);
     }
 

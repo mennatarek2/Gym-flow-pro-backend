@@ -408,7 +408,13 @@ public class InventoryReportService : IInventoryReportService
             foreach (var user in staff)
             {
                 await _notifications.CreateForStaffAsync(
-                    tenantId, user.Id, title, titleAr, body, bodyAr, dedupe);
+                    tenantId, user.Id, title, titleAr, body, bodyAr, dedupe,
+                    type: available <= 0 ? StaffNotificationTypes.OutOfStock : StaffNotificationTypes.LowStock,
+                    category: StaffNotificationCategories.Inventory,
+                    priority: available <= 0 ? StaffNotificationPriorities.Critical : StaffNotificationPriorities.ActionRequired,
+                    entityType: "Product",
+                    entityId: product.Id,
+                    actionUrl: $"/dashboard/inventory/products/?focus={product.Id}");
             }
 
             result.LowStockNotified++;
@@ -457,7 +463,15 @@ public class InventoryReportService : IInventoryReportService
                 foreach (var user in staff)
                 {
                     await _notifications.CreateForStaffAsync(
-                        tenantId, user.Id, title, titleAr, body, bodyAr, dedupe);
+                        tenantId, user.Id, title, titleAr, body, bodyAr, dedupe,
+                        type: StaffNotificationTypes.LowStock,
+                        category: StaffNotificationCategories.Inventory,
+                        priority: StaffNotificationPriorities.ActionRequired,
+                        entityType: "ProductBatch",
+                        entityId: batch.Id,
+                        actionUrl: batch.ProductId != Guid.Empty
+                            ? $"/dashboard/inventory/products/?focus={batch.ProductId}"
+                            : "/dashboard/inventory/products/");
                 }
 
                 result.ExpiryNotified++;

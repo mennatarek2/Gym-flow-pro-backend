@@ -1,5 +1,7 @@
 # GymFlowPro Flutter Integration Guide
 
+> ⚠️ **STATUS (REM-F11):** The Flutter member app described here is **SPEC ONLY** — no Dart project exists in this repository. Backend endpoints are implemented; the client is not.
+
 ## Quick Start
 
 ### 1. Setup Dependencies

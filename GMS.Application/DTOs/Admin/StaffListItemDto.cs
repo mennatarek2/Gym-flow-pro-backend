@@ -9,6 +9,9 @@ namespace GMS.Application.DTOs.Admin;
 public class StaffListItemDto
 {
     public Guid Id { get; set; }
+    /// <summary>AppUser.Id for this staff member, when an ops row exists for the tenant. Lets HR's
+    /// Employee&lt;-&gt;Staff linking store the correct foreign key without a second lookup.</summary>
+    public Guid? AppUserId { get; set; }
     public string FullName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;

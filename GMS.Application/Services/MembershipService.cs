@@ -25,6 +25,7 @@ public class MembershipService : IMembershipService
     private readonly IInvoiceService _invoiceService;
     private readonly IAuditService _auditService;
     private readonly IReferralAttributionService _referralAttribution;
+    private readonly IActivityEntitlementService _activityEntitlements;
     private readonly ILogger<MembershipService> _logger;
 
     public MembershipService(
@@ -35,6 +36,7 @@ public class MembershipService : IMembershipService
         IInvoiceService invoiceService,
         IAuditService auditService,
         IReferralAttributionService referralAttribution,
+        IActivityEntitlementService activityEntitlements,
         ILogger<MembershipService> logger)
     {
         _dbContext = dbContext;
@@ -44,6 +46,7 @@ public class MembershipService : IMembershipService
         _invoiceService = invoiceService;
         _auditService = auditService;
         _referralAttribution = referralAttribution;
+        _activityEntitlements = activityEntitlements;
         _logger = logger;
     }
 
@@ -64,7 +67,7 @@ public class MembershipService : IMembershipService
                     "No membership found for this member / لا توجد عضوية لهذا العضو");
             }
 
-            return Result<MembershipDto>.Success(MapToDto(selected));
+            return Result<MembershipDto>.Success(await MapToDtoAsync(selected));
         }
         catch (Exception ex)
         {
@@ -635,9 +638,9 @@ public class MembershipService : IMembershipService
         return sale.Id;
     }
 
-    private MembershipDto MapToDto(Membership membership)
+    private async Task<MembershipDto> MapToDtoAsync(Membership membership)
     {
-        return new MembershipDto
+        var dto = new MembershipDto
         {
             Id = membership.Id,
             PlanName = membership.Plan?.Name ?? "Unknown",
@@ -647,6 +650,7 @@ public class MembershipService : IMembershipService
             EndDate = membership.EndDate,
             Status = MembershipOperational.GetEffectiveStatus(membership),
             SessionsRemaining = membership.SessionsRemaining,
+            SessionCount = membership.Plan?.SessionCount,
             AmountPaid = membership.AmountPaid,
             PaymentMethod = membership.PaymentMethod,
             PaymentDate = membership.PaymentDate,
@@ -654,5 +658,13 @@ public class MembershipService : IMembershipService
             FrozenFromDate = membership.FrozenFromDate,
             FrozenUntilDate = membership.FrozenUntilDate
         };
+
+        if (_tenantContext.IsInitialized)
+        {
+            dto.ActivityQuotas = await _activityEntitlements.ListQuotasForMembershipAsync(
+                _tenantContext.TenantId, membership.MemberId, membership);
+        }
+
+        return dto;
     }
 }

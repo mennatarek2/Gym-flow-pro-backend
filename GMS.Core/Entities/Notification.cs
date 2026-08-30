@@ -28,8 +28,25 @@ public class Notification : BaseEntity
     public DateTime? SentAtUtc { get; set; }
     public DateTime? ReadAtUtc { get; set; }
 
-    /// <summary>Optional reference to the external message ID (4jawaly, FCM).</summary>
+    /// <summary>Optional reference to the external message ID (4jawaly, FCM) or staff dedupe key.</summary>
     public string? ExternalMessageId { get; set; }
+
+    /// <summary>Typed staff event key, e.g. membership.expired. Null for legacy member/bulk rows.</summary>
+    public string? Type { get; set; }
+
+    /// <summary>Staff inbox category (Members, Payments, …). Null for legacy member/bulk rows.</summary>
+    public string? Category { get; set; }
+
+    /// <summary>Critical | ActionRequired | Info. Null for legacy member/bulk rows.</summary>
+    public string? Priority { get; set; }
+
+    public string? EntityType { get; set; }
+    public Guid? EntityId { get; set; }
+
+    /// <summary>Relative desk path for CTA, e.g. /dashboard/members/{id}/.</summary>
+    public string? ActionUrl { get; set; }
+
+    public DateTime? ExpiresAtUtc { get; set; }
 
     // Navigation
     public Tenant? Tenant { get; set; }

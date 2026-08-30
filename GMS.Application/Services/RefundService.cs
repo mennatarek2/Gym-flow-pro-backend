@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using GMS.Application.Common;
 using GMS.Application.DTOs.Inventory;
+using GMS.Application.DTOs.Notifications;
 using GMS.Application.DTOs.Refunds;
 using GMS.Application.Interfaces;
 using GMS.Core.Constants;
@@ -29,6 +30,7 @@ public class RefundService : IRefundService
     private readonly IAuditService _auditService;
     private readonly IReferralRewardService _referralRewards;
     private readonly IStockLedgerService _stockLedger;
+    private readonly IStaffNotificationPublisher? _staffNotifications;
     private readonly ILogger<RefundService> _logger;
 
     public RefundService(
@@ -41,7 +43,8 @@ public class RefundService : IRefundService
         IAuditService auditService,
         IReferralRewardService referralRewards,
         IStockLedgerService stockLedger,
-        ILogger<RefundService> logger)
+        ILogger<RefundService> logger,
+        IStaffNotificationPublisher? staffNotifications = null)
     {
         _dbContext = dbContext;
         _shiftService = shiftService;
@@ -53,6 +56,7 @@ public class RefundService : IRefundService
         _referralRewards = referralRewards;
         _stockLedger = stockLedger;
         _logger = logger;
+        _staffNotifications = staffNotifications;
     }
 
     public async Task<Result<RefundDto>> RequestAsync(
@@ -273,6 +277,28 @@ public class RefundService : IRefundService
 
             _logger.LogInformation("Refund executed: {RefundId} for sale {SaleId}, amount {Amount} ({Method}), stockRestored={StockRestored}",
                 refund.Id, sale.Id, refund.Amount, refund.Method, stockRestored);
+
+            if (_staffNotifications != null)
+            {
+                var memberName = sale.Member?.FullName ?? "Member";
+                await _staffNotifications.TryPublishAsync(tenantId, new CreateStaffNotificationRequest
+                {
+                    Type = StaffNotificationTypes.RefundIssued,
+                    Category = StaffNotificationCategories.Payments,
+                    Priority = StaffNotificationPriorities.ActionRequired,
+                    Title = "Refund issued",
+                    TitleAr = "تم إصدار استرداد",
+                    Body = $"Refund of EGP {refund.Amount:0.00} for {memberName} ({refund.Method}).",
+                    BodyAr = $"استرداد بمبلغ {refund.Amount:0.00} ج.م لـ {memberName} ({refund.Method}).",
+                    EntityType = "Refund",
+                    EntityId = refund.Id,
+                    ActionUrl = sale.MemberId.HasValue
+                        ? $"/dashboard/members/{sale.MemberId.Value}/"
+                        : "/dashboard/",
+                    DedupeKey = $"refund-issued:{refund.Id:N}",
+                    RecipientRoles = new[] { "Owner", "Manager" }
+                });
+            }
 
             if (sale.Status == "refunded")
             {

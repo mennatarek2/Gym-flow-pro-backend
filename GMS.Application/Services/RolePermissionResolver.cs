@@ -26,6 +26,7 @@ public static class RolePermissionResolver
         if (raw.Equals("Trainer", StringComparison.OrdinalIgnoreCase)) return "Trainer";
         if (raw.Equals("Receptionist", StringComparison.OrdinalIgnoreCase)) return "Receptionist";
         if (raw.Equals("Member", StringComparison.OrdinalIgnoreCase)) return "Member";
+        if (raw.Equals("Employee", StringComparison.OrdinalIgnoreCase)) return "Employee";
         return raw;
     }
 
@@ -95,7 +96,7 @@ public static class RolePermissionResolver
         foreach (var raw in roles ?? Array.Empty<string>())
         {
             var role = CanonicalRole(raw);
-            if (string.IsNullOrEmpty(role) || role == "Member")
+            if (string.IsNullOrEmpty(role) || role == "Member" || role == "Employee")
                 continue;
 
             if (role == "Owner")

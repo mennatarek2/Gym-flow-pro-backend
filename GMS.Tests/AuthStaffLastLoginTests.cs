@@ -71,6 +71,7 @@ public class AuthStaffLastLoginTests
             otpCacheService: null!,
             otpDeliveryStrategy: null!,
             memberAppActivation: null!,
+            employeeAppActivation: null!,
             config,
             NullLogger<AuthService>.Instance,
             new DefaultPermissionProvider(),

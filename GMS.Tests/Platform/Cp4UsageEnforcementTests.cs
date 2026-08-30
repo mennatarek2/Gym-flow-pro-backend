@@ -68,13 +68,16 @@ public class Cp4UsageEnforcementTests
         platform.Subscriptions.Add(NewSub(tenantId, PlanTiers.Starter));
         await platform.SaveChangesAsync();
 
+        // Imports is Growth+ only (TierFeatureMapSeed) — genuinely absent from Starter's tier map,
+        // unlike Refunds which is baseline for every tier ("retail POS must be able to reverse a
+        // cash sale") and so is never a meaningful example of a tier-exclusive override anymore.
         var access = CreateFeatureAccess(platform);
-        Assert.False(await access.IsEnabledAsync(tenantId, FeatureKeys.Refunds));
+        Assert.False(await access.IsEnabledAsync(tenantId, FeatureKeys.Imports));
 
         platform.FeatureOverrides.Add(new FeatureOverride
         {
             TenantId = tenantId,
-            FeatureKey = FeatureKeys.Refunds,
+            FeatureKey = FeatureKeys.Imports,
             Enabled = true,
             Reason = "test grant",
             GrantedByPlatformUserId = Guid.NewGuid(),
@@ -82,13 +85,13 @@ public class Cp4UsageEnforcementTests
         });
         await platform.SaveChangesAsync();
         await access.InvalidateAsync(tenantId);
-        Assert.True(await access.IsEnabledAsync(tenantId, FeatureKeys.Refunds));
+        Assert.True(await access.IsEnabledAsync(tenantId, FeatureKeys.Imports));
 
         var ov = await platform.FeatureOverrides.FirstAsync(o => o.TenantId == tenantId);
         ov.ExpiresAtUtc = DateTime.UtcNow.AddMinutes(-5);
         await platform.SaveChangesAsync();
         await access.InvalidateAsync(tenantId);
-        Assert.False(await access.IsEnabledAsync(tenantId, FeatureKeys.Refunds));
+        Assert.False(await access.IsEnabledAsync(tenantId, FeatureKeys.Imports));
 
         await CleanupAsync(platform, tenantId);
     }
@@ -169,6 +172,7 @@ public class Cp4UsageEnforcementTests
             new SoftMemberCapEnforcement(cap: 10, count: 10),
             new NoOpReferralAttribution(),
             new NoOpMemberAppActivation(),
+            new ActivityEntitlementService(infra),
             NullLogger<MemberService>.Instance);
 
         var result = await members.CreateMemberAsync(tenantId, new CreateMemberRequest

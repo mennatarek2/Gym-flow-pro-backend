@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+    env:
+      DOTNET_ROLL_FORWARD: LatestMajor
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore GMS.slnx
+
+      - name: Build
+        run: dotnet build GMS.slnx --no-restore --nologo -v q
+
+      - name: Test
+        run: dotnet test GMS.Tests/GMS.Tests.csproj --no-build --nologo -v q
+
+      - name: ReconCheck build
+        run: dotnet build GMS.Tests/ReconCheck/ReconCheck.csproj --no-restore --nologo -v q

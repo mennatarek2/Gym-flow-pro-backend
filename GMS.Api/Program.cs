@@ -108,6 +108,15 @@ builder.Services.AddRateLimiter(options =>
         limiterOptions.QueueLimit = 0;
     });
 
+    // Employee App activation: same brute-force protection per IP
+    options.AddFixedWindowLimiter("employee-activate-policy", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 10;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = 0;
+    });
+
     // Default rejection response
     options.OnRejected = async (context, token) =>
     {
@@ -213,6 +222,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("ManagerOrAbove", policy => policy.RequireRole("Owner", "Manager"));
     options.AddPolicy("AnyStaff", policy => policy.RequireRole("Owner", "Manager", "Trainer"));
     options.AddPolicy("AuthenticatedMember", policy => policy.RequireRole("Member"));
+    options.AddPolicy("AuthenticatedEmployee", policy => policy.RequireRole("Employee"));
     options.AddPolicy("AnyAuthenticated", policy => policy.RequireAuthenticatedUser());
 
     // Platform-plane policies — AuthenticationSchemes locked to PlatformBearer (never tenant Bearer).
@@ -238,6 +248,7 @@ builder.Services.AddAuthorization(options =>
 // since PermissionPolicyProvider delegates to the default provider for them.
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
 builder.Services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
+builder.Services.AddSingleton<IAuthorizationHandler, AnyPermissionAuthorizationHandler>();
 
 builder.Services.AddHealthChecks();
 

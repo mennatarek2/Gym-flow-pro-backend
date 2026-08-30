@@ -5,7 +5,9 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using GMS.Application.Common;
 using GMS.Application.DTOs.Attendance;
+using GMS.Application.DTOs.Notifications;
 using GMS.Application.Interfaces;
+using GMS.Core.Constants;
 using GMS.Core.Entities;
 using GMS.Core.Interfaces;
 using GMS.Core.Utilities;
@@ -35,6 +37,7 @@ public class CheckinService : ICheckinService
     private readonly IMemoryCache _cache;
     private readonly ICheckinNotifier _notifier;
     private readonly IAuditService _auditService;
+    private readonly IStaffNotificationPublisher? _staffNotifications;
     private readonly ILogger<CheckinService> _logger;
 
     private static readonly TimeSpan MembershipCacheTtl = TimeSpan.FromMinutes(5);
@@ -46,7 +49,8 @@ public class CheckinService : ICheckinService
         IMemoryCache cache,
         ICheckinNotifier notifier,
         IAuditService auditService,
-        ILogger<CheckinService> logger)
+        ILogger<CheckinService> logger,
+        IStaffNotificationPublisher? staffNotifications = null)
     {
         _dbContext = dbContext;
         _memberRepo = memberRepo;
@@ -55,6 +59,7 @@ public class CheckinService : ICheckinService
         _notifier = notifier;
         _auditService = auditService;
         _logger = logger;
+        _staffNotifications = staffNotifications;
     }
 
     public async Task<Result<QrCheckinResponse>> ProcessQrCheckinAsync(
@@ -99,6 +104,11 @@ public class CheckinService : ICheckinService
 
         // Invalidate membership cache after session decrement
         InvalidateMembershipCache(tenantId, member.Id);
+
+        // REM-F7: surface concurrent exhaustion explicitly instead of reporting success.
+        if (sessionsRemaining == SessionDecrementFailed)
+            return Fail<QrCheckinResponse>(
+                "No sessions remaining / لا توجد جلسات متبقية");
 
         _logger.LogInformation(
             "QR check-in: Member {MemberNumber} at tenant {GymCode}",
@@ -178,6 +188,11 @@ public class CheckinService : ICheckinService
         int? sessionsRemaining = await DecrementSessionsIfNeededAsync(membership);
         InvalidateMembershipCache(tenantId, member.Id);
 
+        // REM-F7: surface concurrent exhaustion explicitly instead of reporting success.
+        if (sessionsRemaining == SessionDecrementFailed)
+            return Fail<ManualCheckinResponse>(
+                "No sessions remaining / لا توجد جلسات متبقية");
+
         _logger.LogInformation(
             "Manual check-in: Member {MemberNumber} by staff {StaffId} at tenant {TenantId}",
             member.MemberNumber, staffUserId, tenantId);
@@ -251,6 +266,11 @@ public class CheckinService : ICheckinService
 
         int? sessionsRemaining = await DecrementSessionsIfNeededAsync(membership);
         InvalidateMembershipCache(tenantId, member.Id);
+
+        // REM-F7: surface concurrent exhaustion explicitly instead of reporting success.
+        if (sessionsRemaining == SessionDecrementFailed)
+            return Fail<ManualCheckinResponse>(
+                "No sessions remaining / لا توجد جلسات متبقية");
 
         _logger.LogInformation(
             "Barcode check-in: Member {MemberNumber} by staff {StaffId} at tenant {TenantId}",
@@ -372,14 +392,20 @@ public class CheckinService : ICheckinService
         // === STEP 3: Active membership exists ===
         var membership = await GetActiveMembershipCachedAsync(member.Id, tenantId);
         if (membership == null)
+        {
+            await NotifyExpiredMembershipCheckinAsync(tenantId, member);
             return (null, "انتهت صلاحية عضويتك / Your membership has expired");
+        }
 
         // === STEP 4: Freeze check ===
         if (membership.Status == "frozen")
             return (null, "عضويتك مجمدة حالياً / Your membership is currently frozen");
 
         if (membership.Status != "active")
+        {
+            await NotifyExpiredMembershipCheckinAsync(tenantId, member);
             return (null, "انتهت صلاحية عضويتك / Your membership has expired");
+        }
 
         // Check if membership date range is still valid (Cairo business day)
         var today = MembershipOperational.TodayCairo();
@@ -388,6 +414,7 @@ public class CheckinService : ICheckinService
 
         if (today > membership.EndDate)
         {
+            await NotifyExpiredMembershipCheckinAsync(tenantId, member);
             if (membership.Plan?.PlanType == "trial")
                 return (null, "TRIAL_EXPIRED_JOIN_OFFER / انتهت تجربتك المجانية — انضم الآن");
 
@@ -494,6 +521,9 @@ public class CheckinService : ICheckinService
     /// <summary>
     /// Atomically decrements SessionsRemaining for session-pack plans.
     /// Returns the new sessions remaining count, or null if not a session-pack.
+    /// Returns -1 when the guarded decrement affected no rows (concurrent exhaustion) so the
+    /// caller can surface an explicit error instead of silently keeping attendance without
+    /// consumption (REM-F7).
     /// </summary>
     private async Task<int?> DecrementSessionsIfNeededAsync(Membership membership)
     {
@@ -504,14 +534,26 @@ public class CheckinService : ICheckinService
             return membership.Plan?.PlanType == "session_pack" ? membership.SessionsRemaining : null;
 
         // Atomic decrement via raw SQL to avoid concurrency issues
-        await _dbContext.Database.ExecuteSqlInterpolatedAsync(
+        var affected = await _dbContext.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE memberships SET SessionsRemaining = SessionsRemaining - 1 WHERE Id = {membership.Id} AND SessionsRemaining > 0");
+
+        if (affected == 0)
+        {
+            _logger.LogWarning(
+                "Session decrement affected 0 rows for membership {MembershipId} — consumed concurrently. " +
+                "Attendance was recorded but no session was consumed.",
+                membership.Id);
+            return SessionDecrementFailed;
+        }
 
         // Reload to get the new value
         await _dbContext.Entry(membership).ReloadAsync();
 
         return membership.SessionsRemaining;
     }
+
+    /// <summary>Sentinel returned when the atomic session decrement could not consume a session.</summary>
+    internal const int SessionDecrementFailed = -1;
 
     private void InvalidateMembershipCache(Guid tenantId, Guid memberId)
     {
@@ -557,8 +599,10 @@ public class CheckinService : ICheckinService
                 Id = a.Id,
                 MemberId = a.MemberId,
                 MemberNumber = a.Member != null ? a.Member.MemberNumber : "",
-                MemberName = a.Member != null ? a.Member.FullName : "",
+                MemberName = a.Member != null ? a.Member.FullName : (a.GuestName ?? "Guest walk-in"),
                 MemberNameAr = a.Member != null ? a.Member.FullNameAr : "",
+                GuestName = a.GuestName,
+                GuestPhone = a.GuestPhone,
                 CheckInAtUtc = a.CheckInAtUtc,
                 CheckOutAtUtc = a.CheckOutAtUtc,
                 EntryMethod = a.EntryMethod,
@@ -568,5 +612,26 @@ public class CheckinService : ICheckinService
             .ToListAsync();
 
         return Result<List<TodayAttendanceDto>>.Success(records);
+    }
+
+    private async Task NotifyExpiredMembershipCheckinAsync(Guid tenantId, GymMember member)
+    {
+        if (_staffNotifications == null) return;
+        var dayKey = MembershipOperational.TodayCairo().ToString("yyyyMMdd");
+        await _staffNotifications.TryPublishAsync(tenantId, new CreateStaffNotificationRequest
+        {
+            Type = StaffNotificationTypes.ExpiredMembershipCheckin,
+            Category = StaffNotificationCategories.Attendance,
+            Priority = StaffNotificationPriorities.Critical,
+            Title = "Expired membership check-in attempt",
+            TitleAr = "محاولة حضور بعضوية منتهية",
+            Body = $"{member.FullName} tried to check in with an expired membership.",
+            BodyAr = $"حاول {member.FullName} الحضور بعضوية منتهية.",
+            EntityType = "GymMember",
+            EntityId = member.Id,
+            ActionUrl = $"/dashboard/members/{member.Id}/",
+            DedupeKey = $"expired-checkin:{dayKey}:{member.Id:N}",
+            RecipientRoles = new[] { "Owner", "Manager", "Receptionist" }
+        });
     }
 }

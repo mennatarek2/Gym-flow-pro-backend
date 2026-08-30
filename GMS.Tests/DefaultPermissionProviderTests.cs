@@ -63,12 +63,14 @@ public class DefaultPermissionProviderTests
     }
 
     [Fact]
-    public void Trainer_GetsOnlyManualCheckin()
+    public void Trainer_GetsClassAttendanceAndManualCheckin()
     {
         var permissions = _sut.GetPermissions(new[] { "Trainer" });
 
-        Assert.Single(permissions);
+        Assert.Equal(3, permissions.Count);
         Assert.Contains(Permissions.CheckinManual, permissions);
+        Assert.Contains(Permissions.ClassesView, permissions);
+        Assert.Contains(Permissions.AttendanceView, permissions);
     }
 
     [Fact]

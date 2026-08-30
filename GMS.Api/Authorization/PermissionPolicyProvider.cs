@@ -13,6 +13,7 @@ using Microsoft.Extensions.Options;
 public class PermissionPolicyProvider : IAuthorizationPolicyProvider
 {
     public const string PolicyPrefix = "Permission:";
+    public const string AnyPolicyPrefix = "PermissionAny:";
 
     private readonly DefaultAuthorizationPolicyProvider _fallbackPolicyProvider;
 
@@ -23,6 +24,16 @@ public class PermissionPolicyProvider : IAuthorizationPolicyProvider
 
     public Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
     {
+        if (policyName.StartsWith(AnyPolicyPrefix, StringComparison.Ordinal))
+        {
+            var permissions = policyName[AnyPolicyPrefix.Length..]
+                .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var anyPolicy = new AuthorizationPolicyBuilder()
+                .AddRequirements(new AnyPermissionRequirement(permissions))
+                .Build();
+            return Task.FromResult<AuthorizationPolicy?>(anyPolicy);
+        }
+
         if (policyName.StartsWith(PolicyPrefix, StringComparison.Ordinal))
         {
             var permission = policyName[PolicyPrefix.Length..];

@@ -35,4 +35,17 @@ public interface IWhatsAppService
 
     /// <summary>Send a named pre-approved template with substitution parameters.</summary>
     Task SendTemplateAsync(string phone, string templateName, Dictionary<string, string> parameters);
+
+    /// <summary>
+    /// Generic staff-desk broadcast: exact title/body from Send Notification (not an expiry template).
+    /// Prefer Arabic body when present; otherwise English. Title included when non-empty.
+    /// Default no-op so test stubs compile; Mock + FourJawaly override.
+    /// </summary>
+    Task SendNotificationAsync(
+        string phone,
+        string title,
+        string body,
+        string? titleAr = null,
+        string? bodyAr = null)
+        => Task.CompletedTask;
 }

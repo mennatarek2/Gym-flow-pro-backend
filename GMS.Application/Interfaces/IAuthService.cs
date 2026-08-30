@@ -35,4 +35,9 @@ public interface IAuthService
     /// Member App Stage 0: Gym Code + one-time activation code → claim GymMember → JWT.
     /// </summary>
     Task<Result<LoginResponse>> ActivateMemberAppAsync(MemberActivateRequest request, string? ipAddress = null);
+
+    /// <summary>
+    /// Employee App Phase 1: Gym Code + one-time activation code → claim Employee → JWT (role Employee).
+    /// </summary>
+    Task<Result<LoginResponse>> ActivateEmployeeAppAsync(EmployeeActivateRequest request, string? ipAddress = null);
 }

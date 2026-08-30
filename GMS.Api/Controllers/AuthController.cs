@@ -80,6 +80,7 @@ public class AuthController : BaseApiController
     /// </summary>
     [HttpPost("member-otp")]
     [AllowAnonymous]
+    [EnableRateLimiting("member-activate-policy")] // REM-F4: OTP send shares activation's per-IP brute-force limit
     [Obsolete("Member App Stage 0 uses POST /api/auth/member-activate (staff-issued activation code).")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -100,6 +101,7 @@ public class AuthController : BaseApiController
     /// </summary>
     [HttpPost("member-verify")]
     [AllowAnonymous]
+    [EnableRateLimiting("member-activate-policy")] // REM-F4: verify shares activation's per-IP brute-force limit
     [Obsolete("Member App Stage 0 uses POST /api/auth/member-activate (staff-issued activation code).")]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -130,6 +132,26 @@ public class AuthController : BaseApiController
     {
         var ipAddress = GetIpAddress();
         var result = await _authService.ActivateMemberAppAsync(request, ipAddress);
+
+        if (!result.IsSuccess)
+            return Unauthorized(new { error = result.Error });
+
+        return Ok(result.Data);
+    }
+
+    /// <summary>
+    /// Employee App Phase 1 activation: Gym Code + HR one-time activation code → JWT (role Employee).
+    /// </summary>
+    [HttpPost("employee-activate")]
+    [AllowAnonymous]
+    [EnableRateLimiting("employee-activate-policy")]
+    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> ActivateEmployeeApp([FromBody] EmployeeActivateRequest request)
+    {
+        var ipAddress = GetIpAddress();
+        var result = await _authService.ActivateEmployeeAppAsync(request, ipAddress);
 
         if (!result.IsSuccess)
             return Unauthorized(new { error = result.Error });

@@ -98,7 +98,10 @@ public class RenderAndDeliverInvoiceJobTests
 
         var flakyWhatsApp = new FlakyWhatsAppService();
         var pdfRenderer = new CountingInvoicePdfRenderer();
-        var notificationService = new NotificationService(ctx, new NoOpPushNotificationService(), NullLogger<NotificationService>.Instance);
+        var notificationService = new NotificationService(
+            ctx,
+            new NoOpPushNotificationService(),
+            NullLogger<NotificationService>.Instance);
         var auditService = new AuditService(ctx, new HttpContextAccessor(), tenantContext, NullLogger<AuditService>.Instance);
 
         var job = new RenderAndDeliverInvoiceJob(

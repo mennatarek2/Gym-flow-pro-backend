@@ -74,7 +74,7 @@ public class DataSeeder
     /// </summary>
     public async Task EnsureIdentityRolesAsync()
     {
-        var roles = new[] { "Owner", "Manager", "Trainer", "Receptionist", "Member" };
+        var roles = new[] { "Owner", "Manager", "Trainer", "Receptionist", "Member", "Employee" };
 
         foreach (var roleName in roles)
         {

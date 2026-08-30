@@ -23,15 +23,22 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
         builder.Property(n => n.BodyAr).HasMaxLength(2000).HasDefaultValue(string.Empty);
         builder.Property(n => n.Status).HasMaxLength(20).HasDefaultValue("pending");
         builder.Property(n => n.ExternalMessageId).HasMaxLength(200);
+        builder.Property(n => n.Type).HasMaxLength(80);
+        builder.Property(n => n.Category).HasMaxLength(40);
+        builder.Property(n => n.Priority).HasMaxLength(20);
+        builder.Property(n => n.EntityType).HasMaxLength(60);
+        builder.Property(n => n.ActionUrl).HasMaxLength(500);
         builder.Property(n => n.IsDeleted).HasDefaultValue(false);
 
-        // Indexes
         builder.HasIndex(n => new { n.TenantId, n.MemberId });
         builder.HasIndex(n => new { n.TenantId, n.AppUserId });
         builder.HasIndex(n => new { n.MemberId, n.ReadAtUtc });
         builder.HasIndex(n => n.SentAtUtc);
+        builder.HasIndex(n => new { n.TenantId, n.AppUserId, n.ReadAtUtc });
+        builder.HasIndex(n => new { n.TenantId, n.AppUserId, n.CreatedAtUtc });
+        builder.HasIndex(n => new { n.TenantId, n.ExternalMessageId });
+        builder.HasIndex(n => new { n.TenantId, n.Category });
 
-        // Navigation
         builder.HasOne(n => n.Tenant).WithMany()
             .HasForeignKey(n => n.TenantId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(n => n.Member).WithMany()

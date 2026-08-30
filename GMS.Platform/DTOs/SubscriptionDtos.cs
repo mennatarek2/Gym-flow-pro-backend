@@ -18,6 +18,24 @@ public class SubscriptionStatusDto
 
     /// <summary>Pending downgrade tier if scheduled for period end; null otherwise.</summary>
     public string? PendingDowngradeTier { get; set; }
+
+    /// <summary>True when a saved card token exists on the subscription row (Paymob/Fawry on file).</summary>
+    public bool HasPaymentMethodOnFile { get; set; }
+}
+
+public class ConvertTrialRequest
+{
+    /// <summary>Mandatory audit reason for sales-assisted conversion.</summary>
+    public string Reason { get; set; } = string.Empty;
+}
+
+public class RestartPaidRequest
+{
+    /// <summary>Plan tier for the new active subscription (current list price is frozen into PriceEgp).</summary>
+    public string Tier { get; set; } = string.Empty;
+
+    /// <summary>Mandatory audit reason.</summary>
+    public string Reason { get; set; } = string.Empty;
 }
 
 public class ChangeTierRequest
@@ -33,6 +51,12 @@ public class CancelSubscriptionRequest
     /// <summary>false = cancel_at_period_end; true = immediate cancel (platform_admin + mandatory reason).</summary>
     public bool Immediate { get; set; }
     public string? Reason { get; set; }
+}
+
+public class UndoCancelSubscriptionRequest
+{
+    /// <summary>Mandatory audit reason (same pattern as immediate cancel / force ops).</summary>
+    public string Reason { get; set; } = string.Empty;
 }
 
 public class SubscriptionMutationResult

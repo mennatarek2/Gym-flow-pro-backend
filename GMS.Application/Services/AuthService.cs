@@ -25,6 +25,7 @@ public class AuthService : IAuthService
     private readonly OtpCacheService _otpCacheService;
     private readonly IOtpDeliveryStrategy _otpDeliveryStrategy;
     private readonly IMemberAppActivationService _memberAppActivation;
+    private readonly IEmployeeAppActivationService _employeeAppActivation;
     private readonly IConfiguration _configuration;
     private readonly ILogger<AuthService> _logger;
     private readonly IPermissionProvider _permissionProvider;
@@ -39,6 +40,7 @@ public class AuthService : IAuthService
         OtpCacheService otpCacheService,
         IOtpDeliveryStrategy otpDeliveryStrategy,
         IMemberAppActivationService memberAppActivation,
+        IEmployeeAppActivationService employeeAppActivation,
         IConfiguration configuration,
         ILogger<AuthService> logger,
         IPermissionProvider permissionProvider,
@@ -52,6 +54,7 @@ public class AuthService : IAuthService
         _otpCacheService = otpCacheService;
         _otpDeliveryStrategy = otpDeliveryStrategy;
         _memberAppActivation = memberAppActivation;
+        _employeeAppActivation = employeeAppActivation;
         _configuration = configuration;
         _logger = logger;
         _permissionProvider = permissionProvider;
@@ -430,6 +433,56 @@ public class AuthService : IAuthService
         }
     }
 
+    /// <inheritdoc />
+    public async Task<Result<LoginResponse>> ActivateEmployeeAppAsync(
+        EmployeeActivateRequest request,
+        string? ipAddress = null)
+    {
+        try
+        {
+            var gymCode = (request.GymCode ?? string.Empty).Trim();
+            var tenant = await _dbContext.Tenants
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(t => t.GymCode.ToUpper() == gymCode.ToUpper() && !t.IsDeleted);
+
+            if (tenant == null || !tenant.IsActive)
+                return Result<LoginResponse>.Failure("Invalid or expired activation code.");
+
+            var useTx = _dbContext.Database.IsRelational();
+            if (useTx)
+                await _dbContext.Database.BeginTransactionAsync();
+
+            var consume = await _employeeAppActivation.ConsumeAsync(tenant.Id, request.ActivationCode ?? string.Empty);
+            if (!consume.IsSuccess || consume.Data == null)
+            {
+                if (useTx) await _dbContext.Database.RollbackTransactionAsync();
+                return Result<LoginResponse>.Failure(consume.Error ?? "Invalid or expired activation code.");
+            }
+
+            var employee = consume.Data;
+            var user = await FindOrCreateEmployeeIdentityUserAsync(employee, tenant);
+            var login = await IssueEmployeeLoginResponseAsync(user, tenant, ipAddress);
+            if (!login.IsSuccess)
+            {
+                if (useTx) await _dbContext.Database.RollbackTransactionAsync();
+                return login;
+            }
+
+            if (useTx) await _dbContext.Database.CommitTransactionAsync();
+            return login;
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogError(ex, "Employee app activation failed: {Message}", ex.Message);
+            return Result<LoginResponse>.Failure("Unable to activate this account.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error during employee app activation: {Message}", ex.Message);
+            return Result<LoginResponse>.Failure("Unable to activate this account.");
+        }
+    }
+
     private async Task<Result<LoginResponse>> IssueMemberLoginResponseAsync(
         ApplicationUser user,
         Tenant tenant,
@@ -640,6 +693,196 @@ public class AuthService : IAuthService
             _logger.LogError("Failed to assign Member role to user {UserId}: {Errors}", user.Id, msg);
             throw new InvalidOperationException($"Failed to assign Member role: {msg}");
         }
+    }
+
+    private async Task EnsureEmployeeRoleAsync(ApplicationUser user)
+    {
+        if (await _userManager.IsInRoleAsync(user, "Employee"))
+            return;
+
+        var roleResult = await _userManager.AddToRoleAsync(user, "Employee");
+        if (!roleResult.Succeeded)
+        {
+            var msg = string.Join(", ", roleResult.Errors.Select(e => e.Description));
+            _logger.LogError("Failed to assign Employee role to user {UserId}: {Errors}", user.Id, msg);
+            throw new InvalidOperationException($"Failed to assign Employee role: {msg}");
+        }
+    }
+
+    /// <summary>
+    /// Finds/creates Identity + AppUser for Employee App. Sets <see cref="Employee.EmployeeAppUserId"/> only.
+    /// </summary>
+    private async Task<ApplicationUser> FindOrCreateEmployeeIdentityUserAsync(Employee employee, Tenant tenant)
+    {
+        if (employee.EmployeeAppUserId.HasValue)
+        {
+            var domainAppUser = await _dbContext.AppUsers
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Id == employee.EmployeeAppUserId.Value && !a.IsDeleted);
+
+            if (domainAppUser != null)
+            {
+                var linkedIdentity = await _userManager.FindByIdAsync(domainAppUser.UserId);
+                if (linkedIdentity != null)
+                {
+                    if (!linkedIdentity.IsActive)
+                        throw new InvalidOperationException("Unable to activate this account.");
+                    await EnsureEmployeeRoleAsync(linkedIdentity);
+                    return linkedIdentity;
+                }
+            }
+        }
+
+        var email = $"{employee.EmployeeNumber.ToLowerInvariant()}@employee.gymflowpro.local";
+
+        var existingIdentity = await FindMemberIdentityUserByLoginAsync(email);
+        if (existingIdentity != null)
+        {
+            if (existingIdentity.TenantId != tenant.Id)
+                throw new InvalidOperationException("Unable to activate this account.");
+
+            await EnsureEmployeeRoleAsync(existingIdentity);
+            var appUser = await FindOrCreateEmployeeAppUserAsync(tenant, employee, existingIdentity);
+            await LinkEmployeeToEmployeeAppUserAsync(employee, appUser.Id);
+            return existingIdentity;
+        }
+
+        var user = new ApplicationUser
+        {
+            Id = Guid.NewGuid(),
+            UserName = email,
+            Email = email,
+            PhoneNumber = employee.Phone,
+            PhoneNumberConfirmed = !string.IsNullOrWhiteSpace(employee.Phone),
+            TenantId = tenant.Id,
+            FirstName = employee.FirstName,
+            LastName = employee.LastName,
+            IsActive = true
+        };
+
+        var result = await _userManager.CreateAsync(user);
+        if (!result.Succeeded)
+        {
+            var errorCodes = result.Errors.Select(e => e.Code).ToHashSet();
+            if (errorCodes.Contains("DuplicateUserName") || errorCodes.Contains("DuplicateEmail"))
+            {
+                var recovered = await FindMemberIdentityUserByLoginAsync(email);
+                if (recovered != null && recovered.TenantId == tenant.Id)
+                {
+                    await EnsureEmployeeRoleAsync(recovered);
+                    var appUserRec = await FindOrCreateEmployeeAppUserAsync(tenant, employee, recovered);
+                    await LinkEmployeeToEmployeeAppUserAsync(employee, appUserRec.Id);
+                    return recovered;
+                }
+            }
+
+            _logger.LogError("Failed to create Identity user for employee {EmployeeId}: {Errors}",
+                employee.Id, string.Join(", ", result.Errors.Select(e => e.Description)));
+            throw new InvalidOperationException("Unable to activate this account.");
+        }
+
+        await EnsureEmployeeRoleAsync(user);
+        var newAppUser = await FindOrCreateEmployeeAppUserAsync(tenant, employee, user);
+        await LinkEmployeeToEmployeeAppUserAsync(employee, newAppUser.Id);
+        return user;
+    }
+
+    private async Task<AppUser> FindOrCreateEmployeeAppUserAsync(Tenant tenant, Employee employee, ApplicationUser identityUser)
+    {
+        var identityId = identityUser.Id.ToString();
+
+        var existing = await _dbContext.AppUsers
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(a => a.TenantId == tenant.Id && a.UserId == identityId && !a.IsDeleted);
+
+        if (existing != null)
+            return existing;
+
+        var appUser = new AppUser
+        {
+            TenantId = tenant.Id,
+            UserId = identityId,
+            FirstName = employee.FirstName,
+            LastName = employee.LastName,
+            Email = identityUser.Email ?? $"{employee.EmployeeNumber}@employee.gymflowpro.local",
+            PhoneNumber = employee.Phone ?? string.Empty,
+            Role = "Employee",
+            IsActive = true,
+            StaffNumber = employee.EmployeeNumber
+        };
+
+        await _dbContext.AppUsers.AddAsync(appUser);
+        await _dbContext.SaveChangesAsync();
+        return appUser;
+    }
+
+    private async Task LinkEmployeeToEmployeeAppUserAsync(Employee employee, Guid employeeAppUserId)
+    {
+        var tracked = await _dbContext.Employees
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(e => e.Id == employee.Id);
+        if (tracked == null)
+            throw new InvalidOperationException("Unable to activate this account.");
+
+        var taken = await _dbContext.Employees
+            .IgnoreQueryFilters()
+            .AnyAsync(e =>
+                e.TenantId == tracked.TenantId
+                && e.EmployeeAppUserId == employeeAppUserId
+                && e.Id != tracked.Id
+                && !e.IsDeleted);
+        if (taken)
+            throw new InvalidOperationException("Unable to activate this account.");
+
+        tracked.EmployeeAppUserId = employeeAppUserId;
+        tracked.UpdatedAtUtc = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync();
+        employee.EmployeeAppUserId = employeeAppUserId;
+    }
+
+    private async Task<Result<LoginResponse>> IssueEmployeeLoginResponseAsync(
+        ApplicationUser user,
+        Tenant tenant,
+        string? ipAddress)
+    {
+        var roles = await _userManager.GetRolesAsync(user);
+        var permissions = await ResolvePermissionsAsync(user, tenant.Id, roles, tenant.Settings);
+        var accessToken = await _tokenService.GenerateAccessTokenAsync(
+            user, tenant.Id, tenant.GymCode, roles, permissions);
+        var refreshToken = _tokenService.GenerateRefreshToken();
+
+        var refreshTokenExpirationDays = int.Parse(
+            _configuration["JwtSettings:RefreshTokenExpirationDays"] ?? "30");
+
+        _dbContext.RefreshTokens.Add(new RefreshToken
+        {
+            TokenHash = _tokenService.HashToken(refreshToken),
+            UserId = user.Id,
+            TenantId = tenant.Id,
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(refreshTokenExpirationDays),
+            CreatedByIp = ipAddress
+        });
+        await _dbContext.SaveChangesAsync();
+
+        var accessTokenExpirationMinutes = int.Parse(
+            _configuration["JwtSettings:AccessTokenExpirationMinutes"] ?? "15");
+
+        return Result<LoginResponse>.Success(new LoginResponse
+        {
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
+            ExpiresAtUtc = DateTime.UtcNow.AddMinutes(accessTokenExpirationMinutes),
+            User = new UserInfo
+            {
+                Id = user.Id,
+                Email = user.Email ?? string.Empty,
+                FullName = $"{user.FirstName} {user.LastName}".Trim(),
+                Role = "Employee",
+                TenantId = tenant.Id,
+                GymCode = tenant.GymCode
+            }
+        });
     }
 
     private async Task LinkGymMemberToAppUserAsync(GymMember member, Guid appUserId)

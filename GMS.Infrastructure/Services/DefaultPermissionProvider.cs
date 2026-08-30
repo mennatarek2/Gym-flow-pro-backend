@@ -25,17 +25,23 @@ public class DefaultPermissionProvider : IPermissionProvider
             ["Receptionist"] = new HashSet<string>(new[]
             {
                 Permissions.MembersView, Permissions.MembersCreate, Permissions.MembersEdit,
-                Permissions.CheckinManual,
+                Permissions.CheckinManual, Permissions.ClassesView, Permissions.AttendanceView,
                 Permissions.SalesSell, Permissions.SalesDiscountApply,
                 Permissions.PaymentsCashAccept, Permissions.PaymentsRefundRequest,
                 Permissions.ShiftOpen, Permissions.ShiftClose,
                 Permissions.InventoryView,
-                Permissions.MemberOrdersView, Permissions.MemberOrdersManage
+                Permissions.MemberOrdersView, Permissions.MemberOrdersManage,
+                // Front desk checks employees in/out and can see who's who, but cannot edit the
+                // directory or redesign shift templates.
+                Permissions.HrView, Permissions.HrAttendanceManage, Permissions.HrAttendanceView
             }),
 
-            // Trainer's existing PT/class access is enforced separately via role checks — this
-            // only adds the manual check-in permission on top of that, per spec.
-            ["Trainer"] = new HashSet<string> { Permissions.CheckinManual }
+            // Trainers can read classes, rosters and attendance without receiving the
+            // full Members module or any financial permissions.
+            ["Trainer"] = new HashSet<string>
+            {
+                Permissions.CheckinManual, Permissions.ClassesView, Permissions.AttendanceView
+            }
         };
 
     public IReadOnlySet<string> GetPermissions(IEnumerable<string> roles, string? permissionsOverrideJson = null)

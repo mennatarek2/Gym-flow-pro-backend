@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using GMS.Application.Common;
 using GMS.Application.DTOs.Inventory;
+using GMS.Application.DTOs.Notifications;
 using GMS.Application.Interfaces;
 using GMS.Core.Constants;
 using GMS.Core.Entities;
@@ -15,21 +16,27 @@ public class PurchaseOrderService : IPurchaseOrderService
     private readonly GymFlowProDbContext _db;
     private readonly IStockLedgerService _ledger;
     private readonly IInventoryReorderCalculator _reorder;
+    private readonly IWarehouseService _warehouses;
     private readonly IAuditService _audit;
+    private readonly IStaffNotificationPublisher? _staffNotifications;
     private readonly ILogger<PurchaseOrderService> _logger;
 
     public PurchaseOrderService(
         GymFlowProDbContext db,
         IStockLedgerService ledger,
         IInventoryReorderCalculator reorder,
+        IWarehouseService warehouses,
         IAuditService audit,
-        ILogger<PurchaseOrderService> logger)
+        ILogger<PurchaseOrderService> logger,
+        IStaffNotificationPublisher? staffNotifications = null)
     {
         _db = db;
         _ledger = ledger;
         _reorder = reorder;
+        _warehouses = warehouses;
         _audit = audit;
         _logger = logger;
+        _staffNotifications = staffNotifications;
     }
 
     public async Task<Result<PurchaseOrderDto>> CreateDraftAsync(
@@ -43,10 +50,21 @@ public class PurchaseOrderService : IPurchaseOrderService
         if (supplier == null || !supplier.IsActive)
             return Result<PurchaseOrderDto>.Failure("Supplier not found or inactive / المورد غير موجود أو غير نشط");
 
-        var warehouse = await _db.Warehouses
-            .FirstOrDefaultAsync(w => w.Id == request.WarehouseId && w.TenantId == tenantId);
-        if (warehouse == null || !warehouse.IsActive)
-            return Result<PurchaseOrderDto>.Failure("Warehouse not found or inactive / المخزن غير موجود أو غير نشط");
+        Warehouse? warehouse;
+        if (request.WarehouseId.HasValue && request.WarehouseId.Value != Guid.Empty)
+        {
+            warehouse = await _db.Warehouses
+                .FirstOrDefaultAsync(w => w.Id == request.WarehouseId.Value && w.TenantId == tenantId);
+            if (warehouse == null || !warehouse.IsActive)
+                return Result<PurchaseOrderDto>.Failure("Warehouse not found or inactive / المخزن غير موجود أو غير نشط");
+        }
+        else
+        {
+            var resolved = await _warehouses.GetOrCreateDefaultAsync(tenantId);
+            if (!resolved.IsSuccess || resolved.Data == null)
+                return Result<PurchaseOrderDto>.Failure("No usable warehouse for this tenant / لا يوجد مخزن متاح لهذا المستأجر");
+            warehouse = resolved.Data;
+        }
 
         var productIds = request.Lines.Select(l => l.ProductId).Distinct().ToList();
         var products = await _db.Products
@@ -73,7 +91,7 @@ public class PurchaseOrderService : IPurchaseOrderService
         {
             TenantId = tenantId,
             SupplierId = request.SupplierId,
-            WarehouseId = request.WarehouseId,
+            WarehouseId = warehouse!.Id,
             Status = PurchaseOrderStatuses.Draft,
             OrderedAtUtc = DateTime.UtcNow,
             Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim(),
@@ -97,6 +115,26 @@ public class PurchaseOrderService : IPurchaseOrderService
         await _db.SaveChangesAsync();
         await _audit.LogAsync("purchase_order.create", "PurchaseOrder", po.Id, null,
             new { po.SupplierId, po.WarehouseId, Lines = po.Lines.Count });
+
+        if (_staffNotifications != null)
+        {
+            await _staffNotifications.TryPublishAsync(tenantId, new CreateStaffNotificationRequest
+            {
+                Type = StaffNotificationTypes.PoRequiresApproval,
+                Category = StaffNotificationCategories.Purchasing,
+                Priority = StaffNotificationPriorities.ActionRequired,
+                Title = "Purchase order needs approval",
+                TitleAr = "أمر شراء بحاجة لاعتماد",
+                Body = $"A draft PO with {po.Lines.Count} line(s) is ready for review.",
+                BodyAr = $"أمر شراء مسودة بعدد {po.Lines.Count} سطر(أسطر) جاهز للمراجعة.",
+                EntityType = "PurchaseOrder",
+                EntityId = po.Id,
+                ActionUrl = $"/dashboard/inventory/purchase-orders/?id={po.Id}",
+                DedupeKey = $"po-approval:{po.Id:N}",
+                RecipientRoles = new[] { "Owner" },
+                RecipientPermissions = new[] { Permissions.InventoryPurchase }
+            });
+        }
 
         return await GetAsync(tenantId, po.Id);
     }

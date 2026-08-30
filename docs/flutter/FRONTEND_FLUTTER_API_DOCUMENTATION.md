@@ -1,5 +1,7 @@
 # GymFlowPro API — Frontend & Flutter Developer Documentation
 
+> ⚠️ **STATUS (REM-F11):** This document describes a Flutter member app that is **SPECIFICATION ONLY — no Flutter/Dart project exists in this repository**. The *backend endpoints* described here are implemented and verified; the mobile client is not. Treat all Flutter UI/integration guidance as design material, not existing code. See `PROJECT-UNDERSTANDING.html` / `REMEDIATION-REPORT.md`.
+
 > **Base URL:** `https://your-domain.com` (or `http://localhost:5000` for local dev)  
 > **API Prefix:** `/api`  
 > **Auth:** JWT Bearer token in `Authorization` header  

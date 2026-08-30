@@ -524,6 +524,7 @@ public class AdminService : IAdminService
         return new StaffDetailDto
         {
             Id = user.Id,
+            AppUserId = appUser?.Id,
             FullName = $"{user.FirstName} {user.LastName}".Trim(),
             Email = user.Email ?? string.Empty,
             Role = roles.FirstOrDefault() ?? "staff",
@@ -546,6 +547,7 @@ public class AdminService : IAdminService
         return new StaffListItemDto
         {
             Id = user.Id,
+            AppUserId = app?.Id,
             FullName = $"{user.FirstName} {user.LastName}".Trim(),
             Email = user.Email ?? string.Empty,
             Role = role,

@@ -9,6 +9,9 @@ public class Sale : BaseEntity
     public Guid TenantId { get; set; }
 
     public Guid? MemberId { get; set; }
+    /// <summary>Snapshot identity for a paid walk-in sale without a GymMember.</summary>
+    public string? GuestName { get; set; }
+    public string? GuestPhone { get; set; }
     public Guid SoldByUserId { get; set; }
 
     public Guid? ShiftId { get; set; }

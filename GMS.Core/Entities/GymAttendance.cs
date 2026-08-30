@@ -10,7 +10,10 @@ public class GymAttendance : BaseEntity
     public Guid TenantId { get; set; }
 
     // Foreign keys
-    public Guid MemberId { get; set; }
+    public Guid? MemberId { get; set; }
+    /// <summary>Snapshot identity when a guest walk-in checks into a class.</summary>
+    public string? GuestName { get; set; }
+    public string? GuestPhone { get; set; }
     public Guid? MembershipId { get; set; }
     public Guid? BookingId { get; set; }
     public Guid? SessionId { get; set; }

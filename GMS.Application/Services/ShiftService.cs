@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using GMS.Application.Common;
+using GMS.Application.DTOs.Notifications;
 using GMS.Application.DTOs.Shifts;
 using GMS.Application.Interfaces;
 using GMS.Core.Constants;
@@ -18,13 +19,19 @@ public class ShiftService : IShiftService
 {
     private readonly GymFlowProDbContext _dbContext;
     private readonly IAuditService _auditService;
+    private readonly IStaffNotificationPublisher? _staffNotifications;
     private readonly ILogger<ShiftService> _logger;
 
-    public ShiftService(GymFlowProDbContext dbContext, IAuditService auditService, ILogger<ShiftService> logger)
+    public ShiftService(
+        GymFlowProDbContext dbContext,
+        IAuditService auditService,
+        ILogger<ShiftService> logger,
+        IStaffNotificationPublisher? staffNotifications = null)
     {
         _dbContext = dbContext;
         _auditService = auditService;
         _logger = logger;
+        _staffNotifications = staffNotifications;
     }
 
     public async Task<Result<ShiftDto>> OpenAsync(decimal openingFloat, Guid staffUserId, Guid tenantId)
@@ -192,6 +199,25 @@ public class ShiftService : IShiftService
             _logger.LogInformation(
                 "Shift closed: {ShiftId} expected={Expected} counted={Counted} variance={Variance} status={Status}",
                 shift.Id, expectedCash, countedCash, variance, shift.Status);
+
+            if (_staffNotifications != null && Math.Abs(variance) > tolerance)
+            {
+                await _staffNotifications.TryPublishAsync(tenantId, new CreateStaffNotificationRequest
+                {
+                    Type = StaffNotificationTypes.CashVariance,
+                    Category = StaffNotificationCategories.Shifts,
+                    Priority = StaffNotificationPriorities.Critical,
+                    Title = "Cash variance on shift close",
+                    TitleAr = "فرق نقدي عند إغلاق الوردية",
+                    Body = $"Variance EGP {variance:0.00} (expected {expectedCash:0.00}, counted {countedCash:0.00}).",
+                    BodyAr = $"الفرق {variance:0.00} ج.م (المتوقع {expectedCash:0.00}، المحسوب {countedCash:0.00}).",
+                    EntityType = "Shift",
+                    EntityId = shift.Id,
+                    ActionUrl = $"/dashboard/z-report/?shiftId={shift.Id}",
+                    DedupeKey = $"cash-variance:{shift.Id:N}",
+                    RecipientRoles = new[] { "Owner", "Manager" }
+                });
+            }
 
             return Result<ShiftDto>.Success(ToDto(shift, staffUser, shift.Movements.ToList()));
         }

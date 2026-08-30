@@ -564,6 +564,7 @@ public class RefundServiceTests
                     new UnlimitedTierEnforcement(),
             new NoOpReferralAttribution(),
             new NoOpMemberAppActivation(),
+            new ActivityEntitlementService(ctx),
             NullLogger<MemberService>.Instance);
                 var promoService = new PromoService(ctx, new Repository<PromoCode>(ctx), tenantContext, NullLogger<PromoService>.Instance);
                 var shiftService = new ShiftService(ctx, auditService, NullLogger<ShiftService>.Instance);

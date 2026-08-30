@@ -239,6 +239,7 @@ public class MembershipInvitationLifecycleTests
             new NoOpInvoiceService(),
             audit,
             new NoOpReferralAttribution(),
+            new ActivityEntitlementService(ctx),
             NullLogger<MembershipService>.Instance);
 
         var currentAfterRefund = await memberships.GetCurrentMembershipAsync(member.Id);

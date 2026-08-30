@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using GMS.Core.Interfaces;
 using GMS.Platform.Constants;
@@ -56,6 +57,9 @@ public class PlatformBillingPaymentService : IPlatformBillingPaymentService
         return await _db.Subscriptions
             .AnyAsync(
                 s => s.TenantId == tenantId &&
+                     (s.Status == SubscriptionStatuses.Trialing ||
+                      s.Status == SubscriptionStatuses.Active ||
+                      s.Status == SubscriptionStatuses.PastDue) &&
                      !string.IsNullOrWhiteSpace(s.SavedCardToken),
                 cancellationToken);
     }
@@ -64,6 +68,20 @@ public class PlatformBillingPaymentService : IPlatformBillingPaymentService
         PlatformInvoice invoice,
         CancellationToken cancellationToken = default)
     {
+        // Idempotent re-entry (renewal catch-up / job retry): never double-charge or
+        // re-create Fawry orders for an invoice already paid or already handed to manual collection.
+        if (string.Equals(invoice.Status, "paid", StringComparison.OrdinalIgnoreCase))
+        {
+            return new PlatformPaymentAttemptResult
+            {
+                Success = true,
+                PaymentMethod = invoice.PaymentMethod,
+                PaidAtUtc = invoice.PaidAtUtc,
+                ExternalReference = invoice.PaymentReference,
+                Message = "Invoice already paid."
+            };
+        }
+
         var subscription = await _db.Subscriptions.FirstOrDefaultAsync(s => s.Id == invoice.SubscriptionId, cancellationToken)
             ?? throw new InvalidOperationException($"Subscription {invoice.SubscriptionId} not found.");
 
@@ -100,6 +118,18 @@ public class PlatformBillingPaymentService : IPlatformBillingPaymentService
                 FailureCode = charge.Success ? null : charge.FailureCode ?? "PAYMOB_CHARGE_FAILED",
                 ExternalReference = charge.ExternalReference,
                 Message = charge.Message
+            };
+        }
+
+        if (!string.IsNullOrWhiteSpace(invoice.PaymentReference))
+        {
+            return new PlatformPaymentAttemptResult
+            {
+                Success = false,
+                FailureCode = "MANUAL_PAYMENT_REQUIRED",
+                ExternalReference = invoice.PaymentReference,
+                PaymentLink = invoice.PaymentLink,
+                Message = "Manual collection already initiated for this invoice."
             };
         }
 
@@ -382,15 +412,18 @@ public class PlatformMerchantPaymobService : IPaymobService
 {
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
+    private readonly IHostEnvironment _environment;
     private readonly ILogger<PlatformMerchantPaymobService> _logger;
 
     public PlatformMerchantPaymobService(
         HttpClient httpClient,
         IConfiguration configuration,
+        IHostEnvironment environment,
         ILogger<PlatformMerchantPaymobService> logger)
     {
         _httpClient = httpClient;
         _configuration = configuration;
+        _environment = environment;
         _logger = logger;
     }
 
@@ -402,7 +435,14 @@ public class PlatformMerchantPaymobService : IPaymobService
         var hmacSecret = _configuration["PlatformPaymob:HmacSecret"];
         if (string.IsNullOrWhiteSpace(hmacSecret))
         {
-            _logger.LogWarning("[PlatformPaymob] HMAC secret not configured — skipping verification.");
+            if (PlatformPaymentEnvironment.RequireConfiguredCredentials(_environment))
+            {
+                _logger.LogError("[PlatformPaymob] HMAC secret not configured — rejecting webhook in {Environment}.",
+                    _environment.EnvironmentName);
+                return false;
+            }
+
+            _logger.LogWarning("[PlatformPaymob] HMAC secret not configured — allowing webhook in Development only.");
             return true;
         }
 
@@ -424,13 +464,26 @@ public class PlatformMerchantPaymobService : IPaymobService
         var apiKey = _configuration["PlatformPaymob:ApiKey"];
         if (string.IsNullOrWhiteSpace(apiKey))
         {
+            if (PlatformPaymentEnvironment.RequireConfiguredCredentials(_environment))
+            {
+                _logger.LogError("[PlatformPaymob] ApiKey not configured — rejecting charge in {Environment}.",
+                    _environment.EnvironmentName);
+                return new PlatformMerchantChargeResult
+                {
+                    Success = false,
+                    FailureCode = "PAYMOB_NOT_CONFIGURED",
+                    Message = "Paymob credentials are not configured."
+                };
+            }
+
+            _logger.LogWarning("[PlatformPaymob] ApiKey not configured — using Development mock charge.");
             return new PlatformMerchantChargeResult
             {
                 Success = true,
                 ExternalReference = $"PM-MOCK-{invoiceId:N}",
                 PaidAtUtc = DateTime.UtcNow,
-                RawPayload = JsonSerializer.Serialize(new { invoiceId, amount, customerPhone, mode = "mock" }),
-                Message = "Mock card charge succeeded."
+                RawPayload = JsonSerializer.Serialize(new { invoiceId, amount, customerPhone, mode = "mock_dev" }),
+                Message = "Development mock card charge succeeded."
             };
         }
 
@@ -452,15 +505,18 @@ public class PlatformMerchantFawryService : IFawryService
 {
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
+    private readonly IHostEnvironment _environment;
     private readonly ILogger<PlatformMerchantFawryService> _logger;
 
     public PlatformMerchantFawryService(
         HttpClient httpClient,
         IConfiguration configuration,
+        IHostEnvironment environment,
         ILogger<PlatformMerchantFawryService> logger)
     {
         _httpClient = httpClient;
         _configuration = configuration;
+        _environment = environment;
         _logger = logger;
     }
 
@@ -480,7 +536,14 @@ public class PlatformMerchantFawryService : IFawryService
         var securityKey = _configuration["PlatformFawry:SecurityKey"];
         if (string.IsNullOrWhiteSpace(securityKey))
         {
-            _logger.LogWarning("[PlatformFawry] Security key not configured — skipping verification.");
+            if (PlatformPaymentEnvironment.RequireConfiguredCredentials(_environment))
+            {
+                _logger.LogError("[PlatformFawry] Security key not configured — rejecting webhook in {Environment}.",
+                    _environment.EnvironmentName);
+                return false;
+            }
+
+            _logger.LogWarning("[PlatformFawry] Security key not configured — allowing webhook in Development only.");
             return true;
         }
 

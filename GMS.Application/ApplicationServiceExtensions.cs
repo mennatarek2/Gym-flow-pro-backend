@@ -16,10 +16,13 @@ public static class ApplicationServiceExtensions
     {
         services.AddOptions<MemberAppActivationOptions>()
             .BindConfiguration(MemberAppActivationOptions.SectionName);
+        services.AddOptions<EmployeeAppActivationOptions>()
+            .BindConfiguration(EmployeeAppActivationOptions.SectionName);
 
         // Auth service
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IMemberAppActivationService, MemberAppActivationService>();
+        services.AddScoped<IEmployeeAppActivationService, EmployeeAppActivationService>();
 
         // Domain services
         services.AddScoped<ICheckinService, CheckinService>();
@@ -29,6 +32,8 @@ public static class ApplicationServiceExtensions
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<IMemberService, MemberService>();
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IStaffNotificationPublisher, StaffNotificationPublisher>();
+        services.AddSingleton<GMS.Core.Interfaces.IStaffNotificationRealtimeNotifier, NullStaffNotificationRealtimeNotifier>();
         services.AddScoped<IMembershipPlanService, MembershipPlanService>();
         services.AddScoped<IProductCatalogService, ProductCatalogService>();
         services.AddScoped<IWarehouseService, WarehouseService>();
@@ -49,6 +54,7 @@ public static class ApplicationServiceExtensions
         services.AddScoped<IGymOccupancyService, GymOccupancyService>();
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<IPlatformImpersonationService, PlatformImpersonationService>();
+        services.AddScoped<IPlatformTenantStaffService, PlatformTenantStaffService>();
         services.AddScoped<IPromoService, PromoService>();
         services.AddScoped<IOfferService, OfferService>();
         services.AddScoped<IShiftService, ShiftService>();
@@ -62,18 +68,40 @@ public static class ApplicationServiceExtensions
         services.AddScoped<ICallSheetService, CallSheetService>();
         services.AddScoped<IActivityService, ActivityService>();
         services.AddScoped<ISessionBookingService, SessionBookingService>();
+        services.AddScoped<IActivityEntitlementService, ActivityEntitlementService>();
+        services.AddScoped<IMemberBookingService, MemberBookingService>();
+        services.AddScoped<IDropInService, DropInService>();
+        services.AddScoped<ISessionGenerationService, SessionGenerationService>();
         services.AddScoped<IImportService, ImportService>();
+
+        // HR / Staff Workforce (Phase 2: Foundation)
+        services.AddScoped<IDepartmentService, DepartmentService>();
+        services.AddScoped<IPositionService, PositionService>();
+        services.AddScoped<IEmployeeService, EmployeeService>();
+        services.AddScoped<IEmployeeShiftService, EmployeeShiftService>();
+        services.AddScoped<IEmployeeScheduleService, EmployeeScheduleService>();
+        services.AddScoped<IEmployeeAttendanceService, EmployeeAttendanceService>();
+        services.AddScoped<ILeaveBalanceService, LeaveBalanceService>();
+        services.AddScoped<ILeaveRequestService, LeaveRequestService>();
+        services.AddScoped<IPayrollPeriodService, PayrollPeriodService>();
+        services.AddScoped<IPayrollAdjustmentService, PayrollAdjustmentService>();
+        services.AddScoped<IEmployeeDocumentService, EmployeeDocumentService>();
+        services.AddScoped<IHrDashboardService, HrDashboardService>();
 
         // Analytics & Reports services
         services.AddScoped<IAnalyticsService, AnalyticsService>();
         services.AddScoped<IReportsService, ReportsService>();
+        services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<ICashExpenseService, CashExpenseService>();
 
         // Z-Report / guest-pass expiry schedulers live here (not Infrastructure JobScheduler)
         // because they depend on Application-layer services.
         services.AddHostedService<ZReportJobScheduler>();
         services.AddHostedService<GuestPassExpiryJobScheduler>();
+        services.AddHostedService<SessionGenerationJobScheduler>();
         services.AddHostedService<ProcessReferralRewardHoldsJobScheduler>();
         services.AddHostedService<InventoryLowStockJobScheduler>();
+        services.AddHostedService<StaffNotificationReminderJobScheduler>();
 
         // FluentValidation — auto-register all validators from this assembly
         services.AddValidatorsFromAssembly(typeof(ApplicationServiceExtensions).Assembly);

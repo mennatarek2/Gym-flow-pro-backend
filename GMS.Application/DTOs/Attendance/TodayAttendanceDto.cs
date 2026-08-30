@@ -6,10 +6,12 @@ namespace GMS.Application.DTOs.Attendance;
 public class TodayAttendanceDto
 {
     public Guid Id { get; set; }
-    public Guid MemberId { get; set; }
+    public Guid? MemberId { get; set; }
     public string MemberNumber { get; set; } = string.Empty;
     public string MemberName { get; set; } = string.Empty;
     public string MemberNameAr { get; set; } = string.Empty;
+    public string? GuestName { get; set; }
+    public string? GuestPhone { get; set; }
     public DateTime CheckInAtUtc { get; set; }
     public DateTime? CheckOutAtUtc { get; set; }
     public string EntryMethod { get; set; } = string.Empty;

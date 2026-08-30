@@ -10,12 +10,30 @@ public class PlatformTenantListItemDto
     public string? PlanTier { get; set; }
     public string? Status { get; set; }
     public string? BillingCycle { get; set; }
+    public DateOnly? CurrentPeriodStart { get; set; }
     public DateOnly? CurrentPeriodEnd { get; set; }
+    /// <summary>Trial end timestamp from the live subscription row (trialing only).</summary>
+    public DateTime? TrialEndsAtUtc { get; set; }
     public decimal? PriceEgp { get; set; }
     /// <summary>CP7 seam — null until health scores are populated.</summary>
     public string? RiskBand { get; set; }
     public int? HealthScore { get; set; }
     public DateTime? LastLoginAtUtc { get; set; }
+    /// <summary>
+    /// P2.1 — the tenant's active Owner-role account (dbo.AspNetUsers joined to the "Owner" role,
+    /// same relationship PlatformImpersonationService already uses to pick who to impersonate).
+    /// Null when the tenant has no active Owner account.
+    /// </summary>
+    public string? OwnerName { get; set; }
+    public string? OwnerEmail { get; set; }
+    /// <summary>
+    /// P2.1 — the tenant's active_members usage counter for the current Cairo billing period (the
+    /// same monthly rollup already shown on the tenant's own Usage tab) — not a live COUNT(*) against
+    /// tenant member tables. Null until the rollup job has produced a row for this tenant/period.
+    /// </summary>
+    public int? MemberCount { get; set; }
+    /// <summary>Null means unlimited on the tenant's current tier.</summary>
+    public int? MemberCap { get; set; }
 }
 
 public class PlatformTenantDetailDto
@@ -37,6 +55,19 @@ public class PlatformTenantDetailDto
     public List<PriceOverrideDto> PriceOverrides { get; set; } = new();
     public List<PlatformAuditLogDto> RecentAudit { get; set; } = new();
     public DateTime? LastLoginAtUtc { get; set; }
+    /// <summary>Staff (non-Member) login accounts for this tenant — who a platform admin would see
+    /// when checking who has access, independent of the active_members usage counter.</summary>
+    public List<PlatformTenantUserDto> Users { get; set; } = new();
+}
+
+public class PlatformTenantUserDto
+{
+    public Guid Id { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string? Role { get; set; }
+    public bool IsActive { get; set; }
+    public DateTime? UpdatedAtUtc { get; set; }
 }
 
 public class UsageCounterDto
@@ -98,6 +129,10 @@ public class PlatformAuditLogDto
     public string? ActorName { get; set; }
     public string Action { get; set; } = string.Empty;
     public Guid? TenantId { get; set; }
+    /// <summary>Populated only by the global audit feed (GET /platform-api/audit) — null on the
+    /// per-tenant embedded RecentAudit, where the caller is already on that tenant's page.</summary>
+    public string? TenantName { get; set; }
+    public string? GymCode { get; set; }
     public string? BeforeJson { get; set; }
     public string? AfterJson { get; set; }
     public DateTime CreatedAtUtc { get; set; }
@@ -151,6 +186,9 @@ public class StartTrialRequest
 {
     /// <summary>Optional; defaults to growth.</summary>
     public string? Tier { get; set; }
+
+    /// <summary>Optional trial length in days (1–90). Omitted → global default (14).</summary>
+    public int? TrialDays { get; set; }
 }
 
 public class ForceSuspendRequest

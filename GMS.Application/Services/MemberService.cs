@@ -25,6 +25,7 @@ public class MemberService : IMemberService
     private readonly ITierEnforcementService _tierEnforcement;
     private readonly IReferralAttributionService _referralAttribution;
     private readonly IMemberAppActivationService _memberAppActivation;
+    private readonly IActivityEntitlementService _activityEntitlements;
     private readonly ILogger<MemberService> _logger;
 
     public MemberService(
@@ -34,6 +35,7 @@ public class MemberService : IMemberService
         ITierEnforcementService tierEnforcement,
         IReferralAttributionService referralAttribution,
         IMemberAppActivationService memberAppActivation,
+        IActivityEntitlementService activityEntitlements,
         ILogger<MemberService> logger)
     {
         _dbContext = dbContext;
@@ -42,6 +44,7 @@ public class MemberService : IMemberService
         _tierEnforcement = tierEnforcement;
         _referralAttribution = referralAttribution;
         _memberAppActivation = memberAppActivation;
+        _activityEntitlements = activityEntitlements;
         _logger = logger;
     }
 
@@ -99,6 +102,21 @@ public class MemberService : IMemberService
         dto.InvitationQuotaRemaining = await ComputeInvitationQuotaRemainingAsync(member);
         dto.MemberApp = await _memberAppActivation.GetStatusAsync(
             member.Id, member.TenantId, member.AppUserId);
+        if (dto.CurrentMembership != null)
+        {
+            dto.CurrentMembership.SessionCount = MembershipOperational
+                .SelectOperational(member.Memberships)?.Plan?.SessionCount;
+            var covering = MembershipOperational.SelectCoveringToday(
+                member.Memberships?.ToList() ?? new List<Membership>(),
+                MembershipOperational.TodayCairo())
+                ?? MembershipOperational.SelectOperational(member.Memberships);
+            if (covering != null)
+            {
+                dto.CurrentMembership.ActivityQuotas =
+                    await _activityEntitlements.ListQuotasForMembershipAsync(
+                        member.TenantId, member.Id, covering);
+            }
+        }
         return Result<MemberDetailDto>.Success(dto);
     }
 

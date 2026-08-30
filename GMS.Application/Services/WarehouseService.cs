@@ -55,6 +55,46 @@ public class WarehouseService : IWarehouseService
         return Result<Warehouse?>.Success(entity);
     }
 
+    /// <inheritdoc />
+    public async Task<Result<Warehouse>> GetOrCreateDefaultAsync(Guid tenantId)
+    {
+        // 1. Existing default
+        var existing = await _db.Warehouses
+            .FirstOrDefaultAsync(w => w.TenantId == tenantId && w.IsDefault && w.IsActive);
+        if (existing != null)
+            return Result<Warehouse>.Success(existing);
+
+        // 2. Promote any active warehouse
+        var candidate = await _db.Warehouses
+            .FirstOrDefaultAsync(w => w.TenantId == tenantId && w.IsActive);
+        if (candidate != null)
+        {
+            candidate.IsDefault = true;
+            candidate.UpdatedAtUtc = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+            _logger.LogInformation(
+                "Promoted warehouse {Code} to default for tenant {TenantId}",
+                candidate.Code, tenantId);
+            return Result<Warehouse>.Success(candidate);
+        }
+
+        // 3. Create system default
+        var entity = new Warehouse
+        {
+            TenantId = tenantId,
+            Code = "MAIN",
+            Name = "Main Stock",
+            IsDefault = true,
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        _db.Warehouses.Add(entity);
+        await _db.SaveChangesAsync();
+        _logger.LogInformation(
+            "Created system default warehouse MAIN for tenant {TenantId}", tenantId);
+        return Result<Warehouse>.Success(entity);
+    }
+
     public async Task<Result<WarehouseDto>> CreateAsync(Guid tenantId, CreateWarehouseRequest request)
     {
         var code = request.Code.Trim().ToUpperInvariant();

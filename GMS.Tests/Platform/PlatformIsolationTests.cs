@@ -18,11 +18,20 @@ using GMS.Platform.Persistence;
 /// </summary>
 public class PlatformIsolationTests : IClassFixture<WebApplicationFactory<Program>>
 {
+    private const string TestJwtSecret = "GymFlowPro-Dev-Secret-Key-For-Local-Development-Only-2024-CHANGE-IN-PROD!";
+
     private readonly WebApplicationFactory<Program> _factory;
 
     public PlatformIsolationTests(WebApplicationFactory<Program> factory)
     {
-        _factory = factory.WithWebHostBuilder(_ => { });
+        // appsettings.Development.json ships with an empty JwtSettings:SecretKey (real secret comes
+        // from user-secrets/env). Inject the test secret so the SUT's JWT validation uses the same
+        // key this test class signs tokens with.
+        _factory = factory.WithWebHostBuilder(b =>
+        {
+            b.UseSetting("JwtSettings:SecretKey", TestJwtSecret);
+            b.UseSetting("JwtSettings:Issuer", "GymFlowPro.API.Dev");
+        });
     }
 
     [Fact]
@@ -165,6 +174,11 @@ public class PlatformMfaForcedSetupTests
             object? before = null,
             object? after = null,
             string? ipAddress = null) => Task.CompletedTask;
+
+        public Task<GMS.Platform.DTOs.PlatformPagedResult<GMS.Platform.DTOs.PlatformAuditLogDto>> ListAsync(
+            Guid? tenantId, string? action, DateOnly? from, DateOnly? to, int page, int pageSize,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new GMS.Platform.DTOs.PlatformPagedResult<GMS.Platform.DTOs.PlatformAuditLogDto> { Page = page, PageSize = pageSize });
     }
 
     private sealed class FakeHostEnvironment : Microsoft.Extensions.Hosting.IHostEnvironment

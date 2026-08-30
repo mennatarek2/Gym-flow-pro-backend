@@ -39,7 +39,7 @@ public class FeatureAccessService : IFeatureAccessService
     }
 
     public static string BuildCacheKey(Guid tenantId, string featureKey) =>
-        $"platform:feature:{tenantId:N}:{featureKey.Trim().ToLowerInvariant()}";
+        $"platform:feature:v2:{tenantId:N}:{featureKey.Trim().ToLowerInvariant()}";
 
     public async Task<bool> IsEnabledAsync(Guid tenantId, string featureKey, CancellationToken cancellationToken = default)
     {

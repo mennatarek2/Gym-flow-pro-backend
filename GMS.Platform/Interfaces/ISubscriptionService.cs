@@ -17,6 +17,10 @@ public interface ISubscriptionWriteRepository
 
     Task<PlatformSubscription?> GetLiveByTenantAsync(Guid tenantId, CancellationToken cancellationToken = default);
 
+    Task<PlatformSubscription?> GetLatestByTenantAsync(Guid tenantId, CancellationToken cancellationToken = default);
+
+    Task<bool> HasNonCancelledByTenantAsync(Guid tenantId, CancellationToken cancellationToken = default);
+
     Task<PlatformSubscription?> GetByIdAsync(Guid subscriptionId, CancellationToken cancellationToken = default);
 
     Task<string?> GetPendingDowngradeTierAsync(Guid subscriptionId, CancellationToken cancellationToken = default);
@@ -103,6 +107,28 @@ public interface ISubscriptionService
         string tier = "growth",
         string initiatedBy = "system",
         Guid? platformAdminUserId = null,
+        int? trialDays = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sales-assisted / admin-approved trial → active. Does not collect payment.
+    /// </summary>
+    Task<SubscriptionMutationResult> ConvertTrialToPaidAsync(
+        Guid tenantId,
+        string reason,
+        string initiatedBy = "platform_admin",
+        Guid? platformAdminUserId = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a new active paid subscription row after cancel. Does not revive the cancelled row.
+    /// </summary>
+    Task<SubscriptionMutationResult> RestartPaidAsync(
+        Guid tenantId,
+        string tier,
+        string reason,
+        string initiatedBy = "platform_admin",
+        Guid? platformAdminUserId = null,
         CancellationToken cancellationToken = default);
 
     Task<SubscriptionMutationResult> ChangeTierAsync(
@@ -118,6 +144,16 @@ public interface ISubscriptionService
         Guid tenantId,
         bool immediate,
         string? reason,
+        string initiatedBy = "platform_admin",
+        Guid? platformAdminUserId = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Clears CancelAtPeriodEnd on a live subscription. Does not change Status, period, or PriceEgp.
+    /// </summary>
+    Task<SubscriptionMutationResult> UndoCancelAtPeriodEndAsync(
+        Guid tenantId,
+        string reason,
         string initiatedBy = "platform_admin",
         Guid? platformAdminUserId = null,
         CancellationToken cancellationToken = default);

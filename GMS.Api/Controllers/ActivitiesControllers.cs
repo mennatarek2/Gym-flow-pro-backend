@@ -22,7 +22,7 @@ public class ActivitiesController : BaseApiController
     }
 
     [HttpGet]
-    [HasPermission(Permissions.PlansManage)]
+    [HasAnyPermission(Permissions.MembersView, Permissions.ClassesView)]
     [ProducesResponseType(typeof(List<ActivityDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> List(CancellationToken ct)
     {
@@ -31,7 +31,7 @@ public class ActivitiesController : BaseApiController
     }
 
     [HttpGet("{id:guid}")]
-    [HasPermission(Permissions.PlansManage)]
+    [HasAnyPermission(Permissions.MembersView, Permissions.ClassesView)]
     [ProducesResponseType(typeof(ActivityDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
     {
@@ -126,7 +126,7 @@ public class ActivitySessionsController : BaseApiController
     }
 
     [HttpGet]
-    [HasPermission(Permissions.MembersView)]
+    [HasAnyPermission(Permissions.MembersView, Permissions.ClassesView)]
     [ProducesResponseType(typeof(List<SessionDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> List([FromQuery] string date, CancellationToken ct)
     {
@@ -138,12 +138,23 @@ public class ActivitySessionsController : BaseApiController
     }
 
     [HttpGet("{id:guid}")]
-    [HasPermission(Permissions.MembersView)]
+    [HasAnyPermission(Permissions.MembersView, Permissions.ClassesView)]
     [ProducesResponseType(typeof(SessionDetailDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
     {
         var result = await _sessions.GetSessionDetailAsync(_tenantContext.TenantId, id, ct);
         return result.IsSuccess ? Ok(result.Data) : NotFound(new { message = result.Error });
+    }
+
+    /// <summary>Manual generation trigger (idempotent) — complements the hourly job.</summary>
+    [HttpPost("generate")]
+    [HasPermission(Permissions.PlansManage)]
+    public async Task<IActionResult> Generate([FromServices] ISessionGenerationService generator,
+        [FromQuery] int? days, CancellationToken ct)
+    {
+        var created = await generator.GenerateUpcomingSessionsAsync(_tenantContext.TenantId, days, ct);
+        await generator.FinalizeElapsedSessionsAsync(_tenantContext.TenantId, ct);
+        return Ok(new { created });
     }
 }
 
@@ -152,11 +163,14 @@ public class ActivitySessionsController : BaseApiController
 public class ActivityBookingsController : BaseApiController
 {
     private readonly ISessionBookingService _sessions;
+    private readonly IDropInService _dropIns;
     private readonly ITenantContext _tenantContext;
 
-    public ActivityBookingsController(ISessionBookingService sessions, ITenantContext tenantContext)
+    public ActivityBookingsController(ISessionBookingService sessions, IDropInService dropIns,
+        ITenantContext tenantContext)
     {
         _sessions = sessions;
+        _dropIns = dropIns;
         _tenantContext = tenantContext;
     }
 
@@ -181,7 +195,7 @@ public class ActivityBookingsController : BaseApiController
     }
 
     [HttpPut("{id:guid}/check-in")]
-    [HasPermission(Permissions.MembersView)]
+    [HasAnyPermission(Permissions.MembersView, Permissions.ClassesView)]
     [ProducesResponseType(typeof(BookingDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> CheckIn(Guid id, CancellationToken ct)
     {
@@ -191,6 +205,65 @@ public class ActivityBookingsController : BaseApiController
 
         var result = await _sessions.CheckInBookingAsync(_tenantContext.TenantId, id, userId, ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(new { message = result.Error });
+    }
+
+    /// <summary>
+    /// Reception: purchase a drop-in for one specific session then confirm the booking in one call.
+    /// Reuses the Sales architecture (a 'drop_in' SaleLine sale + payment).
+    /// </summary>
+    public class CreateDropInBookingRequest
+    {
+        public Guid SessionId { get; set; }
+        public Guid? MemberId { get; set; }
+        public string? GuestName { get; set; }
+        public string? GuestPhone { get; set; }
+        /// <summary>Amount collected now (defaults to the activity's full drop-in price).</summary>
+        public decimal? AmountPaid { get; set; }
+        public string PaymentMethod { get; set; } = "cash";
+    }
+
+    [HttpPost("drop-in")]
+    [HasPermission(Permissions.SalesSell)]
+    [ProducesResponseType(typeof(BookingDto), StatusCodes.Status201Created)]
+    public async Task<IActionResult> CreateDropIn([FromBody] CreateDropInBookingRequest request, CancellationToken ct)
+    {
+        var staffUserId = GetUserId();
+        if (staffUserId == Guid.Empty)
+            return BadRequest(new { message = "Staff user required / مطلوب مستخدم الموظف" });
+        if (request.MemberId == Guid.Empty)
+            request.MemberId = null;
+
+        var purchase = await _dropIns.PurchaseDropInAsync(
+            _tenantContext.TenantId, request.MemberId, request.GuestName, request.GuestPhone,
+            request.SessionId, staffUserId, request.AmountPaid, request.PaymentMethod, ct);
+        if (!purchase.IsSuccess)
+            return BadRequest(new { message = purchase.Error });
+
+        // Confirm the booking against the paid sale (transactional inside booking service).
+        var booking = await _sessions.CreateBookingAsync(
+            _tenantContext.TenantId,
+            new CreateBookingRequest
+            {
+                SessionId = request.SessionId,
+                MemberId = request.MemberId,
+                GuestName = request.MemberId.HasValue ? null : request.GuestName?.Trim(),
+                GuestPhone = request.MemberId.HasValue ? null : request.GuestPhone?.Trim(),
+                SaleId = purchase.Data,
+                Source = request.MemberId.HasValue ? "drop_in" : "guest_walk_in"
+            },
+            staffUserId,
+            ct);
+
+        // If the member turns out entitled without payment we still keep the paid sale —
+        // refundable through the normal refund flow. Surface booking errors honestly.
+        if (!booking.IsSuccess)
+            return BadRequest(new { message = booking.Error, saleId = purchase.Data! });
+
+        return Created(string.Empty, new
+        {
+            saleId = purchase.Data,
+            booking = booking.Data
+        });
     }
 
     private Guid GetUserId()

@@ -15,10 +15,37 @@ public class AesEncryptionService : IEncryptionService
 
     public AesEncryptionService(IConfiguration config)
     {
-        var keyString = config["EncryptionKey"]
-            ?? "GymFlowPro-AES256-DefaultKey-32C"; // 32 chars = 256 bits (dev default)
+        var keyString = config["EncryptionKey"];
+
+        if (string.IsNullOrWhiteSpace(keyString))
+        {
+            // Hardening (REM-F2): never fall back to a known hardcoded key in Production/Staging.
+            // Non-production environments (Development, test hosts, unknown) keep the historical
+            // dev fallback so local development and the existing test suite continue unchanged.
+            var env = config["ASPNETCORE_ENVIRONMENT"]
+                      ?? config["DOTNET_ENVIRONMENT"]
+                      ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+                      ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
+
+            if (string.Equals(env, "Production", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(env, "Staging", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "EncryptionKey is not configured. National ID encryption requires a 32+ character key " +
+                    "from secure configuration (environment variable / secret storage). Refusing to start with a default key.");
+            }
+
+            keyString = DevelopmentFallbackKey; // Explicitly NOT used in Production/Staging.
+        }
+
         _key = Encoding.UTF8.GetBytes(keyString.PadRight(32)[..32]);
     }
+
+    /// <summary>
+    /// Development-only fallback (32 chars = 256 bits). Never used when the environment is
+    /// Production or Staging; an unknown/empty environment also fails closed.
+    /// </summary>
+    internal const string DevelopmentFallbackKey = "GymFlowPro-AES256-DefaultKey-32C";
 
     public string Encrypt(string plainText)
     {

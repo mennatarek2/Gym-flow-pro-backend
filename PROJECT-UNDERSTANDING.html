@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GymFlowPro / GMS — Project Understanding Dashboard</title>
+<style>
+:root{
+  --bg:#0d1117; --bg2:#161b22; --card:#1a2130; --card2:#202839;
+  --border:#2b3547; --text:#dbe4f0; --muted:#8b98ab; --faint:#5c6778;
+  --blue:#58a6ff; --green:#3fb950; --yellow:#d29922; --red:#f85149;
+  --purple:#bc8cff; --gray:#7d8590; --cyan:#39c5cf;
+  --mono:'Cascadia Code',Consolas,'Courier New',monospace;
+  --sans:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
+}
+[data-theme="light"]{
+  --bg:#f5f7fa; --bg2:#eef1f6; --card:#ffffff; --card2:#f2f5fa;
+  --border:#d4dbe5; --text:#1c2733; --muted:#5a6a7d; --faint:#93a1b3;
+  --blue:#0969da; --green:#1a7f37; --yellow:#9a6700; --red:#cf222e;
+  --purple:#8250df; --gray:#656d76; --cyan:#0f7f88;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;scroll-padding-top:20px;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.55;}
+code,.mono{font-family:var(--mono);font-size:.86em;background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;color:var(--cyan);}
+h2{font-size:26px;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid var(--border);display:flex;align-items:center;gap:10px;}
+h2 .num{color:var(--blue);font-family:var(--mono);font-size:16px;background:rgba(88,166,255,.12);padding:2px 9px;border-radius:12px;border:1px solid rgba(88,166,255,.3);}
+h3{font-size:17px;margin:18px 0 8px;color:var(--blue);}
+p{margin-bottom:8px;}
+section{padding:34px 0 10px;}
+
+/* layout */
+.layout{display:flex;max-width:1560px;margin:0 auto;}
+.sidebar{width:230px;min-width:230px;position:sticky;top:0;height:100vh;overflow-y:auto;padding:18px 12px;border-right:1px solid var(--border);background:var(--bg2);}
+.sidebar .logo{font-weight:700;font-size:15px;margin-bottom:4px;}
+.sidebar .sub{font-size:11px;color:var(--muted);margin-bottom:14px;}
+.sidebar a{display:block;color:var(--muted);text-decoration:none;font-size:12.5px;padding:4.5px 9px;border-radius:6px;margin:1px 0;}
+.sidebar a:hover{background:var(--card2);color:var(--text);}
+.sidebar a.active{background:rgba(88,166,255,.13);color:var(--blue);}
+.main{flex:1;padding:0 34px 60px;min-width:0;}
+
+/* hero */
+.hero{padding:44px 0 30px;border-bottom:1px solid var(--border);}
+.hero h1{font-size:38px;line-height:1.15;}
+.hero h1 span{color:var(--blue);}
+.hero .tagline{color:var(--muted);font-size:17px;margin-top:10px;max-width:760px;}
+.metrics{display:flex;flex-wrap:wrap;gap:12px;margin-top:26px;}
+.metric{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 18px;min-width:130px;}
+.metric b{display:block;font-size:21px;color:var(--blue);font-family:var(--mono);}
+.metric span{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;}
+
+/* badges */
+.badge{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.5px;padding:2px 8px;border-radius:10px;text-transform:uppercase;border:1px solid;vertical-align:middle;}
+.b-green{color:var(--green);border-color:var(--green);background:rgba(63,185,80,.1);}
+.b-red{color:var(--red);border-color:var(--red);background:rgba(248,81,73,.1);}
+.b-yellow{color:var(--yellow);border-color:var(--yellow);background:rgba(210,153,34,.12);}
+.b-blue{color:var(--blue);border-color:var(--blue);background:rgba(88,166,255,.1);}
+.b-purple{color:var(--purple);border-color:var(--purple);background:rgba(188,140,255,.1);}
+.b-gray{color:var(--gray);border-color:var(--gray);background:rgba(125,133,144,.12);}
+.b-cyan{color:var(--cyan);border-color:var(--cyan);background:rgba(57,197,207,.1);}
+
+/* cards & grids */
+.grid{display:grid;gap:14px;margin:14px 0;}
+.g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr));}
+.g3{grid-template-columns:repeat(auto-fit,minmax(250px,1fr));}
+.g4{grid-template-columns:repeat(auto-fit,minmax(190px,1fr));}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;}
+.card h4{font-size:14px;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.card p,.card li{font-size:13px;color:var(--muted);}
+.card ul{padding-left:18px;margin:4px 0;}
+.card.accent-b{border-top:3px solid var(--blue);}
+.card.accent-g{border-top:3px solid var(--green);}
+.card.accent-r{border-top:3px solid var(--red);}
+.card.accent-y{border-top:3px solid var(--yellow);}
+.card.accent-p{border-top:3px solid var(--purple);}
+.card.accent-c{border-top:3px solid var(--cyan);}
+.card.accent-gr{border-top:3px solid var(--gray);}
+
+/* flow diagrams (CSS) */
+.flow{display:flex;flex-direction:column;align-items:center;gap:0;margin:16px auto;}
+.fnode{background:var(--card2);border:1.5px solid var(--border);border-radius:9px;padding:9px 22px;text-align:center;font-size:13.5px;min-width:190px;position:relative;}
+.fnode b{display:block;font-size:14px;}
+.fnode small{color:var(--muted);font-size:11px;}
+.fnode.blue{border-color:var(--blue);} .fnode.green{border-color:var(--green);}
+.fnode.red{border-color:var(--red);} .fnode.yellow{border-color:var(--yellow);}
+.fnode.purple{border-color:var(--purple);} .fnode.gray{border-color:var(--gray);opacity:.85;}
+.fnode.cyan{border-color:var(--cyan);}
+.arrow{color:var(--blue);font-size:18px;line-height:1.25;text-align:center;height:24px;display:flex;align-items:center;justify-content:center;flex-direction:column;}
+.arrow small{color:var(--muted);font-size:10px;font-family:var(--mono);}
+.flowrow{display:flex;gap:14px;justify-content:center;align-items:stretch;flex-wrap:wrap;width:100%;}
+.flowrow .fnode{min-width:150px;flex:0 1 auto;}
+
+/* evidence */
+.evidence{margin-top:14px;padding:9px 14px;background:var(--bg2);border-left:3px solid var(--gray);border-radius:0 8px 8px 0;font-size:11.5px;color:var(--muted);}
+.evidence b{color:var(--text);font-size:11px;letter-spacing:.5px;text-transform:uppercase;}
+
+/* tables */
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px;}
+th{background:var(--card2);color:var(--muted);text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:8px 10px;border-bottom:1px solid var(--border);}
+td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;color:var(--text);}
+tr:hover td{background:rgba(88,166,255,.04);}
+
+/* tree */
+.tree{font-family:var(--mono);font-size:13px;line-height:1.75;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 22px;overflow-x:auto;}
+.tree .d{color:var(--blue);font-weight:600;} .tree .c{color:var(--muted);}
+.tree .warn{color:var(--yellow);}
+
+/* risk items */
+.risk{border:1px solid var(--border);border-radius:9px;padding:12px 15px;margin:9px 0;background:var(--card);display:none;}
+.risk.show{display:block;}
+.risk .rhead{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:5px;}
+.risk .rhead b{font-size:13.5px;}
+.risk p{font-size:12.5px;color:var(--muted);margin:0;}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0;}
+.chip{cursor:pointer;background:var(--card);border:1px solid var(--border);color:var(--muted);border-radius:16px;padding:5px 15px;font-size:12px;font-family:var(--sans);}
+.chip.on{border-color:var(--blue);color:var(--blue);background:rgba(88,166,255,.1);}
+
+/* search */
+.searchwrap{position:relative;margin-bottom:6px;}
+#search{width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 13px;font-size:13px;font-family:var(--sans);outline:none;}
+#search:focus{border-color:var(--blue);}
+mark{background:rgba(210,153,34,.35);color:inherit;border-radius:2px;padding:0 1px;}
+.hidden-by-search{display:none !important;}
+
+.callout{border-radius:10px;padding:14px 18px;margin:14px 0;font-size:13.5px;border:1px solid;}
+.c-red{border-color:var(--red);background:rgba(248,81,73,.07);}
+.c-yellow{border-color:var(--yellow);background:rgba(210,153,34,.08);}
+.c-blue{border-color:var(--blue);background:rgba(88,166,255,.06);}
+.c-gray{border-color:var(--gray);background:rgba(125,133,144,.06);}
+
+.matrix td:first-child{font-weight:600;}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;}
+.footer{margin-top:50px;padding:26px 0;border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;text-align:center;}
+.theme-toggle{position:fixed;top:14px;right:16px;z-index:99;background:var(--card);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12px;font-family:var(--sans);}
+.collapsible>.chev{cursor:pointer;user-select:none;}
+details{margin:10px 0;}
+summary{cursor:pointer;color:var(--blue);font-size:13px;font-weight:600;padding:6px 0;}
+@media(max-width:900px){
+  .layout{flex-direction:column;}
+  .sidebar{position:static;width:100%;height:auto;max-height:260px;border-right:none;border-bottom:1px solid var(--border);}
+  .main{padding:0 16px 40px;}
+  .hero h1{font-size:28px;}
+}
+</style>
+</head>
+<body>
+<button class="theme-toggle" onclick="toggleTheme()">◐ Theme</button>
+
+<div class="layout">
+<!-- ============ SIDEBAR ============ -->
+<nav class="sidebar" id="nav">
+  <div class="logo">GymFlowPro / GMS</div>
+  <div class="sub">Understanding Dashboard · Discovery-only</div>
+  <div class="searchwrap"><input id="search" type="search" placeholder="Search dashboard…" autocomplete="off"></div>
+  <a href="#overview">Overview</a>
+  <a href="#architecture">Architecture</a>
+  <a href="#repo">Repository</a>
+  <a href="#tech">Technology</a>
+  <a href="#domains">Business Domains</a>
+  <a href="#membership">Membership Lifecycle</a>
+  <a href="#attendance">Attendance Flow</a>
+  <a href="#tenancy">Multi-Tenancy</a>
+  <a href="#authn">Authentication</a>
+  <a href="#authz">Authorization</a>
+  <a href="#pos">POS / Commerce</a>
+  <a href="#inventory">Inventory</a>
+  <a href="#finance">Finance</a>
+  <a href="#platform">Platform Plane</a>
+  <a href="#frontend">Frontend</a>
+  <a href="#mobile">Mobile App</a>
+  <a href="#database">Database</a>
+  <a href="#rules">Critical Rules</a>
+  <a href="#risks">Risks</a>
+  <a href="#debt">Technical Debt</a>
+  <a href="#unknowns">Unknowns</a>
+  <a href="#roadmap">Roadmap</a>
+</nav>
+
+<main class="main">
+
+<!-- ============ HERO ============ -->
+<div class="hero" id="overview">
+  <h1>GymFlowPro / <span>GMS</span><br>Project Understanding Dashboard</h1>
+  <div class="tagline">Visual map of the existing system based on repository discovery. Multi-tenant Gym Management SaaS for the Egyptian market — Arabic/English, EGP currency, Africa/Cairo timezone throughout.</div>
+  <div class="metrics">
+    <div class="metric"><b>.NET 8</b><span>Runtime / EF Core 8</span></div>
+    <div class="metric"><b>Shared-schema</b><span>Multi-Tenant</span></div>
+    <div class="metric"><b>2</b><span>DbContexts</span></div>
+    <div class="metric"><b>3 planes</b><span>Tenant·Platform·Clients</span></div>
+    <div class="metric"><b>~40</b><span>API controller files</span></div>
+    <div class="metric"><b>55</b><span>Tenant-scoped entity types</span></div>
+    <div class="metric"><b>~55</b><span>Application services</span></div>
+    <div class="metric"><b>~68</b><span>Test files</span></div>
+    <div class="metric"><b>SQL Server</b><span>LocalDB / MonsterASP Cloud</span></div>
+    <div class="metric"><b>3 apps</b><span>web · admin · console</span></div>
+  </div>
+  <div style="margin-top:18px;">
+    <span class="badge b-blue">DISCOVERY PHASE</span>
+    <span class="badge b-green">NO CODE MODIFIED</span>
+    <span class="badge b-gray">SOURCE OF TRUTH = ACTUAL CODE</span>
+  </div>
+</div>
+
+<!-- ============ ARCHITECTURE ============ -->
+<section id="architecture">
+<h2><span class="num">01</span> System Architecture</h2>
+<p>The actual request path traced from code — three distinct planes:</p>
+
+<div class="grid g3">
+  <div class="card accent-b">
+    <h4><span class="dot" style="background:var(--blue)"></span>Tenant Plane <span class="badge b-blue">IMPLEMENTED</span></h4>
+    <ul><li>Members, plans, memberships</li><li>Attendance &amp; check-in</li><li>POS, payments, shifts, Z-report</li><li>Full inventory + purchasing suite</li><li>Invitations, referrals, trials, activities</li></ul>
+  </div>
+  <div class="card accent-p">
+    <h4><span class="dot" style="background:var(--purple)"></span>Platform Plane <span class="badge b-purple">IMPLEMENTED</span></h4>
+    <ul><li>GMS.Platform + /platform-api/*</li><li>Subscriptions, billing, dunning</li><li>Tier/usage enforcement, suspension</li><li>Health scoring, risk queue, MFA</li></ul>
+  </div>
+  <div class="card accent-c">
+    <h4><span class="dot" style="background:var(--cyan)"></span>Client Applications</h4>
+    <ul><li>apps/web — production dashboard (static)</li><li>apps/admin — new SPA, early stage</li><li>platform-console — operator UI</li><li>Flutter member app — <span class="badge b-yellow">SPEC ONLY</span></li></ul>
+  </div>
+</div>
+
+<details open class="collapsible"><summary>▾ Full architecture diagram (click to collapse)</summary>
+<div class="flow">
+  <div class="flowrow">
+    <div class="fnode cyan tooltip" data-tip="Front-desk staff and gym owners using the static dashboard served by the API"><b>Staff Users</b><small>gym staff via browser</small></div>
+    <div class="fnode cyan tooltip" data-tip="Gym members — mobile flows hit the same API with Member role JWTs"><b>Members</b><small>mobile clients</small></div>
+    <div class="fnode purple tooltip" data-tip="GymFlow SaaS operators managing tenants and subscriptions"><b>Platform Operators</b><small>/platform-api</small></div>
+  </div>
+  <div class="arrow">▼</div>
+  <div class="flowrow">
+    <div class="fnode blue tooltip" data-tip="Next.js-era source built to static HTML/JS; vanilla fetch api-client.js; served from API wwwroot"><b>apps/web</b><small>production dashboard · static</small></div>
+    <div class="fnode gray tooltip" data-tip="React 19 + Vite SPA — auth/dashboard/members only, early stage"><b>apps/admin</b><small>SPA rewrite · PARTIAL</small></div>
+    <div class="fnode purple tooltip" data-tip="React 18 console for platform operators"><b>platform-console</b><small>operator UI</small></div>
+    <div class="fnode yellow tooltip" data-tip="Flutter prompts/spec docs exist; no Dart code in repository"><b>Flutter Member App</b><small>SPEC ONLY</small></div>
+  </div>
+  <div class="arrow">▼ <small>HTTPS / JSON · JWT Bearer</small></div>
+  <div class="fnode blue tooltip" data-tip="ASP.NET Core controllers (~40 files) under /api/* plus Platform controllers under /platform-api/*"><b>GMS.Api</b><small>Controllers · SignalR hub /hubs/attendance · Hangfire dashboard</small></div>
+  <div class="arrow">▼</div>
+  <div class="flowrow">
+    <div class="fnode green tooltip" data-tip="AuthService: staff login (gym_code+email+password), member OTP, activation codes, refresh tokens"><b>Authentication</b><small>Identity + JWT + refresh tokens</small></div>
+    <div class="fnode red tooltip" data-tip="Resolves tenant from gym_code claim or X-Gym-Code header; caches 10 min; applies CP5 suspension gate"><b>TenantMiddleware</b><small>tenant resolution + suspension gate</small></div>
+  </div>
+  <div class="arrow">▼ <small>[Authorize] + [HasPermission] policies</small></div>
+  <div class="fnode blue tooltip" data-tip="~55 services returning Result&lt;T&gt; with bilingual AR/EN errors; validation, business logic, side effects"><b>GMS.Application Services</b><small>business logic · validators · Hangfire jobs</small></div>
+  <div class="arrow">▼</div>
+  <div class="flowrow">
+    <div class="fnode blue tooltip" data-tip="Entities, enums, Permissions constants, MembershipOperational Cairo-day rules"><b>GMS.Core</b><small>entities · domain rules</small></div>
+    <div class="fnode blue tooltip" data-tip="DbContexts, EF configurations, migrations, TokenService, AES encryption, PDF/QR, integrations"><b>GMS.Infrastructure</b><small>persistence · identity · integrations</small></div>
+  </div>
+  <div class="arrow">▼</div>
+  <div class="fnode green tooltip" data-tip="LocalDB in dev; MonsterASP Cloud SQL in production; migrations auto-apply on startup"><b>SQL Server</b><small>shared-schema multi-tenant DB</small></div>
+</div>
+
+<div class="flow" style="margin-top:26px;">
+  <div class="fnode purple tooltip" data-tip="Separate DbContext + services: subscriptions, billing/invoices/dunning (Paymob/Fawry), tier enforcement, health scores, risk queue, MFA"><b>GMS.Platform — parallel plane</b><small>PlatformDbContext · SubscriptionAccessService gates every tenant request</small></div>
+  <div class="arrow">⇠ feeds ⇢</div>
+  <div class="fnode red tooltip" data-code="true"><b>TenantMiddleware suspension gate</b><small>suspended + ≤72h buffer → check-in only; else HTTP 402</small></div>
+</div>
+</details>
+
+<div class="evidence"><b>Evidence</b> — GMS.Api/Program.cs · GMS.Api/Middleware/TenantMiddleware.cs · GMS.slnx · GMS.Application/Services/*.cs · GMS.Platform/Persistence/PlatformDbContext.cs</div>
+</section>
+
+<!-- ============ REPOSITORY ============ -->
+<section id="repo">
+<h2><span class="num">02</span> Repository Structure</h2>
+<div class="grid g2">
+<pre class="tree">
+D:\GMS\GMS
+│
+├── <span class="d">GMS.Core</span>            <span class="c">— entities, enums, constants</span>
+├── <span class="d">GMS.Infrastructure</span> <span class="c">— DbContexts, migrations, identity, services</span>
+├── <span class="d">GMS.Application</span>    <span class="c">— ~55 services, DTOs, jobs, validators</span>
+├── <span class="d">GMS.Api</span>            <span class="c">— controllers, middleware, hubs, wwwroot</span>
+├── <span class="d">GMS.Platform</span>       <span class="c">— SaaS operator plane</span>
+├── <span class="d">GMS.Tests</span>          <span class="c">— xUnit suite + ReconCheck + LoadTests</span>
+├── <span class="d">Frontend/apps</span>
+│   ├── <span class="d">web</span>               <span class="c">— production dashboard source</span>
+│   ├── <span class="d">admin</span>             <span class="c">— new React SPA (partial)</span>
+│   └── <span class="d">platform-console</span>  <span class="c">— operator console</span>
+├── <span class="d">docs</span>              <span class="c">— api / database / deployment / design …</span>
+├── <span class="d">deploy</span>, <span class="d">scripts</span>   <span class="c">— MonsterASP env example, publish script</span>
+├── Frontend.zip / Frontend.rar …  <span class="warn">⚠ ~700 MB archives tracked at root</span>
+└── publish/, publish-test/, publish-verify/  <span class="warn">⚠ build output folders</span>
+</pre>
+<div>
+  <div class="card accent-b" style="margin-bottom:12px;"><h4>Project references (actual)</h4>
+  <p>Api → Application + Infrastructure + Platform<br>Application → Core + Infrastructure + Platform<br>Infrastructure → Core · Platform → Core</p>
+  <p style="margin-top:6px;">Note: Application→Infrastructure reference means this is not strict clean architecture.</p></div>
+  <div class="card accent-y"><h4>Repository Hygiene <span class="badge b-yellow">TECHNICAL DEBT</span></h4>
+  <p>~700 MB of Frontend zip/rar archives committed at repo root alongside the live Frontend folder, plus publish/, publish-test/, publish-verify/ build-output directories and a tracked .vs/ directory.</p></div>
+</div>
+</div>
+<div class="evidence"><b>Evidence</b> — root directory listing, GMS.slnx, *.csproj ProjectReference entries</div>
+</section>
+
+<!-- ============ TECHNOLOGY ============ -->
+<section id="tech">
+<h2><span class="num">03</span> Technology Stack <span class="badge b-green">VERIFIED FROM CSPROJ / PACKAGE.JSON</span></h2>
+<div class="grid g4">
+  <div class="card accent-b"><h4>Backend</h4><ul>
+    <li>.NET 8 (net8.0), C#, nullable enabled</li><li>ASP.NET Core MVC</li>
+    <li>EF Core 8 (SqlServer 8.0.0)</li><li>ASP.NET Identity (Guid PK)</li>
+    <li>JWT Bearer 8.0.0 · System.IdentityModel.Tokens.Jwt 8.0.1</li>
+    <li>SignalR (+ optional Redis backplane)</li><li>Hangfire 1.8.14 (SqlServer)</li>
+    <li>FluentValidation · Swashbuckle 6.6.2</li>
+    <li>QuestPDF · QRCoder · ClosedXML · CsvHelper · MailKit · Otp.NET</li></ul></div>
+  <div class="card accent-g"><h4>Database</h4><ul>
+    <li>SQL Server — LocalDB dev, MonsterASP Cloud prod</li>
+    <li>GymFlowProDbContext (tenant plane)</li>
+    <li>PlatformDbContext (SaaS plane)</li>
+    <li>Migrations auto-applied on startup (Production config)</li></ul></div>
+  <div class="card accent-c"><h4>Frontend</h4><ul>
+    <li><b>apps/web</b>: Next.js 13-era source → static HTML/JS, vanilla fetch client, Tailwind-era CSS</li>
+    <li><b>apps/admin</b>: React 19 · Vite 6 · Zustand 5 · TanStack Query 5 · axios · react-router 7</li>
+    <li><b>platform-console</b>: React 18 · Vite 6</li></ul></div>
+  <div class="card accent-p"><h4>Testing</h4><ul>
+    <li>xUnit 2.5.3 (~68 test files)</li><li>EF InMemory · Mvc.Testing</li>
+    <li>FsCheck property tests</li><li>Hangfire.InMemory</li>
+    <li>ReconCheck console project</li><li>LoadTests console project</li></ul></div>
+</div>
+<div class="callout c-gray">Unknown / Not Confirmed: exact Next.js build pipeline behavior of apps/web beyond <code>prepare-wwwroot.mjs</code>; whether all documented package versions resolve identically in lockfiles.</div>
+<div class="evidence"><b>Evidence</b> — GMS.*.csproj · Frontend/apps/*/package.json · GMS.Tests/GMS.Tests.csproj</div>
+</section>
+
+<!-- ============ DOMAINS ============ -->
+<section id="domains">
+<h2><span class="num">04</span> Business Domain Map</h2>
+<p>All domains below are implemented on the tenant plane unless marked otherwise.</p>
+<div class="filters" id="domainFilters">
+  <span class="chip on" data-f="all">All</span>
+  <span class="chip" data-f="core">Core Gym</span>
+  <span class="chip" data-f="commerce">Commerce</span>
+  <span class="chip" data-f="inv">Inventory</span>
+  <span class="chip" data-f="fin">Finance</span>
+  <span class="chip" data-f="plat">Platform</span>
+</div>
+<div class="grid g4" id="domainGrid">
+  <div class="card accent-b dom" data-cat="core"><h4>Members</h4><p>GymMember · encrypted NationalID · trial tracking · invitation quota · referral code/tiers</p></div>
+  <div class="card accent-b dom" data-cat="core"><h4>Plans</h4><p>7 plan types incl. session packs, PT credits, family, trial, day pass · PlanEntitlement → activities</p></div>
+  <div class="card accent-b dom" data-cat="core"><h4>Memberships</h4><p>assign/renew/cancel/freeze · pending vs active · PlanTransitionMode ×3 · computed effective status</p></div>
+  <div class="card accent-g dom" data-cat="core"><h4>Attendance</h4><p>QR · barcode · manual check-in · occupancy · SignalR live dashboard · session decrement</p></div>
+  <div class="card accent-b dom" data-cat="core"><h4>Invitations</h4><p>MemberInvitation entity · quota per member · guest passes · funnel statuses · expiry job</p></div>
+  <div class="card accent-b dom" data-cat="core"><h4>Referrals</h4><p>ReferralCode · ReferralReward with hold-processing job · attribution service</p></div>
+  <div class="card accent-b dom" data-cat="core"><h4>Trials</h4><p>IsTrial/TrialOutcome/ConvertingSaleId · TrialService · expiry &amp; follow-up jobs</p></div>
+  <div class="card accent-b dom" data-cat="core"><h4>Activities / Classes</h4><p>Activity → Schedule → Session → Booking · plan eligibility via entitlements · reminders</p></div>
+  <div class="card accent-y dom" data-cat="commerce"><h4>POS / Sales</h4><p>Mixed carts · 5 line types · discounts &amp; promos · idempotency keys · outstanding balances</p></div>
+  <div class="card accent-y dom" data-cat="commerce fin"><h4>Payments</h4><p>PaymentTransaction · cash + Paymob + Fawry services · record-payment settlement</p></div>
+  <div class="card accent-c dom" data-cat="inv commerce"><h4>Products</h4><p>SKU/barcode · categories · batch &amp; expiry flags · fractional qty control · member store visibility</p></div>
+  <div class="card accent-c dom" data-cat="inv"><h4>Warehouses &amp; Stock</h4><p>Ledger-based stock · transfers · adjustments · counts · low-stock reorder calculator + job</p></div>
+  <div class="card accent-c dom" data-cat="inv"><h4>Purchasing</h4><p>Suppliers · Purchase Orders (draft→approved) · Goods Receipts · batches · supplier ledger AP</p></div>
+  <div class="card accent-y dom" data-cat="fin"><h4>Shifts &amp; Z-Report</h4><p>Blind-count close · signed cash movements · variance approval · daily + per-shift Z reports (PDF)</p></div>
+  <div class="card accent-y dom" data-cat="fin"><h4>Invoices</h4><p>Per-tenant InvoiceSequence numbering · Hangfire-rendered PDF/HTML delivery job</p></div>
+  <div class="card accent-p dom" data-cat="plat"><h4>Platform Billing</h4><p>PlatformInvoice · dunning handler · Paymob/Fawry webhooks · VAT config · usage overage pricing</p></div>
+  <div class="card accent-p dom" data-cat="plat"><h4>Subscriptions</h4><p>Trial 14 days · tiers · feature map seed · access/suspension service consumed by middleware</p></div>
+  <div class="card accent-p dom" data-cat="plat"><h4>Risk &amp; Health</h4><p>Rules-based health score weights/bands · risk queue · metrics roll-up job · automation enrollments</p></div>
+</div>
+<div class="flow" style="margin-top:20px;">
+  <div class="flowrow" style="align-items:center;">
+    <div class="fnode blue">Plan</div><div class="arrow">→</div>
+    <div class="fnode blue">Membership</div><div class="arrow">→</div>
+    <div class="fnode green">Attendance</div><div class="arrow">→</div>
+    <div class="fnode green">Session Consumption</div><div class="arrow">→</div>
+    <div class="fnode cyan">Occupancy</div>
+  </div>
+  <div class="arrow">·</div>
+  <div class="flowrow" style="align-items:center;">
+    <div class="fnode yellow">POS Sale</div><div class="arrow">→</div>
+    <div class="fnode yellow">PaymentTransaction</div><div class="arrow">→</div>
+    <div class="fnode yellow">Shift</div><div class="arrow">→</div>
+    <div class="fnode yellow">Z-Report</div>
+  </div>
+  <div class="arrow">·</div>
+  <div class="flowrow" style="align-items:center;">
+    <div class="fnode cyan">Purchase Order</div><div class="arrow">→</div>
+    <div class="fnode cyan">Goods Receipt</div><div class="arrow">→</div>
+    <div class="fnode cyan">Stock Movement Ledger</div><div class="arrow">→</div>
+    <div class="fnode cyan">Warehouse Stock</div><div class="arrow">→</div>
+    <div class="fnode yellow">POS</div>
+  </div>
+</div>
+<div class="evidence"><b>Evidence</b> — GMS.Core/Entities/*.cs · GMS.Application/Services/*.cs · GMS.Api/Controllers/*.cs · Hangfire jobs in GMS.Application/Jobs + GMS.Infrastructure/Jobs</div>
+</section>
+
+<!-- ============ MEMBERSHIP ============ -->
+<section id="membership">
+<h2><span class="num">05</span> Membership Lifecycle</h2>
+<div class="flow">
+  <div class="flowrow" style="align-items:center;flex-wrap:nowrap;overflow-x:auto;">
+    <div class="fnode gray">Lead</div><div class="arrow">→</div>
+    <div class="fnode blue">Trial</div><div class="arrow">→</div>
+    <div class="fnode yellow">Sale</div><div class="arrow">→</div>
+    <div class="fnode green">Membership</div><div class="arrow">→</div>
+    <div class="fnode green">Attendance</div><div class="arrow">→</div>
+    <div class="fnode green">Renewal</div><div class="arrow">→</div>
+    <div class="fnode blue">Retention</div><div class="arrow">→</div>
+    <div class="fnode purple">Referral</div>
+  </div>
+</div>
+<div class="grid g2">
+  <div class="card accent-b"><h4>Desk renewal transitions (actual field: <code>PlanTransitionMode</code>)</h4>
+    <table><tr><th>Mode</th><th>Meaning</th></tr>
+    <tr><td><code>cancel_and_switch</code></td><td>Cancel prior membership, activate new plan immediately</td></tr>
+    <tr><td><code>queue_next</code></td><td>Queue the renewal to start when current ends</td></tr>
+    <tr><td><code>manual_rollover</code></td><td>Staff decides rollover manually</td></tr></table>
+    <p style="margin-top:6px;">Null for assign / legacy rows. Renewal dating logic in <code>MembershipRenewalDating.cs</code>.</p></div>
+  <div class="card accent-g"><h4>Status model — stored vs effective</h4>
+    <p>Stored <code>Membership.Status</code>: active · expired · frozen · cancelled · pending.</p>
+    <p><code>MembershipOperational.GetEffectiveStatus()</code> computes the date-aware status on the Cairo calendar: adds <b>scheduled</b> (future start), derives expired from EndDate, frozen-with-expiry → expired.</p>
+    <p>A Hangfire job (<code>MembershipStatusExpiryJob</code>) syncs stored status; front-desk decisions use the computed one.</p></div>
+</div>
+<div class="callout c-red"><b>CRITICAL RULE</b> — Never trust stored <code>Membership.Status</code> alone. Effective status is date-aware and Cairo-calendar computed (<code>GMS.Core/Utilities/MembershipOperational.cs</code>). Cash assign/renew ⇒ active; non-cash ⇒ pending.</div>
+<div class="evidence"><b>Evidence</b> — GMS.Core/Utilities/MembershipOperational.cs · GMS.Application/Services/MembershipService.cs · MembershipRenewalDating.cs · GMS.Infrastructure/Jobs/MembershipStatusExpiryJob.cs</div>
+</section>
+
+<!-- ============ ATTENDANCE ============ -->
+<section id="attendance">
+<h2><span class="num">06</span> Attendance / Check-in Flow <span class="badge b-red">VALIDATION ORDER — DO NOT REORDER</span></h2>
+<p>Exact sequence documented and implemented in <code>CheckinService.ProcessQrCheckinAsync</code>; barcode &amp; manual variants share the gauntlet.</p>
+<details open><summary>▾ Check-in pipeline</summary>
+<div class="flow">
+  <div class="fnode blue">1 · Gym code → tenant exists<small>+ QR belongs to this tenant</small></div>
+  <div class="arrow">↓</div>
+  <div class="fnode blue">2 · Member JWT → member of this tenant<small>sub = AspNetUsers.Id → AppUser.UserId → GymMember.AppUserId</small></div>
+  <div class="arrow">↓</div>
+  <div class="fnode yellow">3 · Active membership exists</div>
+  <div class="arrow">↓</div>
+  <div class="fnode yellow">4 · Membership not frozen</div>
+  <div class="arrow">↓</div>
+  <div class="fnode yellow">5 · Time restriction check<small>time-limited plans</small></div>
+  <div class="arrow">↓</div>
+  <div class="fnode yellow">6 · Session count check<small>session-pack plans</small></div>
+  <div class="arrow">↓</div>
+  <div class="fnode green">7 · Write attendance record<small>GymAttendance · EntryMethod qr|barcode|manual</small></div>
+  <div class="arrow">↓</div>
+  <div class="fnode green">8 · Atomic SessionsRemaining decrement<small>+ IMemoryCache invalidation (5-min TTL)</small></div>
+  <div class="arrow">↓</div>
+  <div class="flowrow">
+    <div class="fnode cyan">SignalR broadcast<small>AttendanceHub · group tenant-{id}</small></div>
+    <div class="fnode cyan">Occupancy update<small>GymOccupancyService</small></div>
+  </div>
+</div>
+</details>
+<p style="margin-top:10px;">Endpoints: <code>POST /api/attendance/qr-checkin</code> · <code>barcode-checkin</code> · <code>manual-checkin</code> · <code>GET today</code> · <code>GET occupancy</code>. Manual check-in validates the staff user exists in-tenant before use (AppUser.UserId == JWT sub string).</p>
+<div class="evidence"><b>Evidence</b> — GMS.Application/Services/CheckinService.cs (validation-order header comment, lines ~29–41) · GMS.Api/Hubs/AttendanceHub.cs · GMS.Api/Controllers/AttendanceController.cs</div>
+</section>
+
+<!-- ============ MULTI-TENANCY ============ -->
+<section id="tenancy">
+<h2><span class="num">07</span> Multi-Tenancy Architecture <span class="badge b-blue">SHARED SCHEMA</span></h2>
+<details open><summary>▾ Isolation layers</summary>
+<div class="flow">
+  <div class="flowrow">
+    <div class="fnode blue">JWT claim <code>gym_code</code></div>
+    <div class="fnode gray">or header <code>X-Gym-Code</code></div>
+  </div>
+  <div class="arrow">↓</div>
+  <div class="fnode red tooltip" data-tip="Skips /api/auth/, /platform-api/, /health, /swagger. Resolves tenant by GymCode, caches 10 min, rejects inactive tenants."><b>TenantMiddleware (Layer 3 — application level)</b><small>CP5 suspension gate applied here</small></div>
+  <div class="arrow">↓</div>
+  <div class="fnode blue"><b>ITenantContext</b><small>ambient tenant id for the request</small></div>
+  <div class="arrow">↓</div>
+  <div class="fnode green tooltip" data-tip="Combined TenantId==context && !IsDeleted single HasQueryFilter per type — splitting was a past bug (second call replaces the first)."><b>EF Global Query Filters (Layer 2)</b><small>55 entity types · combined tenant + soft-delete predicate</small></div>
+  <div class="arrow">↓</div>
+  <div class="fnode green"><b>Service-level explicit TenantId checks</b><small>e.g. StockLedgerService, CheckinService</small></div>
+  <div class="arrow">↓</div>
+  <div class="fnode green"><b>Tenant-isolated data</b><small>per-tenant members/plans/products/transactions/settings/permissions</small></div>
+</div>
+</details>
+<div class="grid g2">
+  <div class="card accent-gr"><h4>Deliberately unfiltered entities</h4>
+    <ul><li><code>ApplicationUser</code> (AspNetUsers) — queried by explicit TenantId</li><li><code>Tenant</code> — must be resolvable without context</li><li><code>SaleIdempotencyKey</code>, <code>InvoiceSequence</code> — no BaseEntity; explicit TenantId always; used in Hangfire scopes without ambient context</li></ul></div>
+  <div class="card accent-r"><h4>⚠ Risk — confirmed pattern</h4>
+    <p>Query filters are applied only when <code>_tenantContext != null</code>. If the DbContext is resolved without an ambient ITenantContext (e.g. some background paths), queries run <b>unfiltered</b> unless the code uses explicit TenantId predicates.</p></div>
+</div>
+<div class="callout c-yellow"><b>⚠ Risk</b> — If ITenantContext is absent, some queries may become unfiltered. Not exploited or fixed during discovery; flagged for audit.</div>
+<div class="evidence"><b>Evidence</b> — GMS.Infrastructure/Persistence/GymFlowProDbContext.cs (TenantScopedEntityTypes set, ApplyGlobalQueryFilters, closing NOTE comments) · GMS.Api/Middleware/TenantMiddleware.cs</div>
+</section>
+
+<!-- ============ AUTHN ============ -->
+<section id="authn">
+<h2><span class="num">08</span> Authentication Architecture</h2>
+<h3>Three user representations — verified chain</h3>
+<div class="flow">
+  <div class="flowrow" style="align-items:center;flex-wrap:nowrap;">
+    <div class="fnode blue tooltip" data-tip="AspNetUsers row. Identity PK Guid. This Guid is the JWT sub."><b>ApplicationUser</b><small>AspNetUsers · JWT sub = its Id</small></div>
+    <div class="arrow">→ <small>AppUser.UserId stores that Identity ID as string</small></div>
+    <div class="fnode blue"><b>AppUser</b><small>domain staff record · separate NEWSEQUENTIALID PK</small></div>
+    <div class="arrow">→ <small>GymMember.AppUserId FK (nullable)</small></div>
+    <div class="fnode green"><b>GymMember</b><small>member profile · encrypted NationalID</small></div>
+  </div>
+</div>
+<div class="callout c-red"><b>CRITICAL</b> — <code>JWT sub ≠ AppUser.Id</code>. <code>JWT sub = ApplicationUser.Id</code>. Comparing against the wrong PK is a documented past-mistake class (see CheckinService comments).</div>
+<div class="grid g3">
+  <div class="card accent-b"><h4>Staff login <span class="badge b-green">IMPLEMENTED</span></h4>
+  <p>gym_code + email + password → tenant match → tenant match on user → password check → JWT + refresh token. Refresh hashes stored, revocation supported.</p></div>
+  <div class="card accent-c"><h4>Member OTP <span class="badge b-green">IMPLEMENTED</span></h4>
+  <p>Phone → 6-digit OTP (Otp.NET, 5-min TTL cache, pluggable delivery strategy incl. MockOtpSender) → member JWT with role Member.</p></div>
+  <div class="card accent-c"><h4>Activation code <span class="badge b-green">IMPLEMENTED</span></h4>
+  <p>Staff issues code; peppered hash stored (<code>MemberAppActivationCode</code>), 24 h expiry, one-time consume, RowVersion-guarded.</p></div>
+</div>
+<div class="card accent-b" style="margin-top:12px;"><h4>JWT claims (TokenService)</h4>
+<p><code>sub</code> · <code>email</code> · <code>jti</code> · <code>tenant_id</code> · <code>gym_code</code> · <code>first_name</code>/<code>last_name</code> · role claims · one discrete <code>perm</code> claim per permission (chosen over bitmask for debuggability).</p>
+<p>On first member login the backend lazily creates ApplicationUser + AppUser and links GymMember (<code>FindOrCreateMemberIdentityUserAsync</code>).</p></div>
+<div class="evidence"><b>Evidence</b> — GMS.Core/Entities/Identity/ApplicationUser.cs · GMS.Core/Entities/AppUser.cs · GMS.Infrastructure/Services/TokenService.cs · GMS.Application/Services/AuthService.cs · MemberAppActivationService.cs · OtpCacheService.cs</div>
+</section>
+
+<!-- ============ AUTHZ ============ -->
+<section id="authz">
+<h2><span class="num">09</span> Roles &amp; Permissions</h2>
+<table class="matrix">
+<tr><th>Role</th><th>Default permissions (DefaultPermissionProvider)</th></tr>
+<tr><td><span class="badge b-green">Owner</span></td><td>All permissions</td></tr>
+<tr><td><span class="badge b-blue">Manager</span></td><td>All except <code>plans.manage</code> and <code>settings.manage</code></td></tr>
+<tr><td><span class="badge b-cyan">Receptionist</span></td><td>members.view/create/edit · checkin.manual · sales.sell · sales.discount.apply · payments.cash.accept · payments.refund.request · shift.open/close · inventory.view · member_orders.view/manage</td></tr>
+<tr><td><span class="badge b-yellow">Trainer</span></td><td><code>checkin.manual</code> only (class/PT access enforced separately via role checks)</td></tr>
+<tr><td><span class="badge b-gray">Member</span></td><td>Member-app authentication scope (own data, check-in, invites)</td></tr>
+</table>
+<div class="grid g2">
+  <div class="card accent-b"><h4>Permission machinery</h4>
+    <ul><li><code>Permissions.cs</code> — ~30 granular constants, claim type "perm"</li>
+    <li><code>PermissionPolicyProvider</code> + <code>PermissionAuthorizationHandler</code> + <code>[HasPermission]</code></li>
+    <li>Named policies e.g. <code>OwnerOnly</code> (member hard-delete/reactivate)</li></ul></div>
+  <div class="card accent-p"><h4>Per-tenant overlay</h4>
+    <ul><li>Overlay JSON in <code>Tenant.Settings.role_permissions</code></li><li>Resolved by <code>RolePermissionResolver</code> at login/refresh</li><li>Cached in Redis (<code>RedisPermissionCacheService</code>)</li><li><code>ApplicationUser.PermissionsOverride</code> — read but explicitly unused/reserved</li></ul></div>
+</div>
+<p style="margin-top:8px;">Frontend permission gating exists in apps/web (<code>shared/authz.js</code>); full consistency between frontend visibility and backend enforcement was not exhaustively diffed — <span class="badge b-gray">UNKNOWN</span>.</p>
+<div class="evidence"><b>Evidence</b> — GMS.Core/Constants/Permissions.cs · GMS.Infrastructure/Services/DefaultPermissionProvider.cs · RolePermissionResolver.cs · GMS.Api/Authorization/*.cs · MembersController attributes</div>
+</section>
+
+<!-- ============ POS ============ -->
+<section id="pos">
+<h2><span class="num">10</span> POS / Commerce Flow</h2>
+<details open><summary>▾ Sale pipeline (SaleService.CreateSaleAsync)</summary>
+<div class="flow">
+  <div class="fnode blue">Cart (mixed lines allowed)</div>
+  <div class="arrow">↓</div>
+  <div class="flowrow">
+    <div class="fnode yellow">membership</div><div class="fnode yellow">trial</div><div class="fnode yellow">day_pass</div>
+    <div class="fnode cyan">retail</div><div class="fnode cyan">fee</div>
+  </div>
+  <div class="arrow">↓ <small>membership-like and retail branches are separate — retail assumptions do not leak into membership-only carts</small></div>
+  <div class="flowrow">
+    <div class="fnode cyan">Resolve active warehouse<small>retail only</small></div>
+    <div class="fnode cyan">Availability check<small>expiry-aware "sellable" stock</small></div>
+  </div>
+  <div class="arrow">↓</div>
+  <div class="fnode green"><b>Create Sale + SaleLines</b><small>subtotal · discount · promo/manual discount · tax · total · AmountDue/DueDate</small></div>
+  <div class="arrow">↓</div>
+  <div class="flowrow">
+    <div class="fnode cyan">AllocateSaleAsync (FIFO-ish slices)</div>
+    <div class="fnode cyan">Stock ledger posts (idempotent by ReferenceType+Id)</div>
+  </div>
+  <div class="arrow">↓</div>
+  <div class="flowrow">
+    <div class="fnode yellow">PaymentTransaction(s)</div>
+    <div class="fnode yellow">Outstanding / partially_paid</div>
+    <div class="fnode yellow">Attach ShiftId</div>
+  </div>
+  <div class="arrow">↓</div>
+  <div class="fnode gray">Invoice deferred → Hangfire CreateInvoiceForSaleJob</div>
+</div>
+</details>
+<div class="grid g3">
+  <div class="card accent-g"><h4>Idempotency</h4><p><code>SaleIdempotencyKey</code> table guards duplicate submissions; ledger posts are reference-idempotent.</p></div>
+  <div class="card accent-y"><h4>Refunds</h4><p><code>RefundService</code> + split permissions (request vs approve); refunds restore stock and adjust sale status (refunded / partially_refunded).</p></div>
+  <div class="card accent-b"><h4>Payment statuses</h4><p>Sale: completed | partially_paid | refunded | partially_refunded. Record-payment endpoint settles outstanding amounts.</p></div>
+</div>
+<div class="evidence"><b>Evidence</b> — GMS.Application/Services/SaleService.cs (~941 lines; retail/membership branch inspection lines 92–520) · SaleIdempotencyKeyConfiguration.cs · RefundService.cs</div>
+</section>
+
+<!-- ============ INVENTORY ============ -->
+<section id="inventory">
+<h2><span class="num">11</span> Inventory Architecture</h2>
+<div class="callout c-blue"><b>SOURCE OF TRUTH</b> — append-only <code>StockMovement</code> ledger ("On-hand = SUM(QtyDelta)"). <code>StockBalance</code> is a <b>cache</b> written only by <code>IStockLedgerService</code>.</div>
+<details open><summary>▾ Full stock flow diagram</summary>
+<div class="flow">
+  <div class="fnode cyan">Supplier master</div>
+  <div class="arrow">↓</div>
+  <div class="fnode cyan">Purchase Order (draft)<small>lines: QtyOrdered / QtyReceived / UnitCost</small></div>
+  <div class="arrow">↓ <small>approval step (ApprovedByUserId)</small></div>
+  <div class="fnode cyan">Goods Receipt + lines<small>batches created where TrackBatch/TrackExpiry</small></div>
+  <div class="arrow">↓</div>
+  <div class="fnode green tooltip" data-tip="Append-only. Reasons validated against StockMovementReasons. Compensating posts preferred over edits/deletes. Zero-delta rejected. Reference-idempotent."><b>STOCK MOVEMENT LEDGER — SOURCE OF TRUTH</b><small>QtyDelta · UnitCost · Reason · ReferenceType/Id · BatchId</small></div>
+  <div class="arrow">↓</div>
+  <div class="fnode yellow tooltip" data-tip="Cached on-hand per product/warehouse[/batch]. RowVersion optimistic concurrency; lost-update retry when the post owns the transaction."><b>Stock Balance cache</b><small>RowVersion guarded · written only via ledger service</small></div>
+  <div class="arrow">↓</div>
+  <div class="flowrow">
+    <div class="fnode blue">Warehouse stock board / breakdown</div>
+    <div class="fnode blue">Low-stock reorder calculator + Hangfire job</div>
+  </div>
+  <div class="arrow">↓</div>
+  <div class="flowrow">
+    <div class="fnode yellow">POS sale deduction<small>FIFO-ish allocation, expiry-aware</small></div>
+    <div class="fnode yellow">Refund restoration</div>
+    <div class="fnode blue">Transfers · Adjustments · Counts</div>
+  </div>
+</div>
+</details>
+<div class="grid g3">
+  <div class="card accent-g"><h4>Concurrency</h4><p><code>RowVersion</code> on StockBalance + retry-on-lost-update in PostAsync (documented "Critical Close C1"). Filtered unique index covers null-batch balances.</p></div>
+  <div class="card accent-c"><h4>Batches &amp; expiry</h4><p>ProductBatch with expiry; POS blocks selling from fully expired on-hand even when quantity remains.</p></div>
+  <div class="card accent-y"><h4>Purchasing AP</h4><p>SupplierLedgerEntry records payables at receipt; settlement via supplier ledger (covered by GoodsReceiptAp2Tests). Full payment/settlement UI depth — <span class="badge b-gray">partially inspected</span>.</p></div>
+</div>
+<div class="evidence"><b>Evidence</b> — GMS.Application/Services/StockLedgerService.cs · GMS.Core/Entities/StockMovement.cs · StockBalance.cs · PurchasingEntities.cs · GMS.Infrastructure/Persistence/Configurations/Stock*Configuration.cs</div>
+</section>
+
+<!-- ============ FINANCE ============ -->
+<section id="finance">
+<h2><span class="num">12</span> Finance Architecture</h2>
+<div class="flow">
+  <div class="flowrow" style="align-items:center;flex-wrap:nowrap;">
+    <div class="fnode yellow">Sale / Membership cash assign-renew</div>
+    <div class="arrow">→</div>
+    <div class="fnode yellow">PaymentTransaction</div>
+    <div class="arrow">→</div>
+    <div class="fnode yellow">Shift (cash drawer)</div>
+    <div class="arrow">→</div>
+    <div class="fnode yellow">CashMovement (signed)</div>
+    <div class="arrow">→</div>
+    <div class="fnode yellow">Z-Report (daily + per-shift, QuestPDF)</div>
+  </div>
+</div>
+<div class="callout c-red"><b>CRITICAL BUSINESS RULE — cash drawer invariant.</b> A cash sale OR a cash membership assign/renew creates a Sale + PaymentTransaction and records a shift cash movement with the same ShiftId (documented in MembershipService header as "same drawer invariant as SaleService").</div>
+<div class="grid g3">
+  <div class="card accent-y"><h4>Shifts</h4><p>Open/close with blind count, opening float, variance approval (<code>shift.reconcile.approve</code>). One open shift per staff user enforced.</p></div>
+  <div class="card accent-y"><h4>Z-Report</h4><p>Daily build/regenerate + per-shift closings; Cairo business day via shared range conversion; PDF rendering; Hangfire scheduled generation.</p></div>
+  <div class="card accent-b"><h4>Gateways</h4><p>Paymob + Fawry service classes exist with webhook controllers on the platform plane. Live operational status — <span class="badge b-gray">UNKNOWN</span>.</p></div>
+</div>
+<div class="evidence"><b>Evidence</b> — ShiftService.cs · ZReportService.cs · PaymentTransaction.cs · MembershipService.cs header · GMS.Infrastructure/Services/{PaymobService,FawryService,ZReportPdfRenderer}.cs</div>
+</section>
+
+<!-- ============ PLATFORM ============ -->
+<section id="platform">
+<h2><span class="num">13</span> Platform Plane — GMS.Platform <span class="badge b-purple">SAAS OPERATOR</span></h2>
+<div class="grid g4">
+  <div class="card accent-p"><h4>Provisioning &amp; Tenants</h4><p>TenantProvisioningService · PlatformTenantAdmin/Read services · impersonation service</p></div>
+  <div class="card accent-p"><h4>Subscriptions &amp; Tiers</h4><p>SubscriptionService · TierFeatureMap seed · FeatureAccessService · TierEnforcementService · usage counters + roll-up job · price overrides</p></div>
+  <div class="card accent-p"><h4>Billing</h4><p>Platform invoices + sequence · dunning handler (grace 5 days after past-due) · Paymob/Fawry webhooks · 14-day trial · VAT config</p></div>
+  <div class="card accent-p"><h4>Ops Intelligence</h4><p>Rules-based health scoring (weighted bands) · RiskQueueService · metrics service · automation enrollments job · MFA for platform admins</p></div>
+</div>
+<div class="flow" style="margin-top:16px;">
+  <div class="fnode purple">Platform Subscription state</div>
+  <div class="arrow">↓</div>
+  <div class="fnode purple">SubscriptionAccessService / FeatureAccessService</div>
+  <div class="arrow">↓</div>
+  <div class="fnode purple">TierEnforcementService</div>
+  <div class="arrow">↓</div>
+  <div class="fnode red">TenantMiddleware gate on every authenticated tenant request</div>
+</div>
+<div class="callout c-yellow"><b>Confirmed:</b> suspended tenant + within <code>SuspensionCheckinBufferHours = 72</code> of suspension → only check-in endpoints (<code>qr-checkin</code>, <code>manual-checkin</code>, <code>search</code>) allowed; afterwards everything blocked with HTTP 402 <code>SUBSCRIPTION_SUSPENDED</code> (bilingual message).</div>
+<div class="evidence"><b>Evidence</b> — GMS.Platform/Services/*.cs · GMS.Api/Platform/Controllers/*.cs · TenantMiddleware CP5 gate · appsettings PlatformBilling section</div>
+</section>
+
+<!-- ============ FRONTEND ============ -->
+<section id="frontend">
+<h2><span class="num">14</span> Frontend Architecture</h2>
+<div class="grid g3">
+  <div class="card accent-g"><h4>apps/web <span class="badge b-green">PRODUCTION</span></h4>
+  <ul><li>Next.js-era source → static HTML/JS build into API wwwroot</li><li>Served by ASP.NET Core (<code>Hosting:ServeWebDashboard=true</code>, UseStaticFiles)</li><li>Vanilla JS: fetch api-client with silent refresh (<code>/auth/refresh</code>, Token-Expired handling)</li><li>authz.js permission-driven UI · i18n AR/EN · RTL css</li><li>Node self-tests (nav, staff, roles)</li></ul></div>
+  <div class="card accent-y"><h4>apps/admin <span class="badge b-yellow">PARTIAL</span></h4>
+  <ul><li>React 19 + Vite 6 + TypeScript</li><li>Zustand stores (auth/ui/feature-flags) · TanStack Query · axios client</li><li>Features present: auth, dashboard, members only</li><li>Dev proxy to API + SignalR hubs</li></ul></div>
+  <div class="card accent-p"><h4>platform-console</h4>
+  <ul><li>React 18 + Vite</li><li>Features: auth, tenants, metrics, risk queue</li><li>Targets /platform-api with separate auth scheme</li></ul></div>
+</div>
+<div class="callout c-yellow"><b>RISK — Dual frontend → divergence.</b> Two staff dashboards (static web + partial SPA) share the same API; permission/UI parity is not guaranteed. Flagged as P1 technical debt.</div>
+<div class="evidence"><b>Evidence</b> — Frontend/apps/web/src/app/shared/{api-client.js,api-config.js,authz.js} · Frontend/apps/admin/src/* · ProductionHostingExtensions.cs · GMS.Api.csproj PrepareWebDashboardBeforePublish target</div>
+</section>
+
+<!-- ============ MOBILE ============ -->
+<section id="mobile">
+<h2><span class="num">15</span> Mobile App Status</h2>
+<div class="grid g2">
+  <div class="card accent-y"><h4>Flutter Member App</h4>
+    <p><span class="badge b-yellow">SPEC ONLY</span> <span class="badge b-gray">NOT PRESENT IN REPOSITORY</span></p>
+    <ul><li>Prompt/spec docs exist: FLUTTER_MEMBER_ACTIVATE_API_PROMPT.md, invitations, offers, occupancy, product photos prompts</li><li>docs/flutter integration guides exist</li><li>No pubspec.yaml or Dart sources found anywhere in the repository</li></ul></div>
+  <div class="card accent-g"><h4>Backend support — AVAILABLE <span class="badge b-green">IMPLEMENTED</span></h4>
+    <ul><li>OTP send/verify · Activation codes</li><li>QR check-in (member JWT)</li><li>Member store: products + orders (member-store API)</li><li>Offers · Invitations · Occupancy · Notifications</li><li>Standard JWTs with role Member + lazy identity provisioning</li></ul>
+    <p style="margin-top:6px;"><i>Backend endpoints are real implementations; they do not imply an existing Flutter UI.</i></p></div>
+</div>
+<div class="evidence"><b>Evidence</b> — Frontend/FLUTTER_MEMBER_*.md · docs/flutter/*.md · MemberStoreController.cs · AuthService member flows (no find results for pubspec.yaml / *.dart)</div>
+</section>
+
+<!-- ============ DATABASE ============ -->
+<section id="database">
+<h2><span class="num">16</span> Database Architecture</h2>
+<div class="grid g2">
+  <div class="card accent-b"><h4>GymFlowProDbContext <span class="badge b-blue">~55 tenant-scoped types</span></h4>
+    <ul><li>Tenant entities (members, plans, memberships, attendance, invitations)</li><li>Identity (ApplicationUser, RefreshToken, AppUser)</li><li>Sales/SaleLines/Invoices/Payments/Refunds/Credits</li><li>Shifts/CashMovements/ZReports</li><li>Inventory: products, warehouses, movements, balances, batches, transfers, counts, purchasing, supplier ledger</li><li>Activities + entitlements · imports · audit · notifications · analytics snapshots</li></ul></div>
+  <div class="card accent-p"><h4>PlatformDbContext</h4>
+    <ul><li>PlatformAdminUsers · AuditLogs</li><li>Subscriptions + changes · Invoices + sequence · PaymentEvents</li><li>UsageCounters · FeatureOverrides · TierFeatureMaps</li><li>AutomationEnrollments · PriceOverrides</li><li>TenantHealthScores · RiskQueueOutcomes</li></ul></div>
+</div>
+<div class="grid g4">
+  <div class="card"><h4>Global query filters</h4><p>Combined tenant+soft-delete single filter per type (splitting = past bug). Soft-delete-only filter for remaining BaseEntities.</p></div>
+  <div class="card"><h4>Soft delete</h4><p>SaveChanges override converts Deleted → Modified(IsDeleted=true); CreatedAtUtc/UpdatedAtUtc stamped.</p></div>
+  <div class="card"><h4>RowVersion</h4><p>Optimistic concurrency on StockBalance and MemberAppActivationCode.</p></div>
+  <div class="card"><h4>PKs &amp; indexes</h4><p>NEWSEQUENTIALID() GUID PKs; filtered unique index for null-batch balances; tenant_id indexed on scoped tables.</p></div>
+</div>
+<div class="evidence"><b>Evidence</b> — GMS.Infrastructure/Persistence/{GymFlowProDbContext.cs, Configurations/*} · GMS.Platform/Persistence/PlatformDbContext.cs · Infrastructure/Migrations/* (InitialCreate → AddCommercialDataModel etc.)</div>
+</section>
+
+<!-- ============ CRITICAL RULES ============ -->
+<section id="rules">
+<h2><span class="num">17</span> ⛔ DO NOT BREAK THESE <span class="badge b-red">CRITICAL RULES</span></h2>
+<div class="grid g2">
+  <div class="card accent-r"><h4>1 · Attendance validation order <span class="badge b-red">CRITICAL RULE</span></h4><p>The 8-step gauntlet (tenant → member → membership → freeze → time → sessions → write → atomic decrement) must stay in exact order.</p></div>
+  <div class="card accent-r"><h4>2 · Effective membership status <span class="badge b-red">CRITICAL RULE</span></h4><p>Never trust stored <code>Membership.Status</code> alone — use <code>MembershipOperational.GetEffectiveStatus</code> (Cairo-day aware).</p></div>
+  <div class="card accent-r"><h4>3 · Inventory truth <span class="badge b-red">CRITICAL RULE</span></h4><p>StockMovement ledger is the source of truth; StockBalance is a cache written only via IStockLedgerService (RowVersion-guarded).</p></div>
+  <div class="card accent-r"><h4>4 · Cash drawer invariant <span class="badge b-red">CRITICAL RULE</span></h4><p>Cash sale or cash membership assign/renew ⇒ PaymentTransaction + shift CashMovement sharing the ShiftId.</p></div>
+  <div class="card accent-r"><h4>5 · Combined query filters <span class="badge b-red">CRITICAL RULE</span></h4><p>Tenant + soft-delete must remain ONE HasQueryFilter call per type — a second call silently replaces the first (historical bug).</p></div>
+  <div class="card accent-r"><h4>6 · Identity relationship <span class="badge b-red">CRITICAL RULE</span></h4><p>JWT sub = ApplicationUser.Id ≠ AppUser.Id; link is AppUser.UserId (string) then GymMember.AppUserId.</p></div>
+  <div class="card accent-y"><h4>7 · Idempotency <span class="badge b-yellow">HIGH</span></h4><p>SaleIdempotencyKey + reference-idempotent ledger posts prevent duplicate financial/stock effects on retries.</p></div>
+  <div class="card accent-y"><h4>8 · Referral reward hold <span class="badge b-yellow">HIGH</span></h4><p>Rewards grant only after ProcessReferralRewardHoldsJob — never instantly at conversion.</p></div>
+  <div class="card accent-y"><h4>9 · Suspension grace buffer <span class="badge b-yellow">HIGH</span></h4><p>Suspended tenants may check-in only during the 72-hour buffer window; everything else returns 402.</p></div>
+</div>
+</section>
+
+<!-- ============ RISKS ============ -->
+<section id="risks">
+<h2><span class="num">18</span> Risk Dashboard</h2>
+<div class="filters" id="riskFilters">
+  <span class="chip on" data-sev="all">All</span>
+  <span class="chip" data-sev="critical">Critical</span>
+  <span class="chip" data-sev="high">High</span>
+  <span class="chip" data-sev="medium">Medium</span>
+  <span class="chip" data-sev="low">Low</span>
+  <span class="chip" data-sev="unknown">Unknown</span>
+</div>
+<p style="font-size:12px;color:var(--muted);">Categories kept separate exactly as discovered: <b>Confirmed risk pattern</b> · <b>Potential risk</b> · <b>Missing implementation</b> · <b>Documentation mismatch</b>. Nothing here has been fixed.</p>
+
+<div class="risk show sev-high cat-pattern"><div class="rhead"><span class="badge b-yellow">HIGH</span><span class="badge b-blue">CONFIRMED PATTERN</span><b>Global query filters inactive without ITenantContext</b></div><p>Filters apply only when tenant context exists; background/Hangfire paths resolving the context without it query unfiltered unless explicit TenantId is used. Audit required before any change.</p></div>
+<div class="risk show sev-high cat-potential"><div class="rhead"><span class="badge b-yellow">HIGH</span><span class="badge b-gray">POTENTIAL RISK</span><b>Hardcoded fallback AES key</b></div><p>AesEncryptionService falls back to <code>"GymFlowPro-AES256-DefaultKey-32C"</code> if EncryptionKey config missing — silently weak encryption for NationalID fields. Value shown is a dev default constant found in code; no production key exposed here.</p></div>
+<div class="risk show sev-medium cat-potential"><div class="rhead"><span class="badge b-blue">MEDIUM</span><span class="badge b-gray">POTENTIAL RISK</span><b>Hardcoded ngrok URL as default API base</b></div><p>apps/web <code>api-client.js:22</code> defaults to a personal ngrok tunnel URL when window.API_BASE unset.</p></div>
+<div class="risk show sev-medium cat-pattern"><div class="rhead"><span class="badge b-blue">MEDIUM</span><span class="badge b-blue">CONFIRMED BEHAVIOR (by design)</span><b>Unauthenticated requests pass TenantMiddleware without gym_code</b></div><p>By design for pre-auth OTP flows; widens unauthenticated surface. Review scope deliberately left to later phases.</p></div>
+<div class="risk show sev-high cat-missing"><div class="rhead"><span class="badge b-yellow">HIGH</span><span class="badge b-gray">MISSING IMPLEMENTATION</span><b>Flutter member app absent</b></div><p>Specs/prompts only; no Dart project despite documentation presenting mobile integration as ready.</p></div>
+<div class="risk show sev-medium cat-missing"><div class="rhead"><span class="badge b-blue">MEDIUM</span><span class="badge b-gray">MISSING IMPLEMENTATION</span><b>apps/admin SPA barely started</b></div><p>Only auth/dashboard/members features; far behind production dashboard.</p></div>
+<div class="risk show sev-medium cat-mismatch"><div class="rhead"><span class="badge b-blue">MEDIUM</span><span class="badge b-gray">DOCUMENTATION MISMATCH</span><b>Docs describe capabilities beyond repository reality</b></div><p>API/mobile docs present integrations and apps that don't exist in code; large stale docs tree (docs/archive exists).</p></div>
+<div class="risk show sev-low cat-potential"><div class="rhead"><span class="badge b-gray">LOW</span><span class="badge b-gray">POTENTIAL RISK</span><b>Three user representations complexity</b></div><p>ApplicationUser ↔ AppUser ↔ GymMember chain is documented but fragile; wrong-PK comparisons are a known past-mistake class.</p></div>
+<div class="risk show sev-low cat-potential"><div class="rhead"><span class="badge b-gray">LOW</span><span class="badge b-gray">POTENTIAL RISK</span><b>Monolithic SaleService.CreateSaleAsync</b></div><p>~690-line method mixing cart validation, stock, payments, invoicing triggers — change-risk hotspot.</p></div>
+<div class="risk show sev-low cat-missing"><div class="rhead"><span class="badge b-gray">LOW</span><span class="badge b-gray">MISSING IMPLEMENTATION</span><b>No CI pipelines</b></div><p>.github/workflows empty despite an existing ~68-file test suite.</p></div>
+<div class="risk show sev-low cat-potential"><div class="rhead"><span class="badge b-gray">LOW</span><span class="badge b-gray">POTENTIAL RISK</span><b>Dual frontend divergence</b></div><p>Two staff dashboards can drift apart on permissions/API contracts.</p></div>
+<div class="risk show sev-unknown cat-unknown"><div class="rhead"><span class="badge b-gray">UNKNOWN</span><span class="badge b-gray">UNKNOWN / NOT CONFIRMED</span><b>Gateway &amp; hosting realities</b></div><p>Whether Paymob/Fawry integrations were ever run live, MonsterASP migration behavior at scale, and wwwroot build drift vs apps/web src were not determinable from code alone.</p></div>
+</section>
+
+<!-- ============ DEBT ============ -->
+<section id="debt">
+<h2><span class="num">19</span> Technical Debt Board <span class="badge b-yellow">PRIORITIZED FROM DISCOVERY</span></h2>
+<table class="matrix">
+<tr><th>Priority</th><th>Item</th><th>Impact</th></tr>
+<tr><td><span class="badge b-red">P1</span></td><td>Dual frontend (apps/web static vs apps/admin SPA)</td><td>Divergent UX/permission behavior; double maintenance</td></tr>
+<tr><td><span class="badge b-red">P2</span></td><td>SaleService monolith (~690-line create method)</td><td>High regression risk on any commerce change</td></tr>
+<tr><td><span class="badge b-yellow">P3</span></td><td>Repository hygiene</td><td>~700MB archives, publish*/ dirs, .vs/ tracked</td></tr>
+<tr><td><span class="badge b-yellow">P4</span></td><td>Stringly-typed statuses</td><td>"active"/"pending"/lineType strings; typo-prone, no compile safety</td></tr>
+<tr><td><span class="badge b-blue">P5</span></td><td>No CI</td><td>Existing test suite runs only locally</td></tr>
+<tr><td><span class="badge b-blue">P6</span></td><td>Complex identity model (3 user representations)</td><td>Documented but fragile linkage rules</td></tr>
+</table>
+</section>
+
+<!-- ============ UNKNOWNS ============ -->
+<section id="unknowns">
+<h2><span class="num">20</span> We Do Not Know Yet <span class="badge b-gray">UNKNOWN / NOT CONFIRMED</span></h2>
+<div class="grid g3">
+  <div class="card accent-gr"><h4>Paymob / Fawry live status</h4><p>Code and webhooks exist; whether transactions have ever flowed in production is unknown.</p></div>
+  <div class="card accent-gr"><h4>Production data volume</h4><p>Not observable from repository.</p></div>
+  <div class="card accent-gr"><h4>MonsterASP real-world behavior</h4><p>Startup-migration reliability under load unverified.</p></div>
+  <div class="card accent-gr"><h4>Full class booking behavior</h4><p>Entity/service surface inspected; end-to-end booking edge cases not exercised.</p></div>
+  <div class="card accent-gr"><h4>Frontend build drift</h4><p>wwwroot content vs current apps/web src may be out of sync.</p></div>
+  <div class="card accent-gr"><h4>Real staging/user secrets</h4><p>UserSecrets configured; staging values not inspected (and intentionally not reported).</p></div>
+</div>
+</section>
+
+<!-- ============ ROADMAP ============ -->
+<section id="roadmap">
+<h2><span class="num">21</span> Recommended Next Steps <span class="badge b-blue">INVESTIGATION ROADMAP — NOT IMPLEMENTED</span></h2>
+<div class="flow">
+  <div class="fnode blue">1 · Audit every Hangfire job's DbContext resolution for missing tenant context/filters</div>
+  <div class="arrow">↓</div>
+  <div class="fnode blue">2 · Decide frontend strategy (retire apps/web or finish apps/admin) before further UI work</div>
+  <div class="arrow">↓</div>
+  <div class="fnode green">3 · Add CI running GMS.Tests + ReconCheck</div>
+  <div class="arrow">↓</div>
+  <div class="fnode yellow">4 · Clean repository (untrack archives, publish outputs, .vs/)</div>
+  <div class="arrow">↓</div>
+  <div class="fnode gray">5 · Review the 14 modified working-tree files (inventory/purchasing area mid-change)</div>
+</div>
+</section>
+
+<div class="footer">
+  <b>GymFlowPro / GMS — Project Understanding Dashboard</b><br>
+  Generated from repository discovery · Discovery-only phase · No application code modified<br>
+  Generated: <span id="genDate"></span> · All numbers traceable to inspected files
+</div>
+
+</main>
+</div>
+
+<script>
+// theme toggle
+function toggleTheme(){
+  const r=document.documentElement;
+  r.dataset.theme = r.dataset.theme==='light' ? '' : 'light';
+  try{localStorage.setItem('gms-theme',r.dataset.theme)}catch(e){}
+}
+try{if(localStorage.getItem('gms-theme')==='light')document.documentElement.dataset.theme='light'}catch(e){}
+
+// generated date
+document.getElementById('genDate').textContent=new Date().toISOString().slice(0,10);
+
+// nav active highlight
+const links=[...document.querySelectorAll('.sidebar a')];
+const secs=links.map(a=>document.querySelector(a.getAttribute('href'))).filter(Boolean);
+const io=new IntersectionObserver(es=>{
+  es.forEach(e=>{ if(e.isIntersecting){
+    links.forEach(l=>l.classList.remove('active'));
+    const i=secs.indexOf(e.target);
+    if(links[i])links[i].classList.add('active');
+  }});
+},{rootMargin:'-30% 0px -60% 0px'});
+secs.forEach(s=>io.observe(s));
+
+// risk filters
+const rf=document.getElementById('riskFilters');
+rf.addEventListener('click',ev=>{
+  const chip=ev.target.closest('.chip'); if(!chip)return;
+  rf.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));
+  chip.classList.add('on');
+  const sev=chip.dataset.sev;
+  document.querySelectorAll('.risk').forEach(r=>{
+    r.classList.toggle('show', sev==='all'||r.classList.contains('sev-'+sev));
+  });
+});
+
+// domain filters
+const df=document.getElementById('domainFilters');
+df.addEventListener('click',ev=>{
+  const chip=ev.target.closest('.chip'); if(!chip)return;
+  df.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));
+  chip.classList.add('on');
+  const f=chip.dataset.f;
+  document.querySelectorAll('#domainGrid .dom').forEach(d=>{
+    d.style.display=(f==='all'||d.dataset.cat.includes(f))?'':'none';
+  });
+});
+
+// tooltips (title attr fallback + custom)
+document.querySelectorAll('.tooltip').forEach(n=>{
+  n.title=n.dataset.tip||n.textContent.trim().slice(0,120);
+  n.style.cursor='help';
+});
+
+// search across dashboard
+const inp=document.getElementById('search');
+let marks=[];
+function clearMarks(){marks.forEach(m=>{const t=document.createTextNode(m.textContent);m.parentNode.replaceChild(t,m)});marks=[];}
+function markIn(el,q){
+  const walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,{
+    acceptNode:n=>(n.parentNode.tagName==='SCRIPT'||n.parentNode.tagName==='STYLE')?NodeFilter.FILTER_REJECT:
+      n.textContent.toLowerCase().includes(q)?NodeFilter.FILTER_ACCEPT:NodeFilter.FILTER_SKIP});
+  const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);
+  nodes.forEach(n=>{
+    const txt=n.textContent, low=txt.toLowerCase(), frag=document.createDocumentFragment();
+    let i=0,j;
+    while((j=low.indexOf(q,i))!==-1){
+      frag.appendChild(document.createTextNode(txt.slice(i,j)));
+      const m=document.createElement('mark');m.textContent=txt.slice(j,j+q.length);
+      frag.appendChild(m);marks.push(m);i=j+q.length;
+    }
+    frag.appendChild(document.createTextNode(txt.slice(i)));
+    n.parentNode.replaceChild(frag,n);
+  });
+}
+let sTimer=null;
+inp.addEventListener('input',()=>{
+  clearTimeout(sTimer);
+  sTimer=setTimeout(()=>{
+    clearMarks();
+    const q=inp.value.trim().toLowerCase();
+    document.querySelectorAll('section, .hero').forEach(sec=>{
+      if(!q){sec.classList.remove('hidden-by-search');return;}
+      const hit=sec.textContent.toLowerCase().includes(q);
+      sec.classList.toggle('hidden-by-search',!hit);
+      if(hit)markIn(sec,q);
+    });
+  },220);
+});
+</script>
+</body>
+</html>

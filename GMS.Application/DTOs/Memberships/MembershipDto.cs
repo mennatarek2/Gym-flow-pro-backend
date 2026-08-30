@@ -20,6 +20,12 @@ public class MembershipDto
     public DateOnly? FrozenFromDate { get; set; }
     public DateOnly? FrozenUntilDate { get; set; }
 
+    /// <summary>Plan session_pack total (when applicable).</summary>
+    public int? SessionCount { get; set; }
+
+    /// <summary>Classes &amp; activities entitlements for this membership's plan.</summary>
+    public List<GMS.Application.DTOs.Members.MemberActivityQuotaDto> ActivityQuotas { get; set; } = new();
+
     /// <summary>Days until EndDate using Cairo business calendar (may be negative if expired).</summary>
     public int DaysRemaining =>
         EndDate.DayNumber - GMS.Core.Utilities.MembershipOperational.TodayCairo().DayNumber;

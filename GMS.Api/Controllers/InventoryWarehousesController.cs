@@ -44,23 +44,22 @@ public class InventoryWarehousesController : BaseApiController
         if (!_tenantContext.IsInitialized)
             return Unauthorized(new { error = "Tenant context required." });
 
-        var result = await _warehouses.GetDefaultAsync(_tenantContext.TenantId);
-        if (!result.IsSuccess)
-            return BadRequest(new { error = result.Error });
-        if (result.Data == null)
-            return NotFound(new { error = "No default warehouse / لا يوجد مخزن افتراضي" });
+        var result = await _warehouses.GetOrCreateDefaultAsync(_tenantContext.TenantId);
+        if (!result.IsSuccess || result.Data == null)
+            return BadRequest(new { error = result.Error ?? "Unable to resolve default warehouse" });
 
+        var wh = result.Data;
         return Ok(new WarehouseDto
         {
-            Id = result.Data.Id,
-            Code = result.Data.Code,
-            Name = result.Data.Name,
-            NameAr = result.Data.NameAr,
-            IsDefault = result.Data.IsDefault,
-            IsActive = result.Data.IsActive,
-            BranchId = result.Data.BranchId,
-            CreatedAtUtc = result.Data.CreatedAtUtc,
-            UpdatedAtUtc = result.Data.UpdatedAtUtc
+            Id = wh.Id,
+            Code = wh.Code,
+            Name = wh.Name,
+            NameAr = wh.NameAr,
+            IsDefault = wh.IsDefault,
+            IsActive = wh.IsActive,
+            BranchId = wh.BranchId,
+            CreatedAtUtc = wh.CreatedAtUtc,
+            UpdatedAtUtc = wh.UpdatedAtUtc
         });
     }
 

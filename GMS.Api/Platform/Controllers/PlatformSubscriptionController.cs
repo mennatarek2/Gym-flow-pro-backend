@@ -71,6 +71,26 @@ public class PlatformSubscriptionController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Clears CancelAtPeriodEnd on a live subscription. Same auth as cancel (PlatformAdminOnly).
+    /// </summary>
+    [HttpPost("undo-cancel")]
+    [ProducesResponseType(typeof(SubscriptionMutationResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> UndoCancel(Guid tenantId, [FromBody] UndoCancelSubscriptionRequest request, CancellationToken ct)
+    {
+        var result = await _subscriptions.UndoCancelAtPeriodEndAsync(
+            tenantId,
+            request?.Reason ?? string.Empty,
+            SubscriptionInitiators.PlatformAdmin,
+            GetPlatformAdminId(),
+            ct);
+
+        if (!result.Success)
+            return BadRequest(result);
+        return Ok(result);
+    }
+
     private Guid? GetPlatformAdminId()
     {
         var sub = User.FindFirstValue(JwtRegisteredClaimNames.Sub)

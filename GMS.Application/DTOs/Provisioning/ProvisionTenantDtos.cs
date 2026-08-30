@@ -42,6 +42,10 @@ public class ProvisionTenantRequest
     /// <summary>Platform plan tier for StartTrial (default growth).</summary>
     [MaxLength(32)]
     public string Tier { get; set; } = "growth";
+
+    /// <summary>Optional trial length in days (1–90). Omitted → global PlatformSubscription:TrialDays default (14).</summary>
+    [Range(1, 90)]
+    public int? TrialDays { get; set; }
 }
 
 public class ProvisionTenantResponse

@@ -45,6 +45,12 @@ public class MembershipSummaryDto
     public DateOnly? FrozenUntilDate { get; set; }
     public decimal AmountPaid { get; set; }
     public string PaymentMethod { get; set; } = string.Empty;
+
+    /// <summary>Plan session_pack total (when applicable).</summary>
+    public int? SessionCount { get; set; }
+
+    /// <summary>Classes &amp; activities entitlements for this membership's plan.</summary>
+    public List<MemberActivityQuotaDto> ActivityQuotas { get; set; } = new();
 }
 
 public class AttendanceSummaryDto

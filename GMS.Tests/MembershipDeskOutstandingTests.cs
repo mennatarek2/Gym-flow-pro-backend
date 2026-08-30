@@ -204,6 +204,7 @@ public class MembershipDeskOutstandingTests
             new NoOpInvoiceService(),
             audit,
             new NoOpReferralAttribution(),
+            new ActivityEntitlementService(ctx),
             NullLogger<MembershipService>.Instance);
         var debtors = new DebtorsService(
             ctx, new MemoryCache(), new NoOpWhatsApp(), new NoOpPaymob(),

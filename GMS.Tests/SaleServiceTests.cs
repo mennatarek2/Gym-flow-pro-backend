@@ -70,7 +70,8 @@ public class SaleServiceTests
         var ctx = new GymFlowProDbContext(options, tenantContext);
 
         var memberService = new MemberService(
-            ctx, new MemberRepository(ctx), new AesEncryptionService(new ConfigurationBuilder().Build()), new UnlimitedTierEnforcement(), new NoOpReferralAttribution(), new NoOpMemberAppActivation(), NullLogger<MemberService>.Instance);
+            ctx, new MemberRepository(ctx), new AesEncryptionService(new ConfigurationBuilder().Build()), new UnlimitedTierEnforcement(), new NoOpReferralAttribution(), new NoOpMemberAppActivation(), new ActivityEntitlementService(ctx),
+            NullLogger<MemberService>.Instance);
         var promoService = new PromoService(ctx, new Repository<PromoCode>(ctx), tenantContext, NullLogger<PromoService>.Instance);
         var auditService = new AuditService(ctx, new HttpContextAccessor(), tenantContext, NullLogger<AuditService>.Instance);
         var shiftService = new ShiftService(ctx, auditService, NullLogger<ShiftService>.Instance);

@@ -20,6 +20,9 @@ public static class QuickActionKeys
     public const string NewRefund = "new_refund";
     public const string AddPromoCode = "add_promo_code";
     public const string FreezeMembership = "freeze_membership";
+    public const string BookClass = "book_class";
+    public const string ViewClasses = "view_classes";
+    public const string CheckinMember = "checkin_member";
 
     /// <summary>Legacy / alias from FE; coerce to <see cref="AddPromoCode"/>.</summary>
     public const string AliasNewOffer = "new_offer";
@@ -44,7 +47,10 @@ public static class QuickActionKeys
         CloseShift,
         NewRefund,
         AddPromoCode,
-        FreezeMembership
+        FreezeMembership,
+        BookClass,
+        ViewClasses,
+        CheckinMember
     };
 
     /// <summary>

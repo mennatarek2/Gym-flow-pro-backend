@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GymFlowPro — Activities &amp; Booking: Audit + Design Preview</title>
+<style>
+:root{
+  --bg:#0f1216; --bg2:#171b21; --card:#1d232b; --card2:#242b35;
+  --border:#2e3742; --text:#dde5ee; --muted:#8b98ab;
+  --green:#7acc00; --green-dim:#4c8000; --red:#e5484d; --red-dim:#8a2a2d;
+  --yellow:#e6a700; --blue:#58a6ff; --purple:#bc8cff; --cyan:#39c5cf;
+  --mono:'Cascadia Code',Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;font-size:15px;line-height:1.55}
+.wrap{max-width:1180px;margin:0 auto;padding:34px 26px 80px}
+h1{font-size:32px;margin-bottom:6px}
+h1 span{color:var(--green)}
+.sub{color:var(--muted);margin-bottom:28px;font-size:15.5px}
+h2{font-size:23px;margin:44px 0 14px;padding-bottom:10px;border-bottom:2px solid var(--border);display:flex;align-items:center;gap:10px}
+h3{font-size:16px;margin:20px 0 8px;color:var(--blue)}
+.badge{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.5px;padding:2px 9px;border-radius:10px;border:1px solid;text-transform:uppercase;vertical-align:middle}
+.b-green{color:var(--green);border-color:var(--green);background:rgba(122,204,0,.1)}
+.b-red{color:var(--red);border-color:var(--red);background:rgba(229,72,77,.12)}
+.b-yellow{color:var(--yellow);border-color:var(--yellow);background:rgba(230,167,0,.12)}
+.b-blue{color:var(--blue);border-color:var(--blue);background:rgba(88,166,255,.1)}
+.b-gray{color:var(--muted);border-color:var(--muted);background:rgba(139,152,171,.12)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin:12px 0}
+.grid{display:grid;gap:12px;margin:14px 0}
+.g2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+th{background:var(--bg2);color:var(--muted);text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:8px 10px;border-bottom:1px solid var(--border)}
+td{padding:8px 10px;border-bottom:1px solid var(--border)}
+code,.mono{font-family:var(--mono);font-size:.86em;background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;color:var(--cyan)}
+.note{border-left:3px solid var(--gray);padding:9px 14px;background:var(--bg2);font-size:12.5px;color:var(--muted);border-radius:0 8px 8px 0;margin-top:12px}
+
+/* ============ UI MOCKUPS ============ */
+.mockups{display:flex;flex-direction:column;gap:34px;margin-top:18px}
+.device{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--bg2)}
+.device-bar{display:flex;align-items:center;gap:6px;padding:9px 14px;background:var(--card);border-bottom:1px solid var(--border)}
+.dot{width:11px;height:11px;border-radius:50%}
+.d-r{background:#ff5f57}.d-y{background:#febc2e}.d-g{background:#28c840}
+.device-title{margin-left:10px;font-size:12px;color:var(--muted);font-family:var(--mono)}
+.device-body{min-height:120px}
+
+/* app shell mock */
+.shell{display:flex;min-height:430px;font-size:13px}
+.side{width:172px;min-width:172px;background:#15181d;padding:14px 10px;border-right:1px solid var(--border)}
+.side .logo{display:flex;align-items:center;gap:7px;margin-bottom:16px;font-weight:700;font-size:13.5px}
+.side .logo .sq{width:22px;height:22px;background:var(--green);border-radius:5px;display:flex;align-items:center;justify-content:center;color:#111;font-weight:800;font-size:12px}
+.side .grp{font-size:9.5px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin:12px 8px 5px}
+.side a{display:block;padding:6px 9px;border-radius:6px;color:var(--muted);text-decoration:none;font-size:12.5px;margin:1px 0}
+.side a.on{background:rgba(122,204,0,.14);color:var(--green);font-weight:600}
+.main{flex:1;padding:16px 18px;overflow-x:auto}
+.main h4{font-size:16px;margin-bottom:2px}
+.main .crumb{font-size:11.5px;color:var(--muted);margin-bottom:14px}
+.btn{display:inline-block;border:none;border-radius:7px;padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer}
+.btn-p{background:var(--green);color:#101400}
+.btn-s{background:var(--card2);color:var(--text);border:1px solid var(--border)}
+.btn-d{background:var(--red-dim);color:#ffd7d8;border:1px solid var(--red)}
+.pill{display:inline-block;font-size:10.5px;padding:2px 9px;border-radius:10px;font-weight:600}
+.p-ok{background:rgba(122,204,0,.15);color:var(--green)}
+.p-full{background:rgba(229,72,77,.15);color:var(--red)}
+.p-warn{background:rgba(230,167,0,.15);color:var(--yellow)}
+.p-info{background:rgba(88,166,255,.13);color:var(--blue)}
+.sess-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:11px;margin-top:12px}
+.sess{background:var(--card);border:1px solid var(--border);border-radius:9px;padding:12px}
+.sess .nm{font-weight:700;font-size:13.5px;display:flex;justify-content:space-between;align-items:center}
+.sess .meta{color:var(--muted);font-size:11.5px;margin:5px 0 9px;line-height:1.7}
+.capbar{height:5px;background:var(--bg2);border-radius:3px;overflow:hidden;margin:7px 0 9px}
+.capbar i{display:block;height:100%;background:var(--green)}
+.capbar i.warn{background:var(--yellow)} .capbar i.full{background:var(--red)}
+.rowline{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--muted)}
+
+/* modal mock */
+.overlay{position:relative;background:rgba(0,0,0,.45);padding:26px;display:flex;justify-content:center}
+.modal{background:#fff;color:#1c2733;border-radius:12px;width:380px;max-width:100%;padding:20px 22px;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+.modal h5{font-size:16px;margin-bottom:12px}
+.modal .fld{margin-bottom:11px}
+.modal label{display:block;font-size:11.5px;font-weight:600;color:#556;margin-bottom:4px}
+.modal input,.modal select{width:100%;border:1px solid #ccd3dd;border-radius:7px;padding:8px 10px;font-size:13px;background:#fff;color:#1c2733}
+.modal .row{display:flex;gap:10px;justify-content:flex-end;margin-top:15px}
+.mbtn{padding:8px 15px;border-radius:7px;font-size:12.5px;font-weight:600;border:none;cursor:pointer}
+.mbtn-p{background:var(--green-dim);color:#fff} .mbtn-s{background:#eef1f5;color:#333}
+.disc{font-size:10.5px;color:#889;margin-top:10px}
+
+/* phone mock */
+.phone{width:300px;margin:22px auto;border:10px solid #22262c;border-radius:30px;background:#fff;color:#1c2733;overflow:hidden}
+.ph-head{background:#111519;color:#fff;padding:13px 15px;font-weight:700;font-size:14.5px;display:flex;justify-content:space-between;align-items:center}
+.ph-body{padding:13px}
+.class-card{border:1px solid #e3e7ee;border-radius:11px;padding:12px;margin-bottom:10px}
+.class-card .t{font-weight:700;font-size:14px;display:flex;justify-content:space-between}
+.class-card .m{font-size:11.5px;color:#667;margin:5px 0 9px}
+.bookbtn{width:100%;padding:9px;border:none;border-radius:8px;font-weight:700;font-size:12.5px;cursor:pointer}
+.bk-ok{background:var(--green);color:#101400}
+.bk-mine{background:#eef1f5;color:#333;border:1px solid #ccd3dd}
+.bk-full{background:#fbe9ea;color:var(--red);cursor:not-allowed}
+.bk-no{background:#f2f4f7;color:#99a;cursor:not-allowed}
+.confirm{background:#f2fbec;border:1px solid #bfe89a;border-radius:11px;padding:14px;margin:10px 0;text-align:center}
+.confirm .big{font-size:17px;font-weight:800;color:#3d7a00;margin:3px 0}
+.rtl .ph-body,.rtl .class-card{direction:rtl;text-align:right}
+
+/* status chips legend */
+.legend span{display:inline-block;margin:4px 6px 4px 0}
+ul.tight{padding-left:20px} ul.tight li{margin:5px 0;font-size:13.5px;color:var(--muted)}
+ul.tight li b{color:var(--text)}
+.verdicts{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:14px}
+.v{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center}
+.v .lbl{font-size:11px;letter-spacing:.8px;color:var(--muted);text-transform:uppercase}
+.v .val{font-size:17px;font-weight:800;margin-top:5px}
+.pass{color:var(--green)} .fixes{color:var(--yellow)} .fail{color:var(--red)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Activities, Facilities &amp; Booking — <span>Audit + Design Preview</span></h1>
+<div class="sub">Read-only code recon of the current implementation, findings, and interactive UI design previews for your approval <b>before</b> any implementation begins.</div>
+
+<!-- ================= FINDINGS ================= -->
+<h2>1 · Current Implementation Status (from code)</h2>
+<div class="grid g2">
+  <div class="card"><h3>✅ Implemented correctly</h3><ul class="tight">
+    <li><b>Core model is independent:</b> Activity ≠ Plan (separate entities linked only via <code>PlanEntitlement</code>). Facility is an Activity kind (<code>class | facility</code>) with system Gym Floor bootstrap.</li>
+    <li><b>Entitlement modes:</b> included / unlimited / limited(+QuotaLimit+QuotaPeriod) on <code>PlanEntitlement</code>.</li>
+    <li><b>Schedule entity</b> with DaysOfWeek JSON, times, capacity, coach, effective window.</li>
+    <li><b>Booking lifecycle fields:</b> booked → cancelled / checked_in, source, covering membership, Sale link, attendance link.</li>
+    <li><b>Drop-in price field</b> exists on Activity (<code>DropInPrice</code>).</li>
+    <li><b>Duplicate-booking guard</b> and capacity count in <code>CreateBookingAsync</code>.</li>
+    <li><b>Tenant isolation</b> via global query filters + explicit TenantId predicates.</li>
+    <li><b>Admin Classes page</b> exists (classes-app.js talks to activity endpoints).</li>
+  </ul></div>
+  <div class="card"><h3>❌ Missing / broken (confirmed)</h3><ul class="tight">
+    <li><b>No session generation from schedules</b> — nothing anywhere creates <code>ActivitySession</code> rows from a recurring schedule. Schedules are stored but never materialize into bookable sessions. <span class="badge b-red">P0</span></li>
+    <li><b>No quota enforcement</b> — <code>CreateBookingAsync</code> ignores QuotaLimit/QuotaPeriod entirely. Scenario A "8/month" is not enforced. <span class="badge b-red">P0</span></li>
+    <li><b>Capacity race:</b> load-then-count check, no transaction/unique constraint — two concurrent books can exceed capacity. <span class="badge b-red">P0</span></li>
+    <li><b>No member-facing API</b> — all booking/session endpoints require staff permissions; Member App cannot list or book sessions. <span class="badge b-yellow">P1</span></li>
+    <li><b>Drop-in payment not wired</b> — DropInPrice/SaleId never used in the booking flow. <span class="badge b-yellow">P1</span></li>
+    <li><b>No no-show status;</b> cancel doesn't distinguish quota refund rules. <span class="badge b-yellow">P1</span></li>
+    <li><b>No facilities-specific UX;</b> facility vs class rendered the same. <span class="badge b-yellow">P2</span></li>
+  </ul></div>
+</div>
+
+<h2>2 · Acceptance Matrix — current state</h2>
+<table>
+<tr><th>Scenario</th><th>Expected</th><th>Today</th></tr>
+<tr><td>Gym member + included class</td><td>Can book</td><td><span class="badge b-green">works</span> (if a session exists)</td></tr>
+<tr><td>CrossFit-only member</td><td>Can book CrossFit w/o gym membership</td><td><span class="badge b-green">model supports it</span></td></tr>
+<tr><td>Quota 8/month enforced</td><td>9th rejected</td><td><span class="badge b-red">not enforced</span></td></tr>
+<tr><td>Capacity concurrency 14→15</td><td>Only one of two succeeds</td><td><span class="badge b-red">race possible</span></td></tr>
+<tr><td>Recurring schedule → sessions</td><td>Sessions auto-generated</td><td><span class="badge b-red">never generated</span></td></tr>
+<tr><td>Drop-in 150 EGP</td><td>Pay → book → check-in</td><td><span class="badge b-yellow">field only, flow missing</span></td></tr>
+<tr><td>Member App discover/book</td><td>List + BOOK button</td><td><span class="badge b-red">no member API/UI</span></td></tr>
+<tr><td>Included sauna (no booking)</td><td>Access, no book button</td><td><span class="badge b-yellow">backend ok, UX undifferentiated</span></td></tr>
+<tr><td>Cross-tenant access</td><td>Rejected</td><td><span class="badge b-green">rejected</span></td></tr>
+</table>
+
+<!-- ================= DESIGN PREVIEWS ================= -->
+<h2>3 · Design Preview — Admin Classes Board <span class="badge b-blue">PROPOSAL</span></h2>
+<p style="color:var(--muted)">One screen answers: what's running, who's coming, how full it is. Sessions generated automatically from schedules (hourly rolling window) — owner never creates sessions manually.</p>
+
+<div class="mockups">
+<div class="device">
+  <div class="device-bar"><span class="dot d-r"></span><span class="dot d-y"></span><span class="dot d-g"></span><span class="device-title">GymFlowPro · Classes — admin/reception (desktop)</span></div>
+  <div class="device-body">
+    <div class="shell">
+      <div class="side">
+        <div class="logo"><span class="sq">A</span> GymFlowPro</div>
+        <div class="grp">Overview</div><a>Dashboard</a>
+        <div class="grp">Members</div><a>Members</a><a>Invitations</a><a>Attendance</a>
+        <div class="grp">Front Desk</div><a class="on">Classes</a><a>Sale</a><a>Member Orders</a><a>Call sheet</a>
+        <div class="grp">Shifts</div><a>Current Shift</a><a>Z-Reports</a>
+        <div class="grp">Money</div><a>Offers</a><a>Invoices</a>
+      </div>
+      <div class="main">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><h4>Classes &amp; Facilities</h4><div class="crumb">Tuesday, Aug 25 · Cairo time · auto-refreshed</div></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-s">Day ▦ Week</button>
+            <button class="btn btn-p">＋ New class</button>
+          </div>
+        </div>
+        <div class="sess-grid">
+          <div class="sess">
+            <div class="nm">CrossFit <span class="pill p-info">Coach Ahmed</span></div>
+            <div class="meta">📅 Today · 7:00 – 8:00 PM<br>🏋️ 12 / 15 booked</div>
+            <div class="capbar"><i style="width:80%" class="warn"></i></div>
+            <div class="rowline"><span>3 spots left</span><button class="btn btn-p" style="padding:5px 11px">Book member</button></div>
+          </div>
+          <div class="sess">
+            <div class="nm">CrossFit <span class="pill p-info">Coach Ahmed</span></div>
+            <div class="meta">📅 Wed, Aug 26 · 7:00 – 8:00 PM<br>🏋️ 15 / 15 booked</div>
+            <div class="capbar"><i style="width:100%" class="full"></i></div>
+            <div class="rowline"><span>Full — waitlist n/a</span><span class="pill p-full">FULL</span></div>
+          </div>
+          <div class="sess">
+            <div class="nm">Yoga <span class="pill p-info">Coach Sara</span></div>
+            <div class="meta">📅 Today · 6:00 – 7:00 PM<br>🏋️ 4 / 12 booked</div>
+            <div class="capbar"><i style="width:33%"></i></div>
+            <div class="rowline"><span>8 spots left</span><button class="btn btn-p" style="padding:5px 11px">Book member</button></div>
+          </div>
+        </div>
+        <div style="margin-top:16px" class="card">
+          <b style="font-size:12.5px">Facilities — different behavior by design</b>
+          <table style="margin:8px 0 0">
+            <tr><th>Facility</th><th>Access</th><th>Now</th><th>Action</th></tr>
+            <tr><td>Sauna</td><td><span class="pill p-ok">Included · no booking</span></td><td>Open until 11 PM</td><td><span class="pill p-walkin" style="background:rgba(139,152,171,.15);color:var(--muted)">Walk in</span></td></tr>
+            <tr><td>Jacuzzi <span class="mono" style="font-size:10px">cap 4</span></td><td><span class="pill p-info">Included · booking required</span></td><td>2 / 4 slots used today</td><td><button class="btn btn-s" style="padding:4px 10px">Reserve slot</button></td></tr>
+            <tr><td>Gym floor</td><td><span class="pill p-ok">Included</span></td><td>Door check-in</td><td><span class="pill" style="background:rgba(139,152,171,.15);color:var(--muted)">—</span></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>4 · Design Preview — Member App Journey <span class="badge b-blue">PROPOSAL</span></h2>
+<p style="color:var(--muted)">Member opens Classes → sees eligibility per plan entitlement → one tap to book → confirmation shows real remaining quota. Full journey below (discover → book → confirm → my bookings). RTL variant shown last.</p>
+
+<div style="display:flex;gap:26px;justify-content:center;flex-wrap:wrap">
+  <!-- Discover -->
+  <div class="phone">
+    <div class="ph-head"><span>← Classes</span><span>⚙</span></div>
+    <div class="ph-body">
+      <div class="class-card">
+        <div class="t">CrossFit <span class="pill p-ok">Included · 8/mo</span></div>
+        <div class="m">Coach Ahmed · 60 min<br>You have <b>5 of 8</b> bookings left this month</div>
+        <button class="bookbtn bk-ok">VIEW SESSIONS</button>
+      </div>
+      <div class="class-card">
+        <div class="t">Yoga <span class="pill p-warn">Not in your plan</span></div>
+        <div class="m">Coach Sara · drop-in 150 EGP</div>
+        <button class="bookbtn bk-no">PAY DROP-IN TO BOOK</button>
+      </div>
+      <div class="class-card">
+        <div class="t">Sauna <span class="pill p-ok">Included</span></div>
+        <div class="m">No booking needed — show membership at door</div>
+        <button class="bookbtn bk-mine">HOW IT WORKS</button>
+      </div>
+      <div class="class-card">
+        <div class="t">Jacuzzi <span class="pill p-info">Included · reserve</span></div>
+        <div class="m">Capacity 4 per slot</div>
+        <button class="bookbtn bk-mine">RESERVE A SLOT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Session + Book -->
+  <div class="phone">
+    <div class="ph-head"><span>← CrossFit</span><span>Aug 25</span></div>
+    <div class="ph-body">
+      <div class="class-card">
+        <div class="t">Today · 7:00–8:00 PM</div>
+        <div class="m">Coach Ahmed · 12/15 booked</div>
+        <div class="capbar" style="background:#eef1f5"><i style="width:80%;background:#e6a700"></i></div>
+        <button class="bookbtn bk-ok">BOOK — 3 SPOTS LEFT</button>
+      </div>
+      <div class="class-card">
+        <div class="t">Wed · 7:00–8:00 PM</div>
+        <div class="m">Coach Ahmed · 15/15 booked</div>
+        <button class="bookbtn bk-full">FULL</button>
+      </div>
+      <div class="class-card">
+        <div class="t">Sat · 10:00–11:00 AM</div>
+        <div class="m">Coach Ahmed · you're booked ✓</div>
+        <button class="bookbtn bk-mine">BOOKED — TAP TO CANCEL</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirmation -->
+  <div class="phone">
+    <div class="ph-head"><span>Booking</span><span>✕</span></div>
+    <div class="ph-body">
+      <div class="confirm">
+        <div style="font-size:30px">✓</div>
+        <div class="big">Booking Confirmed</div>
+        <div style="font-size:12.5px;color:#556;line-height:1.8">
+          <b>CrossFit</b><br>Wednesday, Aug 26<br>7:00 PM – 8:00 PM<br>Coach Ahmed
+        </div>
+      </div>
+      <div style="font-size:12px;color:#667;text-align:center;margin-bottom:10px">
+        You have <b>4 of 8</b> bookings left this month.<br>Resets Sep 1.
+      </div>
+      <button class="bookbtn bk-mine">ADD TO CALENDAR</button>
+      <button class="bookbtn bk-ok" style="margin-top:8px">VIEW MY BOOKINGS</button>
+    </div>
+  </div>
+
+  <!-- RTL -->
+  <div class="phone rtl">
+    <div class="ph-head"><span>الحصص</span><span>⚙</span></div>
+    <div class="ph-body">
+      <div class="class-card">
+        <div class="t">كروس فت <span class="pill p-ok">مشمل · 8 شهريًا</span></div>
+        <div class="m">الكابتن أحمد · 60 دقيقة<br>متبقي لك <b>5 من 8</b> حجوزات هذا الشهر</div>
+        <button class="bookbtn bk-ok">عرض الحصص</button>
+      </div>
+      <div class="class-card">
+        <div class="t">يوغا <span class="pill p-warn">غير مشملة في خطتك</span></div>
+        <div class="m">الكابتن سارة · دخول فردي ١٥٠ جنيه</div>
+        <button class="bookbtn bk-no">ادفع للدخول الفردي للحجز</button>
+      </div>
+      <div class="class-card">
+        <div class="t">جاكوزي <span class="pill p-info">مشمل · بحجز مسبق</span></div>
+        <div class="m">السعة 4 أفراد</div>
+        <button class="bookbtn bk-mine">احجز موعدًا</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>5 · Booking Flow (proposed backend sequence)</h2>
+<div class="card mono" style="font-size:12.5px;line-height:2">
+POST /api/member/activity-sessions/{id}/book&nbsp;&nbsp;(member JWT)<br>
+&nbsp;&nbsp;1. resolve member from JWT → tenant match<br>
+&nbsp;&nbsp;2. load session + activity (must be active, future, visible)<br>
+&nbsp;&nbsp;3. entitlement check: covering membership today → PlanEntitlement for this activity<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;• none + activity.DropInPrice → require paid drop-in sale first (reuse POS)<br>
+&nbsp;&nbsp;4. capacity: atomic INSERT guarded by unique index (sessionId, memberId, activeStatus)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ transactional count check inside the same tx → race-safe<br>
+&nbsp;&nbsp;5. quota: if mode=limited → count member's consumed bookings in period → reject if exhausted<br>
+&nbsp;&nbsp;6. return BookingDto incl. remaining quota for confirmation screen
+</div>
+
+<h2>6 · Implementation Plan (for your approval)</h2>
+<table>
+<tr><th>#</th><th>Work item</th><th>Priority</th><th>Scope</th></tr>
+<tr><td>1</td><td>Session generator: hourly Hangfire job materializes upcoming sessions from active schedules (tenant-aware per audit rules) + manual "generate now" endpoint</td><td><span class="badge b-red">P0</span></td><td>new job + service method + tests</td></tr>
+<tr><td>2</td><td>Race-safe capacity: wrap create in transaction + filtered unique index (SessionId, MemberId) where Status in (booked, checked_in); retry-on-conflict</td><td><span class="badge b-red">P0</span></td><td>migration + service change + concurrency test</td></tr>
+<tr><td>3</td><td>Quota enforcement: limited-mode counting per QuotaPeriod against covering membership; surface remaining in DTOs</td><td><span class="badge b-red">P0</span></td><td>service + tests</td></tr>
+<tr><td>4</td><td>Member-facing endpoints: GET sessions (eligible flags), POST book, PUT cancel own; scoped to JWT member</td><td><span class="badge b-yellow">P1</span></td><td>controller + authz tests</td></tr>
+<tr><td>5</td><td>Drop-in: purchase drop-in sale (reuses POS/SaleService) then booking links SaleId</td><td><span class="badge b-yellow">P1</span></td><td>service wiring + test</td></tr>
+<tr><td>6</td><td>No-show status + invalid-transition guards; cancellation policy note (product decision below)</td><td><span class="badge b-yellow">P1</span></td><td>service + UI badges</td></tr>
+<tr><td>7</td><td>UI: Classes board redesign (above), facility-vs-class differentiation, empty/loading/error states, dark mode tokens, RTL pass, member-app pages</td><td><span class="badge b-blue">P2</span></td><td>classes-app.js + new member pages</td></tr>
+</table>
+
+<h2>7 · Product Decisions Needed From You</h2>
+<div class="grid g2">
+  <div class="card"><b>Q1 — Cancellation &amp; quota:</b><p>If a member cancels a booked session, does the monthly quota get refunded? Options: (a) yes always, (b) only if cancelled ≥ X hours before start, (c) never.</p></div>
+  <div class="card"><b>Q2 — Late-cancel window:</b><p>Should cancelling within e.g. 2 hours of start mark "late cancel" (consumes quota / possible fee)?</p></div>
+  <div class="card"><b>Q3 — No-shows:</b><p>Auto-mark booked members as no-show after session end? Any penalty?</p></div>
+  <div class="card"><b>Q4 — Drop-in expiry:</b><p>Does a purchased drop-in apply to one specific session only, or stay valid N days?</p></div>
+</div>
+
+<h2>8 · Preliminary Verdicts (pre-fix)</h2>
+<div class="verdicts">
+  <div class="v"><div class="lbl">Architecture</div><div class="val fixes">PASS WITH FIXES</div></div>
+  <div class="v"><div class="lbl">Functionality</div><div class="val fail">FAIL → fixable</div></div>
+  <div class="v"><div class="lbl">UX</div><div class="val fixes">PASS WITH FIXES</div></div>
+  <div class="v"><div class="lbl">Security</div><div class="val pass">PASS</div></div>
+  <div class="v"><div class="lbl">User Flows</div><div class="val fail">FAIL → fixable</div></div>
+</div>
+<div class="note">The data model and security foundations are sound — the feature fails today mainly because schedules never become sessions, quotas aren't enforced, capacity has a race, and members have no way in. All are fixable without architectural changes. Nothing gets implemented until you approve the plan above and answer Q1–Q4.</div>
+
+</div>
+</body>
+</html>

@@ -30,13 +30,33 @@ internal static partial class WebDashboardHtmlInjector
         "/shared/theme.css?v=2"
     ];
 
+    // Member App pages have no staff nav/shell/quick-actions/inventory context — only the
+    // generic client/auth/i18n/theme pieces apply.
+    private static readonly string[] MemberSharedScripts =
+    [
+        "/shared/api-config.js",
+        "/shared/api-client.js",
+        "/shared/authz.js",
+        "/shared/i18n.js",
+        "/shared/theme.js?v=1"
+    ];
+
+    private static readonly string[] MemberSharedStyles =
+    [
+        "/shared/rtl.css",
+        "/shared/typography.css?v=1",
+        "/shared/theme.css?v=2"
+    ];
+
     private const string ThemeBootStyle =
         "<style data-gfp-theme-boot>html[data-theme=\"dark\"]{color-scheme:dark;background:#151716;--lbg:#151716;--ls1:#1C201D;--ls2:#222722;--ls3:#2E342F;--ltp:#E8EBE6;--lts:#B5BBB4;--ltt:#8C948A;--suc100:#16351F;--dng100:#3A1C1C;--wrn100:#3A2E12;--inf100:#1A2A44;--l100:rgba(122,204,0,.16);--sh1:0 1px 2px rgba(0,0,0,.28)}html[data-theme=\"dark\"] body{background:#151716;color:#E8EBE6}</style>";
 
-    public static string Inject(string html)
+    public static string Inject(string html, bool memberScope = false)
     {
-        var missingCss = SharedStyles.Where(h => !HasStylesheetHref(html, h)).ToList();
-        var missingJs = SharedScripts.Where(s => !HasScriptSrc(html, s)).ToList();
+        var scripts = memberScope ? MemberSharedScripts : SharedScripts;
+        var styles = memberScope ? MemberSharedStyles : SharedStyles;
+        var missingCss = styles.Where(h => !HasStylesheetHref(html, h)).ToList();
+        var missingJs = scripts.Where(s => !HasScriptSrc(html, s)).ToList();
         var needEarly = !html.Contains("data-gfp-early-locale", StringComparison.Ordinal);
         var needThemeBoot = !html.Contains("data-gfp-theme-boot", StringComparison.Ordinal);
 

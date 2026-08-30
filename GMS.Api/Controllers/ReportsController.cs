@@ -36,7 +36,7 @@ public class ReportsController : BaseApiController
     /// GET /api/reports/attendance-summary?from=2026-05-01&to=2026-05-31
     /// </summary>
     [HttpGet("attendance-summary")]
-    [HasPermission(Permissions.MembersView)]
+    [HasAnyPermission(Permissions.MembersView, Permissions.AttendanceView)]
     [ProducesResponseType(typeof(List<AttendanceSummaryItemDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetAttendanceSummary(
@@ -135,7 +135,7 @@ public class ReportsController : BaseApiController
     /// Revenue = PaymentTransaction cash-in minus executed refunds — not Plan.Price or AmountPaid.
     /// </summary>
     [HttpGet("memberships")]
-    [HasPermission(Permissions.MembersView)]
+    [HasPermission(Permissions.ReportsFinancialView)]
     [ProducesResponseType(typeof(MembershipsReportDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMemberships(
         [FromQuery] DateOnly from,

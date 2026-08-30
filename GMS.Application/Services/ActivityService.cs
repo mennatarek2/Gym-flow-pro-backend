@@ -15,11 +15,16 @@ public class ActivityService : IActivityService
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     private readonly GymFlowProDbContext _db;
+    private readonly ISessionGenerationService _sessionGeneration;
     private readonly ILogger<ActivityService> _logger;
 
-    public ActivityService(GymFlowProDbContext db, ILogger<ActivityService> logger)
+    public ActivityService(
+        GymFlowProDbContext db,
+        ISessionGenerationService sessionGeneration,
+        ILogger<ActivityService> logger)
     {
         _db = db;
+        _sessionGeneration = sessionGeneration;
         _logger = logger;
     }
 
@@ -180,6 +185,18 @@ public class ActivityService : IActivityService
 
         _db.ActivitySchedules.Add(schedule);
         await _db.SaveChangesAsync(ct);
+
+        // Immediately materialize upcoming sessions so Classes UI shows this schedule without waiting for Hangfire.
+        try
+        {
+            var created = await _sessionGeneration.GenerateUpcomingSessionsAsync(tenantId, null, ct);
+            if (created > 0)
+                _logger.LogInformation("Created {Count} sessions after schedule {ScheduleId}", created, schedule.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Session generation after schedule {ScheduleId} failed; hourly job will retry", schedule.Id);
+        }
 
         if (schedule.CoachUserId.HasValue)
             await _db.Entry(schedule).Reference(s => s.CoachUser).LoadAsync(ct);

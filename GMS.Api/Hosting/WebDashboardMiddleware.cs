@@ -5,6 +5,7 @@ public class WebDashboardMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly string _dashboardRoot;
+    private readonly string _memberRoot;
     private readonly string _authRoot;
     private readonly string _sharedRoot;
 
@@ -13,6 +14,7 @@ public class WebDashboardMiddleware
         _next = next;
         var webRoot = env.WebRootPath ?? Path.Combine(env.ContentRootPath, "wwwroot");
         _dashboardRoot = Path.Combine(webRoot, "dashboard");
+        _memberRoot = Path.Combine(webRoot, "member");
         _authRoot = Path.Combine(webRoot, "auth");
         _sharedRoot = Path.Combine(webRoot, "shared");
     }
@@ -60,7 +62,13 @@ public class WebDashboardMiddleware
 
         if (path.StartsWith("/dashboard", StringComparison.OrdinalIgnoreCase))
         {
-            if (await TryServeDashboardAsync(context, path))
+            if (await TryServeRootedAsync(context, path, "/dashboard", _dashboardRoot, memberScope: false))
+                return;
+        }
+
+        if (path.StartsWith("/member", StringComparison.OrdinalIgnoreCase))
+        {
+            if (await TryServeRootedAsync(context, path, "/member", _memberRoot, memberScope: true))
                 return;
         }
 
@@ -70,7 +78,7 @@ public class WebDashboardMiddleware
     private async Task<bool> TryServeAuthAsync(HttpContext context, string url)
     {
         if (url is "/auth/login" or "/auth/login/")
-            return await TrySendHtmlAsync(context, Path.Combine(_authRoot, "login", "index.html"));
+            return await TrySendHtmlAsync(context, Path.Combine(_authRoot, "login", "index.html"), memberScope: false);
 
         if (!url.StartsWith("/auth/", StringComparison.OrdinalIgnoreCase))
             return false;
@@ -94,57 +102,58 @@ public class WebDashboardMiddleware
             return true;
         }
 
-        return await TrySendHtmlAsync(context, idx);
+        return await TrySendHtmlAsync(context, idx, memberScope: false);
     }
 
-    private async Task<bool> TryServeDashboardAsync(HttpContext context, string url)
+    /// <summary>Shared static/HTML resolution for both the staff dashboard root and the member root.</summary>
+    private async Task<bool> TryServeRootedAsync(HttpContext context, string url, string prefix, string root, bool memberScope)
     {
-        var sub = url.Replace("/dashboard", "", StringComparison.OrdinalIgnoreCase).Trim('/');
+        var sub = url.Replace(prefix, "", StringComparison.OrdinalIgnoreCase).Trim('/');
 
         if (string.IsNullOrEmpty(sub))
         {
-            if (url == "/dashboard")
+            if (url == prefix)
             {
-                context.Response.Redirect("/dashboard/", permanent: true);
+                context.Response.Redirect($"{prefix}/", permanent: true);
                 return true;
             }
 
-            return await TrySendHtmlAsync(context, Path.Combine(_dashboardRoot, "index.html"));
+            return await TrySendHtmlAsync(context, Path.Combine(root, "index.html"), memberScope);
         }
 
-        var exact = Path.Combine(_dashboardRoot, sub.Replace('/', Path.DirectorySeparatorChar));
+        var exact = Path.Combine(root, sub.Replace('/', Path.DirectorySeparatorChar));
         if (File.Exists(exact))
         {
-            await SendFileAsync(context, exact, injectHtml: exact.EndsWith(".html", StringComparison.OrdinalIgnoreCase));
+            await SendFileAsync(context, exact, injectHtml: exact.EndsWith(".html", StringComparison.OrdinalIgnoreCase), memberScope);
             return true;
         }
 
-        var idx = Path.Combine(_dashboardRoot, sub.Replace('/', Path.DirectorySeparatorChar), "index.html");
+        var idx = Path.Combine(root, sub.Replace('/', Path.DirectorySeparatorChar), "index.html");
         if (File.Exists(idx))
         {
             if (!url.EndsWith('/'))
             {
                 var q = context.Request.QueryString.HasValue ? context.Request.QueryString.Value : "";
-                context.Response.Redirect($"/dashboard/{sub}/{q}", permanent: true);
+                context.Response.Redirect($"{prefix}/{sub}/{q}", permanent: true);
                 return true;
             }
 
-            return await TrySendHtmlAsync(context, idx);
+            return await TrySendHtmlAsync(context, idx, memberScope);
         }
 
         var parts = sub.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length >= 2)
         {
             var parent = string.Join(Path.DirectorySeparatorChar, parts[..^1]);
-            var dynIdx = Path.Combine(_dashboardRoot, parent, "[id]", "index.html");
+            var dynIdx = Path.Combine(root, parent, "[id]", "index.html");
             if (File.Exists(dynIdx))
-                return await TrySendHtmlAsync(context, dynIdx);
+                return await TrySendHtmlAsync(context, dynIdx, memberScope);
 
             var file = parts[^1];
-            var dynAsset = Path.Combine(_dashboardRoot, parent, "[id]", file);
+            var dynAsset = Path.Combine(root, parent, "[id]", file);
             if (File.Exists(dynAsset))
             {
-                await SendFileAsync(context, dynAsset, injectHtml: false);
+                await SendFileAsync(context, dynAsset, injectHtml: false, memberScope);
                 return true;
             }
         }
@@ -153,10 +162,10 @@ public class WebDashboardMiddleware
         {
             var gp = string.Join(Path.DirectorySeparatorChar, parts[..^2]);
             var file = parts[^1];
-            var dynAsset = Path.Combine(_dashboardRoot, gp, "[id]", file);
+            var dynAsset = Path.Combine(root, gp, "[id]", file);
             if (File.Exists(dynAsset))
             {
-                await SendFileAsync(context, dynAsset, injectHtml: false);
+                await SendFileAsync(context, dynAsset, injectHtml: false, memberScope);
                 return true;
             }
         }
@@ -164,21 +173,21 @@ public class WebDashboardMiddleware
         return false;
     }
 
-    private async Task<bool> TrySendHtmlAsync(HttpContext context, string filePath)
+    private async Task<bool> TrySendHtmlAsync(HttpContext context, string filePath, bool memberScope)
     {
         if (!File.Exists(filePath))
             return false;
 
-        await SendFileAsync(context, filePath, injectHtml: true);
+        await SendFileAsync(context, filePath, injectHtml: true, memberScope);
         return true;
     }
 
-    private async Task SendFileAsync(HttpContext context, string filePath, bool injectHtml)
+    private async Task SendFileAsync(HttpContext context, string filePath, bool injectHtml, bool memberScope = false)
     {
         if (injectHtml)
         {
             var html = await File.ReadAllTextAsync(filePath);
-            html = WebDashboardHtmlInjector.Inject(html);
+            html = WebDashboardHtmlInjector.Inject(html, memberScope);
             context.Response.ContentType = "text/html; charset=utf-8";
             await context.Response.WriteAsync(html);
             return;

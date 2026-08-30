@@ -30,14 +30,10 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<bool>("BookingRequired")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(true);
+                        .HasColumnType("bit");
 
                     b.Property<DateTime>("CreatedAtUtc")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("DATETIME2")
-                        .HasDefaultValueSql("SYSUTCDATETIME()");
+                        .HasColumnType("datetime2");
 
                     b.Property<int?>("DefaultCapacity")
                         .HasColumnType("int");
@@ -48,30 +44,24 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("NVARCHAR(500)");
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("DescriptionAr")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("NVARCHAR(500)");
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<decimal?>("DropInPrice")
                         .HasColumnType("DECIMAL(12,2)");
 
                     b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(true);
+                        .HasColumnType("bit");
 
                     b.Property<bool>("IsDeleted")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
+                        .HasColumnType("bit");
 
                     b.Property<bool>("IsSystem")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
+                        .HasColumnType("bit");
 
                     b.Property<string>("Kind")
                         .IsRequired()
@@ -81,12 +71,12 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(120)
-                        .HasColumnType("NVARCHAR(120)");
+                        .HasColumnType("nvarchar(120)");
 
                     b.Property<string>("NameAr")
                         .IsRequired()
                         .HasMaxLength(120)
-                        .HasColumnType("NVARCHAR(120)");
+                        .HasColumnType("nvarchar(120)");
 
                     b.Property<string>("SystemKey")
                         .HasMaxLength(40)
@@ -96,20 +86,14 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
-                        .HasColumnType("DATETIME2");
+                        .HasColumnType("datetime2");
 
                     b.Property<bool>("VisibleToMembers")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(true);
+                        .HasColumnType("bit");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "SystemKey")
-                        .IsUnique()
-                        .HasFilter("[SystemKey] IS NOT NULL AND [IsDeleted] = 0");
-
-                    b.HasIndex("TenantId", "Kind", "IsActive");
+                    b.HasIndex("TenantId", "SystemKey");
 
                     b.ToTable("activities", (string)null);
                 });
@@ -125,10 +109,10 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("CancelledAtUtc")
-                        .HasColumnType("DATETIME2");
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("CheckedInAtUtc")
-                        .HasColumnType("DATETIME2");
+                        .HasColumnType("datetime2");
 
                     b.Property<Guid?>("CheckedInByUserId")
                         .HasColumnType("uniqueidentifier");
@@ -137,16 +121,20 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAtUtc")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("DATETIME2")
-                        .HasDefaultValueSql("SYSUTCDATETIME()");
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("GuestName")
+                        .HasMaxLength(200)
+                        .HasColumnType("NVARCHAR(200)");
+
+                    b.Property<string>("GuestPhone")
+                        .HasMaxLength(30)
+                        .HasColumnType("NVARCHAR(30)");
 
                     b.Property<bool>("IsDeleted")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
+                        .HasColumnType("bit");
 
-                    b.Property<Guid>("MemberId")
+                    b.Property<Guid?>("MemberId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("SaleId")
@@ -169,11 +157,9 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
-                        .HasColumnType("DATETIME2");
+                        .HasColumnType("datetime2");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("AttendanceId");
 
                     b.HasIndex("CheckedInByUserId");
 
@@ -181,15 +167,15 @@ namespace GMS.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("MemberId");
 
-                    b.HasIndex("SaleId");
+                    b.HasIndex("SaleId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0 AND [SaleId] IS NOT NULL AND [Status] IN ('booked', 'checked_in', 'cancelled_late', 'no_show')");
 
                     b.HasIndex("SessionId");
 
-                    b.HasIndex("TenantId", "MemberId", "CreatedAtUtc");
-
                     b.HasIndex("TenantId", "SessionId", "MemberId")
                         .IsUnique()
-                        .HasFilter("[IsDeleted] = 0 AND [Status] <> 'cancelled'");
+                        .HasFilter("[IsDeleted] = 0 AND [MemberId] IS NOT NULL AND [Status] IN ('booked', 'checked_in', 'no_show')");
 
                     b.ToTable("activity_bookings", (string)null);
                 });
@@ -211,9 +197,7 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAtUtc")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("DATETIME2")
-                        .HasDefaultValueSql("SYSUTCDATETIME()");
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("DaysOfWeek")
                         .IsRequired()
@@ -221,40 +205,34 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("VARCHAR(40)");
 
                     b.Property<DateOnly>("EffectiveFrom")
-                        .HasColumnType("DATE");
+                        .HasColumnType("date");
 
                     b.Property<DateOnly?>("EffectiveUntil")
-                        .HasColumnType("DATE");
+                        .HasColumnType("date");
 
                     b.Property<TimeOnly>("EndTime")
-                        .HasColumnType("TIME");
+                        .HasColumnType("time");
 
                     b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(true);
+                        .HasColumnType("bit");
 
                     b.Property<bool>("IsDeleted")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
+                        .HasColumnType("bit");
 
                     b.Property<TimeOnly>("StartTime")
-                        .HasColumnType("TIME");
+                        .HasColumnType("time");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
-                        .HasColumnType("DATETIME2");
+                        .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
                     b.HasIndex("ActivityId");
 
                     b.HasIndex("CoachUserId");
-
-                    b.HasIndex("TenantId", "ActivityId", "IsActive");
 
                     b.ToTable("activity_schedules", (string)null);
                 });
@@ -276,23 +254,19 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAtUtc")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("DATETIME2")
-                        .HasDefaultValueSql("SYSUTCDATETIME()");
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime>("EndsAtUtc")
-                        .HasColumnType("DATETIME2");
+                        .HasColumnType("datetime2");
 
                     b.Property<bool>("IsDeleted")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
+                        .HasColumnType("bit");
 
                     b.Property<Guid?>("ScheduleId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("StartsAtUtc")
-                        .HasColumnType("DATETIME2");
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -303,7 +277,7 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
-                        .HasColumnType("DATETIME2");
+                        .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
@@ -311,13 +285,11 @@ namespace GMS.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CoachUserId");
 
-                    b.HasIndex("ScheduleId");
+                    b.HasIndex("ScheduleId", "StartsAtUtc")
+                        .IsUnique()
+                        .HasFilter("[ScheduleId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.HasIndex("TenantId", "StartsAtUtc");
-
-                    b.HasIndex("TenantId", "ActivityId", "StartsAtUtc")
-                        .IsUnique()
-                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("activity_sessions", (string)null);
                 });
@@ -623,6 +595,61 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("GMS.Core.Entities.CashExpense", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<DateOnly>("ExpenseDate")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("RecordedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecordedByUserId");
+
+                    b.HasIndex("TenantId", "ExpenseDate", "Status");
+
+                    b.ToTable("cash_expenses", (string)null);
+                });
+
             modelBuilder.Entity("GMS.Core.Entities.CashMovement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -676,6 +703,534 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.HasIndex("TenantId", "ShiftId");
 
                     b.ToTable("cash_movements", (string)null);
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.Department", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("NVARCHAR(80)");
+
+                    b.Property<string>("NameAr")
+                        .HasMaxLength(80)
+                        .HasColumnType("NVARCHAR(80)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("departments", (string)null);
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.Employee", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(300)
+                        .HasColumnType("NVARCHAR(300)");
+
+                    b.Property<Guid?>("AppUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly?>("DateOfBirth")
+                        .HasColumnType("DATE");
+
+                    b.Property<Guid?>("DepartmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(256)
+                        .HasColumnType("NVARCHAR(256)");
+
+                    b.Property<Guid?>("EmployeeAppUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EmployeeNumber")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("VARCHAR(12)");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("NVARCHAR(100)");
+
+                    b.Property<DateOnly>("HireDate")
+                        .HasColumnType("DATE");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("NVARCHAR(100)");
+
+                    b.Property<string>("NationalId")
+                        .HasMaxLength(30)
+                        .HasColumnType("VARCHAR(30)");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(20)
+                        .HasColumnType("VARCHAR(20)");
+
+                    b.Property<string>("PhotoUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("NVARCHAR(500)");
+
+                    b.Property<Guid?>("PositionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("VARCHAR(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly?>("TerminationDate")
+                        .HasColumnType("DATE");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppUserId")
+                        .IsUnique()
+                        .HasFilter("[AppUserId] IS NOT NULL");
+
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex("EmployeeAppUserId")
+                        .IsUnique()
+                        .HasFilter("[EmployeeAppUserId] IS NOT NULL");
+
+                    b.HasIndex("PositionId");
+
+                    b.HasIndex("TenantId", "DepartmentId");
+
+                    b.HasIndex("TenantId", "EmployeeNumber")
+                        .IsUnique()
+                        .HasFilter("[EmployeeNumber] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "Status");
+
+                    b.ToTable("employees", (string)null);
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.EmployeeAppActivationCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("ConsumedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("TenantId", "CodeHash");
+
+                    b.HasIndex("TenantId", "EmployeeId", "ConsumedAtUtc", "RevokedAtUtc");
+
+                    b.ToTable("employee_app_activation_codes", (string)null);
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.EmployeeAttendance", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateOnly>("AttendanceDate")
+                        .HasColumnType("DATE");
+
+                    b.Property<DateTime?>("CheckInAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("CheckOutAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedByAppUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("LateMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("LeaveRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("NVARCHAR(500)");
+
+                    b.Property<int>("OvertimeMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ScheduleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("VARCHAR(20)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("VARCHAR(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("WorkedMinutes")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("LeaveRequestId");
+
+                    b.HasIndex("ScheduleId");
+
+                    b.HasIndex("TenantId", "AttendanceDate");
+
+                    b.HasIndex("TenantId", "EmployeeId", "AttendanceDate")
+                        .IsUnique();
+
+                    b.ToTable("employee_attendances", (string)null);
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.EmployeeContract", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<decimal>("BasicSalary")
+                        .HasColumnType("DECIMAL(14,2)");
+
+                    b.Property<string>("ContractNumber")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("VARCHAR(12)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EmploymentType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("VARCHAR(20)");
+
+                    b.Property<DateOnly?>("EndDate")
+                        .HasColumnType("DATE");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("NVARCHAR(1000)");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("DATE");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("VARCHAR(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("WorkingDaysPerWeek")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("WorkingHoursPerDay")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("TenantId", "ContractNumber")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "EmployeeId", "StartDate");
+
+                    b.ToTable("employee_contracts", (string)null);
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.EmployeeDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("VARCHAR(100)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("VARCHAR(30)");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly?>("ExpiryDate")
+                        .HasColumnType("DATE");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("NVARCHAR(260)");
+
+                    b.Property<string>("FileUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("NVARCHAR(500)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateOnly?>("IssueDate")
+                        .HasColumnType("DATE");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("NVARCHAR(500)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UploadedByAppUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("TenantId", "EmployeeId");
+
+                    b.HasIndex("TenantId", "ExpiryDate");
+
+                    b.ToTable("employee_documents", (string)null);
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.EmployeeScheduleAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("DATE");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EmployeeShiftId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("NVARCHAR(500)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("EmployeeShiftId");
+
+                    b.HasIndex("TenantId", "Date");
+
+                    b.HasIndex("TenantId", "EmployeeId", "Date")
+                        .IsUnique();
+
+                    b.ToTable("employee_schedule_assignments", (string)null);
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.EmployeeShift", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<int>("BreakMinutes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<TimeOnly>("EndTime")
+                        .HasColumnType("TIME");
+
+                    b.Property<int>("GraceMinutes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("NVARCHAR(80)");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("TIME");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("employee_shifts", (string)null);
                 });
 
             modelBuilder.Entity("GMS.Core.Entities.GoodsReceipt", b =>
@@ -875,7 +1430,7 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<Guid?>("BookingId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("UNIQUEIDENTIFIER");
 
                     b.Property<DateTime>("CheckInAtUtc")
                         .HasColumnType("DATETIME2");
@@ -898,9 +1453,17 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.Property<string>("EntryMethod")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasMaxLength(16)
-                        .HasColumnType("VARCHAR(16)")
+                        .HasMaxLength(10)
+                        .HasColumnType("VARCHAR(10)")
                         .HasDefaultValue("qr");
+
+                    b.Property<string>("GuestName")
+                        .HasMaxLength(200)
+                        .HasColumnType("NVARCHAR(200)");
+
+                    b.Property<string>("GuestPhone")
+                        .HasMaxLength(30)
+                        .HasColumnType("NVARCHAR(30)");
 
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
@@ -911,18 +1474,18 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("NVARCHAR(100)");
 
-                    b.Property<Guid>("MemberId")
+                    b.Property<Guid?>("MemberId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("MembershipId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("UNIQUEIDENTIFIER");
 
                     b.Property<string>("PresenceStatus")
                         .HasMaxLength(12)
                         .HasColumnType("VARCHAR(12)");
 
                     b.Property<Guid?>("SessionId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("UNIQUEIDENTIFIER");
 
                     b.Property<Guid?>("StaffUserId")
                         .HasColumnType("UNIQUEIDENTIFIER");
@@ -935,7 +1498,9 @@ namespace GMS.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BookingId");
+                    b.HasIndex("BookingId")
+                        .IsUnique()
+                        .HasFilter("[BookingId] IS NOT NULL");
 
                     b.HasIndex("MemberId");
 
@@ -1556,6 +2121,127 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("invoice_sequences", (string)null);
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.LeaveBalance", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("EntitledDays")
+                        .HasColumnType("DECIMAL(6,2)");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("LeaveType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("VARCHAR(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("UsedDays")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("DECIMAL(6,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("TenantId", "EmployeeId", "LeaveType", "Year")
+                        .IsUnique();
+
+                    b.ToTable("leave_balances", (string)null);
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.LeaveRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("DurationDays")
+                        .HasColumnType("DECIMAL(6,2)");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("EndDate")
+                        .HasColumnType("DATE");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("LeaveType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("VARCHAR(20)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("NVARCHAR(500)");
+
+                    b.Property<DateTime>("RequestedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReviewNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("NVARCHAR(500)");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ReviewedByAppUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("DATE");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("VARCHAR(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("TenantId", "EmployeeId", "Status");
+
+                    b.HasIndex("TenantId", "StartDate", "EndDate");
+
+                    b.ToTable("leave_requests", (string)null);
                 });
 
             modelBuilder.Entity("GMS.Core.Entities.MemberAppActivationCode", b =>
@@ -2299,6 +2985,10 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
+                    b.Property<string>("ActionUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<Guid?>("AppUserId")
                         .HasColumnType("uniqueidentifier");
 
@@ -2314,12 +3004,26 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(2000)")
                         .HasDefaultValue("");
 
+                    b.Property<string>("Category")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.Property<string>("Channel")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
                     b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("EntityId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EntityType")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<DateTime?>("ExpiresAtUtc")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("ExternalMessageId")
@@ -2333,6 +3037,10 @@ namespace GMS.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid?>("MemberId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Priority")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<DateTime?>("ReadAtUtc")
                         .HasColumnType("datetime2");
@@ -2362,6 +3070,10 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(200)")
                         .HasDefaultValue("");
 
+                    b.Property<string>("Type")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -2375,7 +3087,15 @@ namespace GMS.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("TenantId", "AppUserId");
 
+                    b.HasIndex("TenantId", "Category");
+
+                    b.HasIndex("TenantId", "ExternalMessageId");
+
                     b.HasIndex("TenantId", "MemberId");
+
+                    b.HasIndex("TenantId", "AppUserId", "CreatedAtUtc");
+
+                    b.HasIndex("TenantId", "AppUserId", "ReadAtUtc");
 
                     b.ToTable("notifications", (string)null);
                 });
@@ -2639,6 +3359,183 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.ToTable("payment_transactions", (string)null);
                 });
 
+            modelBuilder.Entity("GMS.Core.Entities.PayrollAdjustment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("DECIMAL(14,2)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedByAppUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid>("PayrollPeriodId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("NVARCHAR(500)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("VARCHAR(20)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("PayrollPeriodId");
+
+                    b.HasIndex("TenantId", "PayrollPeriodId", "EmployeeId");
+
+                    b.ToTable("payroll_adjustments", (string)null);
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.PayrollLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<decimal>("AllowanceAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("DECIMAL(14,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<decimal>("BasicSalary")
+                        .HasColumnType("DECIMAL(14,2)");
+
+                    b.Property<decimal>("BonusAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("DECIMAL(14,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<Guid?>("ContractId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("DeductionAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("DECIMAL(14,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<decimal>("NetSalary")
+                        .HasColumnType("DECIMAL(14,2)");
+
+                    b.Property<decimal>("OvertimeAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("DECIMAL(14,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<Guid>("PayrollPeriodId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContractId");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("PayrollPeriodId");
+
+                    b.HasIndex("TenantId", "EmployeeId");
+
+                    b.HasIndex("TenantId", "PayrollPeriodId", "EmployeeId")
+                        .IsUnique();
+
+                    b.ToTable("payroll_lines", (string)null);
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.PayrollPeriod", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime?>("ApprovedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ApprovedByAppUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CalculatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ClosedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<int>("Month")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("VARCHAR(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Year", "Month")
+                        .IsUnique();
+
+                    b.ToTable("payroll_periods", (string)null);
+                });
+
             modelBuilder.Entity("GMS.Core.Entities.PlanEntitlement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2655,14 +3552,10 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAtUtc")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("DATETIME2")
-                        .HasDefaultValueSql("SYSUTCDATETIME()");
+                        .HasColumnType("datetime2");
 
                     b.Property<bool>("IsDeleted")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
+                        .HasColumnType("bit");
 
                     b.Property<Guid>("PlanId")
                         .HasColumnType("uniqueidentifier");
@@ -2678,19 +3571,69 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
-                        .HasColumnType("DATETIME2");
+                        .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
                     b.HasIndex("ActivityId");
 
-                    b.HasIndex("PlanId", "ActivityId")
-                        .IsUnique()
-                        .HasFilter("[IsDeleted] = 0");
-
-                    b.HasIndex("TenantId", "ActivityId");
+                    b.HasIndex("PlanId", "ActivityId");
 
                     b.ToTable("plan_entitlements", (string)null);
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.Position", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("DefaultBasicSalary")
+                        .HasColumnType("DECIMAL(14,2)");
+
+                    b.Property<Guid?>("DepartmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("NVARCHAR(500)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("NVARCHAR(80)");
+
+                    b.Property<string>("NameAr")
+                        .HasMaxLength(80)
+                        .HasColumnType("NVARCHAR(80)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex("TenantId", "DepartmentId");
+
+                    b.ToTable("positions", (string)null);
                 });
 
             modelBuilder.Entity("GMS.Core.Entities.Product", b =>
@@ -3339,6 +4282,14 @@ namespace GMS.Infrastructure.Persistence.Migrations
 
                     b.Property<DateOnly?>("DueDate")
                         .HasColumnType("DATE");
+
+                    b.Property<string>("GuestName")
+                        .HasMaxLength(200)
+                        .HasColumnType("NVARCHAR(200)");
+
+                    b.Property<string>("GuestPhone")
+                        .HasMaxLength(30)
+                        .HasColumnType("NVARCHAR(30)");
 
                     b.Property<string>("IdempotencyKey")
                         .HasMaxLength(100)
@@ -4557,11 +5508,6 @@ namespace GMS.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("GMS.Core.Entities.ActivityBooking", b =>
                 {
-                    b.HasOne("GMS.Core.Entities.GymAttendance", "Attendance")
-                        .WithMany()
-                        .HasForeignKey("AttendanceId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("GMS.Core.Entities.AppUser", "CheckedInByUser")
                         .WithMany()
                         .HasForeignKey("CheckedInByUserId")
@@ -4570,32 +5516,23 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.HasOne("GMS.Core.Entities.Membership", "CoveringMembership")
                         .WithMany()
                         .HasForeignKey("CoveringMembershipId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("GMS.Core.Entities.GymMember", "Member")
                         .WithMany()
                         .HasForeignKey("MemberId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("GMS.Core.Entities.Sale", "Sale")
                         .WithMany()
                         .HasForeignKey("SaleId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("GMS.Core.Entities.ActivitySession", "Session")
                         .WithMany("Bookings")
                         .HasForeignKey("SessionId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("GMS.Core.Entities.Tenant", "Tenant")
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Attendance");
 
                     b.Navigation("CheckedInByUser");
 
@@ -4606,8 +5543,6 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.Navigation("Sale");
 
                     b.Navigation("Session");
-
-                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("GMS.Core.Entities.ActivitySchedule", b =>
@@ -4618,22 +5553,14 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("GMS.Core.Entities.AppUser", "Coach")
+                    b.HasOne("GMS.Core.Entities.AppUser", "CoachUser")
                         .WithMany()
                         .HasForeignKey("CoachUserId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("GMS.Core.Entities.Tenant", "Tenant")
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.Navigation("Activity");
 
-                    b.Navigation("Coach");
-
-                    b.Navigation("Tenant");
+                    b.Navigation("CoachUser");
                 });
 
             modelBuilder.Entity("GMS.Core.Entities.ActivitySession", b =>
@@ -4644,29 +5571,21 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("GMS.Core.Entities.AppUser", "Coach")
+                    b.HasOne("GMS.Core.Entities.AppUser", "CoachUser")
                         .WithMany()
                         .HasForeignKey("CoachUserId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("GMS.Core.Entities.ActivitySchedule", "Schedule")
-                        .WithMany("Sessions")
+                        .WithMany()
                         .HasForeignKey("ScheduleId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("GMS.Core.Entities.Tenant", "Tenant")
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.Navigation("Activity");
 
-                    b.Navigation("Coach");
+                    b.Navigation("CoachUser");
 
                     b.Navigation("Schedule");
-
-                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("GMS.Core.Entities.AnalyticsSnapshot", b =>
@@ -4755,6 +5674,25 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("GMS.Core.Entities.CashExpense", b =>
+                {
+                    b.HasOne("GMS.Core.Entities.AppUser", "RecordedByUser")
+                        .WithMany()
+                        .HasForeignKey("RecordedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GMS.Core.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("RecordedByUser");
+
+                    b.Navigation("Tenant");
+                });
+
             modelBuilder.Entity("GMS.Core.Entities.CashMovement", b =>
                 {
                     b.HasOne("GMS.Core.Entities.AppUser", "CreatedByUser")
@@ -4778,6 +5716,152 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("Shift");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.Department", b =>
+                {
+                    b.HasOne("GMS.Core.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.Employee", b =>
+                {
+                    b.HasOne("GMS.Core.Entities.AppUser", "AppUser")
+                        .WithMany()
+                        .HasForeignKey("AppUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("GMS.Core.Entities.Department", "Department")
+                        .WithMany("Employees")
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("GMS.Core.Entities.AppUser", "EmployeeAppUser")
+                        .WithMany()
+                        .HasForeignKey("EmployeeAppUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("GMS.Core.Entities.Position", "Position")
+                        .WithMany("Employees")
+                        .HasForeignKey("PositionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("GMS.Core.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AppUser");
+
+                    b.Navigation("Department");
+
+                    b.Navigation("EmployeeAppUser");
+
+                    b.Navigation("Position");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.EmployeeAppActivationCode", b =>
+                {
+                    b.HasOne("GMS.Core.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GMS.Core.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.EmployeeAttendance", b =>
+                {
+                    b.HasOne("GMS.Core.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GMS.Core.Entities.LeaveRequest", "LeaveRequest")
+                        .WithMany()
+                        .HasForeignKey("LeaveRequestId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("GMS.Core.Entities.EmployeeScheduleAssignment", "Schedule")
+                        .WithMany("Attendances")
+                        .HasForeignKey("ScheduleId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("LeaveRequest");
+
+                    b.Navigation("Schedule");
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.EmployeeContract", b =>
+                {
+                    b.HasOne("GMS.Core.Entities.Employee", "Employee")
+                        .WithMany("Contracts")
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.EmployeeDocument", b =>
+                {
+                    b.HasOne("GMS.Core.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.EmployeeScheduleAssignment", b =>
+                {
+                    b.HasOne("GMS.Core.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GMS.Core.Entities.EmployeeShift", "EmployeeShift")
+                        .WithMany("Assignments")
+                        .HasForeignKey("EmployeeShiftId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("EmployeeShift");
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.EmployeeShift", b =>
+                {
+                    b.HasOne("GMS.Core.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Tenant");
                 });
@@ -4865,15 +5949,14 @@ namespace GMS.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("GMS.Core.Entities.GymAttendance", b =>
                 {
                     b.HasOne("GMS.Core.Entities.ActivityBooking", "Booking")
-                        .WithMany()
-                        .HasForeignKey("BookingId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .WithOne("Attendance")
+                        .HasForeignKey("GMS.Core.Entities.GymAttendance", "BookingId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("GMS.Core.Entities.GymMember", "Member")
                         .WithMany("Attendances")
                         .HasForeignKey("MemberId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.HasOne("GMS.Core.Entities.Membership", "Membership")
                         .WithMany("Attendances")
@@ -4883,7 +5966,7 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.HasOne("GMS.Core.Entities.ActivitySession", "Session")
                         .WithMany()
                         .HasForeignKey("SessionId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("GMS.Core.Entities.AppUser", "StaffUser")
                         .WithMany("RecordedAttendances")
@@ -5020,6 +6103,28 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.Navigation("Tenant");
 
                     b.Navigation("VoidedByUser");
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.LeaveBalance", b =>
+                {
+                    b.HasOne("GMS.Core.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.LeaveRequest", b =>
+                {
+                    b.HasOne("GMS.Core.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
                 });
 
             modelBuilder.Entity("GMS.Core.Entities.MemberAppActivationCode", b =>
@@ -5329,10 +6434,82 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("GMS.Core.Entities.PayrollAdjustment", b =>
+                {
+                    b.HasOne("GMS.Core.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GMS.Core.Entities.PayrollPeriod", "PayrollPeriod")
+                        .WithMany()
+                        .HasForeignKey("PayrollPeriodId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("GMS.Core.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("PayrollPeriod");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.PayrollLine", b =>
+                {
+                    b.HasOne("GMS.Core.Entities.EmployeeContract", "Contract")
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("GMS.Core.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GMS.Core.Entities.PayrollPeriod", "PayrollPeriod")
+                        .WithMany("Lines")
+                        .HasForeignKey("PayrollPeriodId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("GMS.Core.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Contract");
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("PayrollPeriod");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.PayrollPeriod", b =>
+                {
+                    b.HasOne("GMS.Core.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
             modelBuilder.Entity("GMS.Core.Entities.PlanEntitlement", b =>
                 {
                     b.HasOne("GMS.Core.Entities.Activity", "Activity")
-                        .WithMany("Entitlements")
+                        .WithMany("PlanEntitlements")
                         .HasForeignKey("ActivityId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -5343,15 +6520,25 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.Navigation("Activity");
+
+                    b.Navigation("Plan");
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.Position", b =>
+                {
+                    b.HasOne("GMS.Core.Entities.Department", "Department")
+                        .WithMany("Positions")
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("GMS.Core.Entities.Tenant", "Tenant")
                         .WithMany()
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Activity");
-
-                    b.Navigation("Plan");
+                    b.Navigation("Department");
 
                     b.Navigation("Tenant");
                 });
@@ -6014,16 +7201,16 @@ namespace GMS.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("GMS.Core.Entities.Activity", b =>
                 {
-                    b.Navigation("Entitlements");
+                    b.Navigation("PlanEntitlements");
 
                     b.Navigation("Schedules");
 
                     b.Navigation("Sessions");
                 });
 
-            modelBuilder.Entity("GMS.Core.Entities.ActivitySchedule", b =>
+            modelBuilder.Entity("GMS.Core.Entities.ActivityBooking", b =>
                 {
-                    b.Navigation("Sessions");
+                    b.Navigation("Attendance");
                 });
 
             modelBuilder.Entity("GMS.Core.Entities.ActivitySession", b =>
@@ -6036,6 +7223,28 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.Navigation("LinkedMember");
 
                     b.Navigation("RecordedAttendances");
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.Department", b =>
+                {
+                    b.Navigation("Employees");
+
+                    b.Navigation("Positions");
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.Employee", b =>
+                {
+                    b.Navigation("Contracts");
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.EmployeeScheduleAssignment", b =>
+                {
+                    b.Navigation("Attendances");
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.EmployeeShift", b =>
+                {
+                    b.Navigation("Assignments");
                 });
 
             modelBuilder.Entity("GMS.Core.Entities.GoodsReceipt", b =>
@@ -6079,6 +7288,16 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.Navigation("Entitlements");
 
                     b.Navigation("Memberships");
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.PayrollPeriod", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.Position", b =>
+                {
+                    b.Navigation("Employees");
                 });
 
             modelBuilder.Entity("GMS.Core.Entities.ProductCategory", b =>

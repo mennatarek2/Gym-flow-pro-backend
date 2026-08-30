@@ -65,6 +65,8 @@ public static class SubscriptionChangeTypes
     public const string CycleChange = "cycle_change";
     public const string Reactivation = "reactivation";
     public const string Cancellation = "cancellation";
+    /// <summary>Clears CancelAtPeriodEnd without changing Status (scheduled cancel undone).</summary>
+    public const string CancelUndo = "cancel_undo";
     public const string TrialStart = "trial_start";
     public const string TrialExtend = "trial_extend";
     public const string PastDue = "past_due";

@@ -384,6 +384,49 @@ public class ManagementReportsTests
     }
 
     [Fact]
+    public async Task Sales_StaffFilter_CashRefunds_UsesApproverOrRequester()
+    {
+        var (ctx, svc, tenantId) = CreateSut();
+        SeedTenant(ctx, tenantId);
+        var a = SeedStaff(ctx, tenantId);
+        var b = SeedStaff(ctx, tenantId);
+        await ctx.SaveChangesAsync();
+
+        var day = new DateOnly(2026, 8, 18);
+        var (utcStart, _) = GMS.Core.Utilities.MembershipOperational.CairoInclusiveRangeUtc(day, day);
+        var at = utcStart.AddHours(12);
+
+        // b requests the refund, a approves it — attribution must follow the approver,
+        // matching GetRefundsReportAsync/GetStaffShiftsReportAsync (bug-154).
+        var pay = await SeedPaymentAsync(ctx, tenantId, a, at, 200m, "cash");
+        ctx.Refunds.Add(new Refund
+        {
+            TenantId = tenantId,
+            SaleId = pay.SaleId!.Value,
+            Amount = 40m,
+            Method = "cash",
+            Reason = "test",
+            RequestedByUserId = b,
+            ApprovedByUserId = a,
+            Status = "executed",
+            ExecutedAt = at.AddMinutes(10)
+        });
+        await ctx.SaveChangesAsync();
+
+        var byApprover = await svc.GetSalesReportAsync(tenantId, day, day, staffId: a);
+        Assert.True(byApprover.IsSuccess, byApprover.Error);
+        Assert.Equal(40m, byApprover.Data!.CashRefundsTotal);
+
+        var byRequesterOnly = await svc.GetSalesReportAsync(tenantId, day, day, staffId: b);
+        Assert.True(byRequesterOnly.IsSuccess, byRequesterOnly.Error);
+        Assert.Equal(0m, byRequesterOnly.Data!.CashRefundsTotal);
+
+        var refunds = await svc.GetRefundsReportAsync(tenantId, day, day, staffId: a);
+        Assert.True(refunds.IsSuccess, refunds.Error);
+        Assert.Equal(byApprover.Data.CashRefundsTotal, refunds.Data!.Total);
+    }
+
+    [Fact]
     public async Task Sales_CardFilter_DoesNotSubtractCashRefunds()
     {
         var (ctx, svc, tenantId) = CreateSut();
@@ -983,6 +1026,12 @@ public class ManagementReportsTests
             Method = method,
             ReceivedByUserId = staffId
         });
+        await ctx.SaveChangesAsync();
+
+        // DbContext.SaveChanges stamps CreatedAtUtc = UtcNow on Added entities, overwriting the
+        // backdated value above. Re-apply and persist so the report's date-window filter sees it.
+        sale.CreatedAtUtc = soldAtUtc;
+        line.CreatedAtUtc = soldAtUtc;
         await ctx.SaveChangesAsync();
         return line;
     }

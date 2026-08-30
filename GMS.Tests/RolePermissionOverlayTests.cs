@@ -111,7 +111,7 @@ public class RolePermissionOverlayTests
         var provider = new DefaultPermissionProvider();
         var overlay = RolePermissionResolver.ParseOverlay(null);
         var rec = RolePermissionResolver.Resolve(new[] { "Receptionist" }, provider, overlay);
-        Assert.Equal(13, rec.Count);
+        Assert.Equal(18, rec.Count);
         Assert.Contains(Permissions.SalesSell, rec);
         Assert.DoesNotContain(Permissions.PaymentsRefundApprove, rec);
     }
@@ -163,7 +163,7 @@ public class RolePermissionOverlayTests
         var rec = result.Data!.Roles.Single(r => r.Id == "Receptionist");
         Assert.True(rec.Editable);
         Assert.False(rec.IsCustomized);
-        Assert.Equal(13, rec.Permissions.Count);
+        Assert.Equal(18, rec.Permissions.Count);
         var owner = result.Data.Roles.Single(r => r.Id == "Owner");
         Assert.False(owner.Editable);
         Assert.Equal(Permissions.All.Count, owner.Permissions.Count);
@@ -209,11 +209,18 @@ public class RolePermissionOverlayTests
         var (_, svc, _, _, tenantId) = CreateSut(json);
         var result = await svc.UpdateRoleAsync(tenantId, "Trainer", new UpdateRolePermissionsRequest
         {
-            Permissions = new List<string> { Permissions.CheckinManual }
+            Permissions = new List<string>
+            {
+                Permissions.CheckinManual,
+                Permissions.ClassesView,
+                Permissions.AttendanceView
+            }
         });
         Assert.True(result.IsSuccess);
         Assert.False(result.Data!.IsCustomized);
-        Assert.Equal(new[] { Permissions.CheckinManual }, result.Data.Permissions);
+        Assert.Equal(
+            new[] { Permissions.CheckinManual, Permissions.ClassesView, Permissions.AttendanceView },
+            result.Data.Permissions);
     }
 
     [Fact]
@@ -224,7 +231,9 @@ public class RolePermissionOverlayTests
         var result = await svc.ResetRoleAsync(tenantId, "Trainer");
         Assert.True(result.IsSuccess);
         Assert.False(result.Data!.IsCustomized);
-        Assert.Equal(new[] { Permissions.CheckinManual }, result.Data.Permissions);
+        Assert.Equal(
+            new[] { Permissions.CheckinManual, Permissions.ClassesView, Permissions.AttendanceView },
+            result.Data.Permissions);
         Assert.Equal("roles.reset", audit.LastAction);
     }
 }

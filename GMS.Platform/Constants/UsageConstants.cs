@@ -25,10 +25,12 @@ public static class FeatureKeys
     public const string Inventory = "inventory";
     /// <summary>On Hand board / Move / Count hub — Pro+ packaging (Growth keeps Products desk only).</summary>
     public const string StockManagement = "stock_management";
+    /// <summary>HR / Staff Workforce module (employees, departments, positions, contracts, ...).</summary>
+    public const string Hr = "hr";
 
     public static readonly string[] PhaseAModules =
     {
-        Sales, Shifts, Trials, Refunds, Debtors, Imports, Inventory, StockManagement
+        Sales, Shifts, Trials, Refunds, Debtors, Imports, Inventory, StockManagement, Hr
     };
 }
 

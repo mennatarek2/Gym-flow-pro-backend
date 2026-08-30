@@ -15,8 +15,9 @@ public static class TierFeatureMapSeed
 
         // --- starter ---
         // Inventory without stock_management → Products desk only (Add stock / Fix qty).
+        // Refunds included: retail POS must be able to reverse a cash sale.
         AddModules(rows, PlanTiers.Starter, FeatureKeys.Sales, FeatureKeys.Shifts, FeatureKeys.Trials, FeatureKeys.Debtors,
-            FeatureKeys.Inventory);
+            FeatureKeys.Refunds, FeatureKeys.Inventory, FeatureKeys.Hr);
         AddCap(rows, PlanTiers.Starter, UsageMetrics.ActiveMembers, 200);
         AddCap(rows, PlanTiers.Starter, UsageMetrics.StaffSeats, 3);
         AddCap(rows, PlanTiers.Starter, UsageMetrics.Branches, 1);
@@ -25,7 +26,7 @@ public static class TierFeatureMapSeed
         // --- growth ---
         AddModules(rows, PlanTiers.Growth,
             FeatureKeys.Sales, FeatureKeys.Shifts, FeatureKeys.Trials, FeatureKeys.Debtors,
-            FeatureKeys.Refunds, FeatureKeys.Imports, FeatureKeys.Inventory);
+            FeatureKeys.Refunds, FeatureKeys.Imports, FeatureKeys.Inventory, FeatureKeys.Hr);
         AddCap(rows, PlanTiers.Growth, UsageMetrics.ActiveMembers, 1000);
         AddCap(rows, PlanTiers.Growth, UsageMetrics.StaffSeats, 10);
         AddCap(rows, PlanTiers.Growth, UsageMetrics.Branches, 3);

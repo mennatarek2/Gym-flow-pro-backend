@@ -271,7 +271,7 @@ public class ReportsService : IReportsService
                              && r.ExecutedAt >= utcStart
                              && r.ExecutedAt < utcEnd);
                 if (staffId.HasValue)
-                    refundQuery = refundQuery.Where(r => r.RequestedByUserId == staffId.Value);
+                    refundQuery = refundQuery.Where(r => (r.ApprovedByUserId ?? r.RequestedByUserId) == staffId.Value);
                 cashRefunds = await refundQuery.SumAsync(r => (decimal?)r.Amount) ?? 0m;
             }
 

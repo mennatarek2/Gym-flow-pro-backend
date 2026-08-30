@@ -55,7 +55,7 @@ public class SubscriptionChangeConfiguration : IEntityTypeConfiguration<Subscrip
         {
             t.HasCheckConstraint(
                 "CK_subscription_changes_change_type",
-                "[ChangeType] IN ('upgrade','downgrade','cycle_change','reactivation','cancellation','trial_start','trial_extend','past_due','suspension')");
+                "[ChangeType] IN ('upgrade','downgrade','cycle_change','reactivation','cancellation','cancel_undo','trial_start','trial_extend','past_due','suspension')");
             t.HasCheckConstraint(
                 "CK_subscription_changes_initiated_by",
                 "[InitiatedBy] IN ('self_serve','platform_admin','system')");

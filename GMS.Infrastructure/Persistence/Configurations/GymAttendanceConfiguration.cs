@@ -28,7 +28,15 @@ public class GymAttendanceConfiguration : IEntityTypeConfiguration<GymAttendance
 
         // Foreign keys
         builder.Property(a => a.MemberId)
-            .IsRequired();
+            .IsRequired(false);
+
+        builder.Property(a => a.GuestName)
+            .HasMaxLength(200)
+            .HasColumnType("NVARCHAR(200)");
+
+        builder.Property(a => a.GuestPhone)
+            .HasMaxLength(30)
+            .HasColumnType("NVARCHAR(30)");
 
         builder.Property(a => a.MembershipId)
             .HasColumnType("UNIQUEIDENTIFIER");

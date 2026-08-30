@@ -52,6 +52,7 @@ public class ImportServiceTests
             new UnlimitedTierEnforcement(),
             new NoOpReferralAttribution(),
             new NoOpMemberAppActivation(),
+            new ActivityEntitlementService(ctx),
             NullLogger<MemberService>.Instance);
         var auditService = new AuditService(ctx, new HttpContextAccessor(), tenantContext, NullLogger<AuditService>.Instance);
 

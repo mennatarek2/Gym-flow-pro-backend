@@ -96,8 +96,9 @@ public class StockAdjustmentServiceTests
         await ctx.SaveChangesAsync();
 
         var ledger = new StockLedgerService(ctx, NullLogger<StockLedgerService>.Instance);
+        var warehouses = new WarehouseService(ctx, new NoOpAudit(), NullLogger<WarehouseService>.Instance);
         var svc = new StockAdjustmentService(
-            ctx, ledger, new NoOpAudit(), NullLogger<StockAdjustmentService>.Instance);
+            ctx, ledger, warehouses, new NoOpAudit(), NullLogger<StockAdjustmentService>.Instance);
         return (ctx, svc, ledger, tenantId, identityUserId, product.Id, warehouse.Id);
     }
 

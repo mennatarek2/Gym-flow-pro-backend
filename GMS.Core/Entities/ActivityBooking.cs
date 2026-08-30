@@ -4,7 +4,10 @@ public class ActivityBooking : BaseEntity
 {
     public Guid TenantId { get; set; }
     public Guid SessionId { get; set; }
-    public Guid MemberId { get; set; }
+    public Guid? MemberId { get; set; }
+    /// <summary>Required when this is an anonymous walk-in booking.</summary>
+    public string? GuestName { get; set; }
+    public string? GuestPhone { get; set; }
     public string Status { get; set; } = "booked";
     public string Source { get; set; } = "staff";
     public Guid? CoveringMembershipId { get; set; }

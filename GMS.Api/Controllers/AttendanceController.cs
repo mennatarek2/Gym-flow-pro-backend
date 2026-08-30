@@ -115,7 +115,7 @@ public class AttendanceController : BaseApiController
     }
 
     [HttpGet("today")]
-    [HasPermission(Permissions.MembersView)]
+    [HasAnyPermission(Permissions.MembersView, Permissions.AttendanceView)]
     [ProducesResponseType(typeof(List<TodayAttendanceDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetTodayAttendance([FromQuery] string filter = "all")
     {
@@ -135,7 +135,7 @@ public class AttendanceController : BaseApiController
     /// GET /api/attendance/occupancy
     /// </summary>
     [HttpGet("occupancy")]
-    [HasPermission(Permissions.MembersView)]
+    [HasAnyPermission(Permissions.MembersView, Permissions.AttendanceView)]
     [ProducesResponseType(typeof(GymOccupancyDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetOccupancy(CancellationToken ct)
     {

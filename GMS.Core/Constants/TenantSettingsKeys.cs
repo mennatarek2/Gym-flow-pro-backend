@@ -127,4 +127,13 @@ public static class TenantSettingsKeys
     /// Unknown permission strings are dropped. Does not change OwnerOnly / AnyStaff role policies.
     /// </summary>
     public const string RolePermissions = "role_permissions";
+
+    /// <summary>int, default 2. Hours before session start after which a member cancellation is "late" (no quota refund).</summary>
+    public const string LateCancellationHours = "late_cancellation_hours";
+
+    /// <summary>int, default 30. Rolling window (days ahead) for generating class sessions from recurring schedules.</summary>
+    public const string SessionGenerationDays = "session_generation_days";
+
+    /// <summary>int, default 30 — no-check-in window used by dashboard inactive-member counts.</summary>
+    public const string DashboardInactivityDays = "dashboard_inactivity_days";
 }

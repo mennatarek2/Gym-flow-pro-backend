@@ -76,7 +76,7 @@ public class RolePermissionService : IRolePermissionService
         Guid tenantId, string role, UpdateRolePermissionsRequest request)
     {
         var canonical = RolePermissionResolver.CanonicalRole(role);
-        if (canonical is "Owner" or "Member")
+        if (canonical is "Owner" or "Member" or "Employee")
             return Result<RoleAccessDto>.Failure(LockedMessage);
         if (!RolePermissionResolver.IsEditable(canonical))
             return Result<RoleAccessDto>.Failure(UnknownMessage);
@@ -126,7 +126,7 @@ public class RolePermissionService : IRolePermissionService
     public async Task<Result<RoleAccessDto>> ResetRoleAsync(Guid tenantId, string role)
     {
         var canonical = RolePermissionResolver.CanonicalRole(role);
-        if (canonical is "Owner" or "Member")
+        if (canonical is "Owner" or "Member" or "Employee")
             return Result<RoleAccessDto>.Failure(LockedMessage);
         if (!RolePermissionResolver.IsEditable(canonical))
             return Result<RoleAccessDto>.Failure(UnknownMessage);

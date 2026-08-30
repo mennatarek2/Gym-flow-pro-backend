@@ -4,6 +4,10 @@ using GMS.Platform.DTOs;
 
 public interface IPlatformTenantReadService
 {
+    /// <summary>
+    /// <paramref name="renewingBefore"/>: server-side date filter — only tenants whose live subscription's
+    /// CurrentPeriodEnd falls on or before this date (inclusive). Never filter "expiring soon" client-side.
+    /// </summary>
     Task<PlatformPagedResult<PlatformTenantListItemDto>> ListAsync(
         string? status,
         string? tier,
@@ -11,6 +15,8 @@ public interface IPlatformTenantReadService
         string? search,
         int page,
         int pageSize,
+        DateOnly? renewingBefore = null,
+        bool? hasSubscription = null,
         CancellationToken cancellationToken = default);
 
     Task<PlatformTenantDetailDto?> GetDetailAsync(Guid tenantId, CancellationToken cancellationToken = default);

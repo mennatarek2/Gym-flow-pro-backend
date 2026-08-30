@@ -421,7 +421,8 @@ public class PlatformTenantAdminService : IPlatformTenantAdminService
         CancelledAtUtc = s.CancelledAtUtc,
         SuspendedAtUtc = s.SuspendedAtUtc,
         UpdatedAtUtc = s.UpdatedAtUtc,
-        PendingDowngradeTier = pending
+        PendingDowngradeTier = pending,
+        HasPaymentMethodOnFile = !string.IsNullOrWhiteSpace(s.SavedCardToken)
     };
 
     private static FeatureOverrideDto MapOverride(FeatureOverride o) => new()

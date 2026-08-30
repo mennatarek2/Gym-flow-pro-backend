@@ -48,9 +48,9 @@ public class RolePermissionMatrixTests
     [Fact]
     public void Matrix_CoversEveryJobAndEveryTask()
     {
-        Assert.Equal(24, Permissions.All.Count);
-        Assert.Equal(5 * 24, EveryRoleAndPermission().Count());
-        Assert.Equal(3 * 24, EveryEditableRoleAndPermission().Count());
+        Assert.Equal(41, Permissions.All.Count);
+        Assert.Equal(5 * 41, EveryRoleAndPermission().Count());
+        Assert.Equal(3 * 41, EveryEditableRoleAndPermission().Count());
     }
 
     [Theory]
@@ -182,6 +182,24 @@ public class RolePermissionMatrixTests
     {
         var allowed = await AuthorizeAsync(new[] { permission }, permission);
         Assert.True(allowed);
+    }
+
+    [Fact]
+    public async Task AnyPermissionGate_AllowsTrainerClassPermissionWithoutMembersModule()
+    {
+        var user = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(Permissions.ClaimType, Permissions.ClassesView)
+        }, "Test"));
+        var requirement = new AnyPermissionRequirement(new[]
+        {
+            Permissions.MembersView, Permissions.ClassesView
+        });
+        var context = new AuthorizationHandlerContext(new[] { requirement }, user, null);
+
+        await new AnyPermissionAuthorizationHandler().HandleAsync(context);
+
+        Assert.True(context.HasSucceeded);
     }
 
     [Theory]

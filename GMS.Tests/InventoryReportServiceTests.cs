@@ -111,7 +111,11 @@ public class InventoryReportServiceTests
         }
 
         var notifications = new NotificationService(
-            ctx, new NoOpPush(), NullLogger<NotificationService>.Instance);
+            ctx,
+            new NoOpPush(),
+            NullLogger<NotificationService>.Instance,
+            new DefaultPermissionProvider(),
+            new NullStaffNotificationRealtimeNotifier());
         var reorder = new InventoryReorderCalculator(ctx);
         var svc = new InventoryReportService(
             ctx, notifications, reorder, NullLogger<InventoryReportService>.Instance);
