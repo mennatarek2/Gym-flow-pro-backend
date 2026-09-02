@@ -36,7 +36,8 @@ public class RefundsController : BaseApiController
     public async Task<IActionResult> RequestRefund([FromBody] RequestRefundRequest request)
     {
         var result = await _refundService.RequestAsync(
-            request.SaleId, request.Amount, request.Method, request.Reason, GetUserId(), _tenantContext.TenantId);
+            request.SaleId, request.Amount, request.Method, request.Reason, GetUserId(), _tenantContext.TenantId,
+            request.PaymentTransactionId);
 
         if (!result.IsSuccess)
             return ProblemFromResult(result.Error!);

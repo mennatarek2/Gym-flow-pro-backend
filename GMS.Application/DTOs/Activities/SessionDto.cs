@@ -34,6 +34,9 @@ public class BookingDto
     public string? GuestPhone { get; set; }
     public string Status { get; set; } = "";
     public string Source { get; set; } = "";
+    public Guid? SaleId { get; set; }
+    public Guid? InvoiceId { get; set; }
+    public string? InvoiceNumber { get; set; }
     public DateTime? CheckedInAtUtc { get; set; }
 }
 

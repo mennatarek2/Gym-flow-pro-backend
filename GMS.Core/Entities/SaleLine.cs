@@ -21,6 +21,13 @@ public class SaleLine : BaseEntity
     public decimal UnitPrice { get; set; }
     public decimal LineTotal { get; set; }
 
+    /// <summary>
+    /// Immutable cost captured when this retail line is sold. Null means the
+    /// historical line cannot yet be included in trusted COGS reporting.
+    /// </summary>
+    public decimal? UnitCost { get; set; }
+    public decimal? CogsAmount { get; set; }
+
     // Navigation
     public Tenant? Tenant { get; set; }
     public Sale? Sale { get; set; }

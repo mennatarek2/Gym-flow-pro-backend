@@ -64,12 +64,14 @@ public static class ApplicationServiceExtensions
         services.AddScoped<IZReportService, ZReportService>();
         services.AddScoped<ITrialService, TrialService>();
         services.AddScoped<IRefundService, RefundService>();
+        services.AddScoped<ISaleAdjustmentService, SaleAdjustmentService>();
         services.AddScoped<IDebtorsService, DebtorsService>();
         services.AddScoped<ICallSheetService, CallSheetService>();
         services.AddScoped<IActivityService, ActivityService>();
         services.AddScoped<ISessionBookingService, SessionBookingService>();
         services.AddScoped<IActivityEntitlementService, ActivityEntitlementService>();
         services.AddScoped<IMemberBookingService, MemberBookingService>();
+        services.AddScoped<IMemberClassService, MemberClassService>();
         services.AddScoped<IDropInService, DropInService>();
         services.AddScoped<ISessionGenerationService, SessionGenerationService>();
         services.AddScoped<IImportService, ImportService>();
@@ -85,12 +87,14 @@ public static class ApplicationServiceExtensions
         services.AddScoped<ILeaveRequestService, LeaveRequestService>();
         services.AddScoped<IPayrollPeriodService, PayrollPeriodService>();
         services.AddScoped<IPayrollAdjustmentService, PayrollAdjustmentService>();
+        services.AddScoped<IPayrollPaymentService, PayrollPaymentService>();
         services.AddScoped<IEmployeeDocumentService, EmployeeDocumentService>();
         services.AddScoped<IHrDashboardService, HrDashboardService>();
 
         // Analytics & Reports services
         services.AddScoped<IAnalyticsService, AnalyticsService>();
         services.AddScoped<IReportsService, ReportsService>();
+        services.AddScoped<IProfitabilityService, ProfitabilityService>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<ICashExpenseService, CashExpenseService>();
 

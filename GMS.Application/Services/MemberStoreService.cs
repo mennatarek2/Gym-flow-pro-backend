@@ -234,48 +234,55 @@ public class MemberStoreService : IMemberStoreService
     public async Task<Result<List<MemberOrderListItemDto>>> ListMyOrdersAsync(
         Guid tenantId, Guid identityUserId, CancellationToken ct = default)
     {
-        var member = await FindMemberByIdentityAsync(tenantId, identityUserId, ct);
-        if (member == null)
+        // Authorization source of truth: JWT identity → GymMember. Never trust a client memberId.
+        var memberId = await ResolveMemberIdByIdentityAsync(tenantId, identityUserId, ct);
+        if (memberId == null)
             return Result<List<MemberOrderListItemDto>>.Failure(
                 "Member account not linked / الحساب غير مرتبط بعضو");
 
+        // Filter at query level BEFORE Take (pagination / limit). Tenant filter also applies via EF global filter.
         var rows = await _db.MemberOrders.AsNoTracking()
             .Include(o => o.Lines)
             .Include(o => o.Member)
-            .Where(o => o.TenantId == tenantId && o.MemberId == member.Id)
+            .Where(o => o.TenantId == tenantId && o.MemberId == memberId.Value)
             .OrderByDescending(o => o.CreatedAtUtc)
             .Take(100)
             .ToListAsync(ct);
 
-        return Result<List<MemberOrderListItemDto>>.Success(rows.Select(MapListItem).ToList());
+        return Result<List<MemberOrderListItemDto>>.Success(rows.Select(MapMyListItem).ToList());
     }
 
     public async Task<Result<MemberOrderDto>> GetMyOrderAsync(
         Guid tenantId, Guid identityUserId, Guid orderId, CancellationToken ct = default)
     {
-        var member = await FindMemberByIdentityAsync(tenantId, identityUserId, ct);
-        if (member == null)
+        var memberId = await ResolveMemberIdByIdentityAsync(tenantId, identityUserId, ct);
+        if (memberId == null)
             return FailOrder("Member account not linked / الحساب غير مرتبط بعضو");
 
+        // IDOR guard: orderId alone is never enough — must belong to the authenticated member.
         var order = await _db.MemberOrders.AsNoTracking()
             .Include(o => o.Lines)
             .Include(o => o.Member)
             .FirstOrDefaultAsync(o =>
-                o.Id == orderId && o.TenantId == tenantId && o.MemberId == member.Id, ct);
+                o.Id == orderId && o.TenantId == tenantId && o.MemberId == memberId.Value, ct);
 
         if (order == null)
             return FailOrder("Order not found / الطلب غير موجود");
 
-        return Result<MemberOrderDto>.Success(MapOrder(order));
+        return Result<MemberOrderDto>.Success(MapMyOrder(order));
     }
 
     public async Task<Result<List<MemberOrderListItemDto>>> ListOrdersForStaffAsync(
-        Guid tenantId, string? status = null, CancellationToken ct = default)
+        Guid tenantId, string? status = null, Guid? memberId = null, CancellationToken ct = default)
     {
         var query = _db.MemberOrders.AsNoTracking()
             .Include(o => o.Lines)
             .Include(o => o.Member)
             .Where(o => o.TenantId == tenantId);
+
+        // Member 360 Orders tab passes memberId — must filter at query level (not client-side).
+        if (memberId.HasValue && memberId.Value != Guid.Empty)
+            query = query.Where(o => o.MemberId == memberId.Value);
 
         if (!string.IsNullOrWhiteSpace(status))
         {
@@ -437,12 +444,36 @@ public class MemberStoreService : IMemberStoreService
     private async Task<GymMember?> FindMemberByIdentityAsync(
         Guid tenantId, Guid identityUserId, CancellationToken ct)
     {
+        var memberId = await ResolveMemberIdByIdentityAsync(tenantId, identityUserId, ct);
+        if (memberId == null)
+            return null;
+
+        return await _db.GymMembers.AsNoTracking()
+            .FirstOrDefaultAsync(m => m.Id == memberId.Value && m.TenantId == tenantId && !m.IsDeleted, ct);
+    }
+
+    /// <summary>
+    /// JWT sub (Identity user id) → AppUser.UserId → AppUser.Id → GymMember.AppUserId.
+    /// Same two-hop chain as MemberBookingService — do not compare JWT sub to GymMember.AppUserId.
+    /// </summary>
+    private async Task<Guid?> ResolveMemberIdByIdentityAsync(
+        Guid tenantId, Guid identityUserId, CancellationToken ct)
+    {
+        if (identityUserId == Guid.Empty)
+            return null;
+
         var identityId = identityUserId.ToString();
-        return await _db.GymMembers
-            .FirstOrDefaultAsync(m =>
-                m.TenantId == tenantId
-                && m.AppUser != null
-                && m.AppUser.UserId == identityId, ct);
+        var appUserId = await _db.AppUsers.AsNoTracking()
+            .Where(u => u.TenantId == tenantId && u.UserId == identityId && !u.IsDeleted)
+            .Select(u => (Guid?)u.Id)
+            .FirstOrDefaultAsync(ct);
+        if (appUserId == null)
+            return null;
+
+        return await _db.GymMembers.AsNoTracking()
+            .Where(m => m.TenantId == tenantId && m.AppUserId == appUserId.Value && !m.IsDeleted)
+            .Select(m => (Guid?)m.Id)
+            .FirstOrDefaultAsync(ct);
     }
 
     private async Task<AppUser?> ResolveAppUserAsync(
@@ -511,6 +542,12 @@ public class MemberStoreService : IMemberStoreService
         LineCount = o.Lines?.Count ?? 0,
         CreatedAtUtc = o.CreatedAtUtc
     };
+
+    /// <summary>Member App list DTO — same fields, ownership already enforced by query.</summary>
+    private static MemberOrderListItemDto MapMyListItem(MemberOrder o) => MapListItem(o);
+
+    /// <summary>Member App detail DTO — product line snapshots only; no staff actor ids.</summary>
+    private static MemberOrderDto MapMyOrder(MemberOrder o) => MapOrder(o);
 
     private static Result<MemberOrderDto> FailOrder(string error)
         => Result<MemberOrderDto>.Failure(error);

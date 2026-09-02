@@ -28,12 +28,16 @@ public class MemberOrdersController : BaseApiController
     [HttpGet]
     [HasPermission(Permissions.MemberOrdersView)]
     [ProducesResponseType(typeof(List<MemberOrderListItemDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> List([FromQuery] string? status, CancellationToken ct)
+    public async Task<IActionResult> List(
+        [FromQuery] string? status,
+        [FromQuery] Guid? memberId,
+        CancellationToken ct)
     {
         if (!_tenantContext.IsInitialized)
             return Unauthorized(new { error = "Tenant context required." });
 
-        var result = await _store.ListOrdersForStaffAsync(_tenantContext.TenantId, status, ct);
+        var result = await _store.ListOrdersForStaffAsync(
+            _tenantContext.TenantId, status, memberId, ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(new { error = result.Error });
     }
 

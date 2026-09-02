@@ -22,6 +22,9 @@ public class PaymentTransactionConfiguration : IEntityTypeConfiguration<PaymentT
         builder.Property(p => p.Amount).HasColumnType("DECIMAL(14,2)").IsRequired();
         builder.Property(p => p.Currency).HasMaxLength(5).HasDefaultValue("EGP");
         builder.Property(p => p.Status).HasMaxLength(20).HasDefaultValue("success");
+        builder.Property(p => p.SettlementStatus).HasMaxLength(20).HasColumnType("VARCHAR(20)")
+            .HasDefaultValue("unknown");
+        builder.Property(p => p.SettledAtUtc).HasColumnType("DATETIME2");
         builder.Property(p => p.RawPayload).HasColumnType("NVARCHAR(MAX)");
         builder.Property(p => p.HmacVerified).HasDefaultValue(false);
         builder.Property(p => p.PaidAtUtc).IsRequired();
@@ -34,8 +37,8 @@ public class PaymentTransactionConfiguration : IEntityTypeConfiguration<PaymentT
         builder.Property(p => p.ReceivedByUserId);
         builder.Property(p => p.Method).HasMaxLength(20).HasColumnType("VARCHAR(20)");
 
-        // Unique index on ExternalRef for idempotency
-        builder.HasIndex(p => p.ExternalRef).IsUnique();
+        // Gateway references are only unique within a tenant and gateway.
+        builder.HasIndex(p => new { p.TenantId, p.Gateway, p.ExternalRef }).IsUnique();
 
         // Composite indexes
         builder.HasIndex(p => new { p.TenantId, p.MemberId });

@@ -615,8 +615,16 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("SYSUTCDATETIME()");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<DateOnly>("ExpenseDate")
                         .HasColumnType("date");
+
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
@@ -627,8 +635,30 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("Payee")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("PaymentMethod")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasDefaultValue("cash");
+
                     b.Property<Guid>("RecordedByUserId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ShiftId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SourceReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("SourceType")
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -644,6 +674,12 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("RecordedByUserId");
+
+                    b.HasIndex("ShiftId");
+
+                    b.HasIndex("TenantId", "IdempotencyKey")
+                        .IsUnique()
+                        .HasFilter("[IdempotencyKey] IS NOT NULL");
 
                     b.HasIndex("TenantId", "ExpenseDate", "Status");
 
@@ -3323,6 +3359,16 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("SaleId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime?>("SettledAtUtc")
+                        .HasColumnType("DATETIME2");
+
+                    b.Property<string>("SettlementStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("VARCHAR(20)")
+                        .HasDefaultValue("unknown");
+
                     b.Property<Guid?>("ShiftId")
                         .HasColumnType("uniqueidentifier");
 
@@ -3341,9 +3387,6 @@ namespace GMS.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ExternalRef")
-                        .IsUnique();
-
                     b.HasIndex("MemberId");
 
                     b.HasIndex("MembershipId");
@@ -3355,6 +3398,9 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.HasIndex("TenantId", "Gateway");
 
                     b.HasIndex("TenantId", "MemberId");
+
+                    b.HasIndex("TenantId", "Gateway", "ExternalRef")
+                        .IsUnique();
 
                     b.ToTable("payment_transactions", (string)null);
                 });
@@ -3482,6 +3528,79 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("payroll_lines", (string)null);
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.PayrollPayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("DECIMAL(14,2)");
+
+                    b.Property<Guid>("CashExpenseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CashMovementId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid>("PaidByAppUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("PaidDate")
+                        .HasColumnType("DATE");
+
+                    b.Property<string>("PaymentMethod")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("VARCHAR(30)");
+
+                    b.Property<Guid>("PayrollLineId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("PayrollPeriodId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(200)
+                        .HasColumnType("NVARCHAR(200)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("VARCHAR(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CashExpenseId");
+
+                    b.HasIndex("CashMovementId");
+
+                    b.HasIndex("PaidByAppUserId");
+
+                    b.HasIndex("PayrollLineId");
+
+                    b.HasIndex("PayrollPeriodId");
+
+                    b.HasIndex("TenantId", "PayrollPeriodId", "PaidDate");
+
+                    b.ToTable("payroll_payments", (string)null);
                 });
 
             modelBuilder.Entity("GMS.Core.Entities.PayrollPeriod", b =>
@@ -4362,6 +4481,62 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.ToTable("sales", (string)null);
                 });
 
+            modelBuilder.Entity("GMS.Core.Entities.SaleAdjustment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("DECIMAL(14,2)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("NVARCHAR(500)");
+
+                    b.Property<Guid>("SaleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("VARCHAR(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("VARCHAR(30)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("SaleId");
+
+                    b.HasIndex("TenantId", "SaleId", "Status");
+
+                    b.ToTable("sale_adjustments", (string)null);
+                });
+
             modelBuilder.Entity("GMS.Core.Entities.SaleIdempotencyKey", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4407,6 +4582,9 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
+                    b.Property<decimal?>("CogsAmount")
+                        .HasColumnType("DECIMAL(14,2)");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("DATETIME2")
@@ -4447,6 +4625,9 @@ namespace GMS.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("UnitCost")
+                        .HasColumnType("DECIMAL(12,2)");
 
                     b.Property<decimal>("UnitPrice")
                         .HasColumnType("DECIMAL(12,2)");
@@ -5100,6 +5281,9 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("EffectiveAtUtc")
+                        .HasColumnType("DATETIME2");
+
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -5682,6 +5866,11 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("GMS.Core.Entities.Shift", "Shift")
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("GMS.Core.Entities.Tenant", "Tenant")
                         .WithMany()
                         .HasForeignKey("TenantId")
@@ -5689,6 +5878,8 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("RecordedByUser");
+
+                    b.Navigation("Shift");
 
                     b.Navigation("Tenant");
                 });
@@ -6495,6 +6686,56 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("GMS.Core.Entities.PayrollPayment", b =>
+                {
+                    b.HasOne("GMS.Core.Entities.CashExpense", "CashExpense")
+                        .WithMany()
+                        .HasForeignKey("CashExpenseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GMS.Core.Entities.CashMovement", "CashMovement")
+                        .WithMany()
+                        .HasForeignKey("CashMovementId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("GMS.Core.Entities.AppUser", "PaidByAppUser")
+                        .WithMany()
+                        .HasForeignKey("PaidByAppUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GMS.Core.Entities.PayrollLine", "PayrollLine")
+                        .WithMany()
+                        .HasForeignKey("PayrollLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GMS.Core.Entities.PayrollPeriod", "PayrollPeriod")
+                        .WithMany()
+                        .HasForeignKey("PayrollPeriodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GMS.Core.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CashExpense");
+
+                    b.Navigation("CashMovement");
+
+                    b.Navigation("PaidByAppUser");
+
+                    b.Navigation("PayrollLine");
+
+                    b.Navigation("PayrollPeriod");
+
+                    b.Navigation("Tenant");
+                });
+
             modelBuilder.Entity("GMS.Core.Entities.PayrollPeriod", b =>
                 {
                     b.HasOne("GMS.Core.Entities.Tenant", "Tenant")
@@ -6773,6 +7014,33 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.Navigation("Shift");
 
                     b.Navigation("SoldByUser");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.SaleAdjustment", b =>
+                {
+                    b.HasOne("GMS.Core.Entities.AppUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GMS.Core.Entities.Sale", "Sale")
+                        .WithMany()
+                        .HasForeignKey("SaleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GMS.Core.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Sale");
 
                     b.Navigation("Tenant");
                 });

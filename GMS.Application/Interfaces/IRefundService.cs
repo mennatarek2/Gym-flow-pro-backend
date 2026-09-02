@@ -10,7 +10,8 @@ using GMS.Application.DTOs.Refunds;
 public interface IRefundService
 {
     Task<Result<RefundDto>> RequestAsync(
-        Guid saleId, decimal amount, string method, string reason, Guid requestedByUserId, Guid tenantId);
+        Guid saleId, decimal amount, string method, string reason, Guid requestedByUserId, Guid tenantId,
+        Guid? paymentTransactionId = null);
 
     /// <summary>Executes the refund immediately (cash drawer movement, gateway API call, or member
     /// credit) in the same transaction as the approval.</summary>

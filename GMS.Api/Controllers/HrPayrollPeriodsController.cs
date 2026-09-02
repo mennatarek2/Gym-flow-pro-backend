@@ -19,12 +19,18 @@ using GMS.Core.Interfaces;
 public class HrPayrollPeriodsController : BaseApiController
 {
     private readonly IPayrollPeriodService _payroll;
+    private readonly IPayrollPaymentService _payments;
     private readonly IEmployeeService _employees;
     private readonly ITenantContext _tenantContext;
 
-    public HrPayrollPeriodsController(IPayrollPeriodService payroll, IEmployeeService employees, ITenantContext tenantContext)
+    public HrPayrollPeriodsController(
+        IPayrollPeriodService payroll,
+        IPayrollPaymentService payments,
+        IEmployeeService employees,
+        ITenantContext tenantContext)
     {
         _payroll = payroll;
+        _payments = payments;
         _employees = employees;
         _tenantContext = tenantContext;
     }
@@ -126,6 +132,34 @@ public class HrPayrollPeriodsController : BaseApiController
         if (!result.IsSuccess)
             return NotFound(new { error = result.Error });
         return Ok(result.Data);
+    }
+
+    [HttpGet("{id:guid}/payments")]
+    [HasPermission(Permissions.HrPayrollView)]
+    [ProducesResponseType(typeof(List<PayrollPaymentDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ListPayments(Guid id, CancellationToken ct)
+    {
+        if (!_tenantContext.IsInitialized)
+            return Unauthorized(new { error = "Tenant context required." });
+        var result = await _payments.ListAsync(_tenantContext.TenantId, id, ct);
+        return result.IsSuccess ? Ok(result.Data) : NotFound(new { error = result.Error });
+    }
+
+    [HttpPost("{id:guid}/payments")]
+    [HasPermission(Permissions.HrPayrollApprove)]
+    [ProducesResponseType(typeof(PayrollPaymentDto), StatusCodes.Status201Created)]
+    public async Task<IActionResult> CreatePayment(
+        Guid id,
+        [FromBody] CreatePayrollPaymentRequest request,
+        CancellationToken ct)
+    {
+        if (!_tenantContext.IsInitialized)
+            return Unauthorized(new { error = "Tenant context required." });
+        var result = await _payments.CreateAsync(
+            _tenantContext.TenantId, id, GetIdentityUserId(), request, ct);
+        return result.IsSuccess
+            ? CreatedAtAction(nameof(ListPayments), new { id }, result.Data)
+            : BadRequest(new { error = result.Error });
     }
 
     [HttpGet("me")]

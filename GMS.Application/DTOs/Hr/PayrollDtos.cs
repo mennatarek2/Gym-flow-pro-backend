@@ -58,3 +58,24 @@ public class CreatePayrollAdjustmentRequest
     public decimal Amount { get; set; }
     public string? Reason { get; set; }
 }
+
+public sealed class PayrollPaymentDto
+{
+    public Guid Id { get; set; }
+    public Guid PayrollPeriodId { get; set; }
+    public Guid PayrollLineId { get; set; }
+    public decimal Amount { get; set; }
+    public DateOnly PaidDate { get; set; }
+    public string PaymentMethod { get; set; } = string.Empty;
+    public string? Reference { get; set; }
+    public string Status { get; set; } = string.Empty;
+}
+
+public sealed class CreatePayrollPaymentRequest
+{
+    public Guid PayrollLineId { get; set; }
+    public decimal Amount { get; set; }
+    public DateOnly? PaidDate { get; set; }
+    public string PaymentMethod { get; set; } = "bank_transfer";
+    public string? Reference { get; set; }
+}

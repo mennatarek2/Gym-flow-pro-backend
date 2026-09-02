@@ -2,7 +2,8 @@ namespace GMS.Application.DTOs.Debtors;
 
 public class DebtorDto
 {
-    public Guid MemberId { get; set; }
+    public Guid? MemberId { get; set; }
+    public string? GuestName { get; set; }
     public string FullName { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
     public decimal TotalDue { get; set; }

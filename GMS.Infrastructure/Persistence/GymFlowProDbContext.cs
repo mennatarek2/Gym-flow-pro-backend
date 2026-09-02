@@ -40,7 +40,7 @@ public class GymFlowProDbContext : IdentityDbContext<ApplicationUser, IdentityRo
     {
         typeof(GymMember), typeof(MembershipPlan), typeof(Membership), typeof(GymAttendance),
         typeof(MemberInvitation), typeof(AppUser), typeof(Notification), typeof(AuditEvent),
-        typeof(PromoCode), typeof(Sale), typeof(SaleLine), typeof(Invoice),
+        typeof(PromoCode), typeof(Sale), typeof(SaleLine), typeof(SaleAdjustment), typeof(Invoice),
         typeof(Shift), typeof(CashMovement), typeof(ZReport),
         typeof(CashExpense),
         typeof(Refund), typeof(MemberCredit), typeof(CallOutcome), typeof(MemberFollowUp),
@@ -63,7 +63,7 @@ public class GymFlowProDbContext : IdentityDbContext<ApplicationUser, IdentityRo
         typeof(EmployeeShift), typeof(EmployeeScheduleAssignment), typeof(EmployeeAttendance),
         typeof(LeaveRequest), typeof(LeaveBalance),
         typeof(PayrollPeriod), typeof(PayrollLine), typeof(PayrollAdjustment),
-        typeof(EmployeeDocument)
+        typeof(PayrollPayment), typeof(EmployeeDocument)
     };
 
     // DbSets for all domain entities
@@ -85,6 +85,7 @@ public class GymFlowProDbContext : IdentityDbContext<ApplicationUser, IdentityRo
     public DbSet<PromoCode> PromoCodes { get; set; } = null!;
     public DbSet<Sale> Sales { get; set; } = null!;
     public DbSet<SaleLine> SaleLines { get; set; } = null!;
+    public DbSet<SaleAdjustment> SaleAdjustments { get; set; } = null!;
     public DbSet<SaleIdempotencyKey> SaleIdempotencyKeys { get; set; } = null!;
     public DbSet<Invoice> Invoices { get; set; } = null!;
     public DbSet<InvoiceSequence> InvoiceSequences { get; set; } = null!;
@@ -137,6 +138,7 @@ public class GymFlowProDbContext : IdentityDbContext<ApplicationUser, IdentityRo
     public DbSet<PayrollPeriod> PayrollPeriods { get; set; } = null!;
     public DbSet<PayrollLine> PayrollLines { get; set; } = null!;
     public DbSet<PayrollAdjustment> PayrollAdjustments { get; set; } = null!;
+    public DbSet<PayrollPayment> PayrollPayments { get; set; } = null!;
     public DbSet<EmployeeDocument> EmployeeDocuments { get; set; } = null!;
 
     /// <summary>
@@ -391,6 +393,8 @@ public class GymFlowProDbContext : IdentityDbContext<ApplicationUser, IdentityRo
             l.TenantId == _tenantContext.TenantId && !l.IsDeleted);
         modelBuilder.Entity<PayrollAdjustment>().HasQueryFilter(a =>
             a.TenantId == _tenantContext.TenantId && !a.IsDeleted);
+        modelBuilder.Entity<PayrollPayment>().HasQueryFilter(p =>
+            p.TenantId == _tenantContext.TenantId && !p.IsDeleted);
 
         modelBuilder.Entity<EmployeeDocument>().HasQueryFilter(d =>
             d.TenantId == _tenantContext.TenantId && !d.IsDeleted);

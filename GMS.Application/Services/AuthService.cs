@@ -166,6 +166,8 @@ public class AuthService : IAuthService
             .FirstOrDefaultAsync(a => a.UserId == identityIdStr && a.TenantId == tenant.Id);
         if (appUser != null)
             appUser.LastLoginAtUtc = DateTime.UtcNow;
+        else if (IsStaffDashboardRole(roles))
+            await StaffAppUserProvisioner.ResolveOrCreateAsync(_dbContext, tenant.Id, user.Id);
 
         await _dbContext.SaveChangesAsync();
 

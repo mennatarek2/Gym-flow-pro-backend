@@ -94,9 +94,11 @@ public class RefundServiceTests
         "Server=(localdb)\\mssqllocaldb;Database=GymFlowProDb;Trusted_Connection=true;Encrypt=false;";
 
     private static (GymFlowProDbContext ctx, RefundService svc, Guid tenantId) CreateSut(
-        bool useLocalDb = false, Func<GymFlowProDbContext, Guid, IInvoiceService>? invoiceServiceFactory = null)
+        bool useLocalDb = false,
+        Func<GymFlowProDbContext, Guid, IInvoiceService>? invoiceServiceFactory = null,
+        Guid? tenantIdOverride = null)
     {
-        var tenantId = Guid.NewGuid();
+        var tenantId = tenantIdOverride ?? Guid.NewGuid();
 
         var options = useLocalDb
             ? new DbContextOptionsBuilder<GymFlowProDbContext>().UseSqlServer(LocalDbConnectionString).Options
@@ -733,6 +735,55 @@ public class RefundServiceTests
         Assert.Equal(1, await ctx.StockMovements.CountAsync(m => m.Reason == StockMovementReasons.SaleRefund));
     }
 
+    [Fact]
+    public async Task ApproveAsync_TwoConcurrentRefunds_CannotExceedCollectedAmount()
+    {
+        var tenantId = Guid.NewGuid();
+        var first = CreateSut(useLocalDb: true, tenantIdOverride: tenantId);
+        var second = CreateSut(useLocalDb: true, tenantIdOverride: tenantId);
+        try
+        {
+            SeedTenant(first.ctx, tenantId);
+            var (ownerA, ownerIdentityA) = SeedStaff(first.ctx, tenantId, role: "Owner");
+            var (ownerB, ownerIdentityB) = SeedStaff(first.ctx, tenantId, role: "Owner");
+            var member = SeedMember(first.ctx, tenantId);
+            var plan = SeedPlan(first.ctx, tenantId, 1000m);
+            var (sale, _) = SeedSaleWithMembership(
+                first.ctx, tenantId, member.Id, plan.Id, ownerA.Id, 1000m);
+            await first.ctx.SaveChangesAsync();
+
+            var requestA = await first.svc.RequestAsync(
+                sale.Id, 700m, "credit", "Concurrent A", ownerIdentityA, tenantId);
+            var requestB = await second.svc.RequestAsync(
+                sale.Id, 700m, "credit", "Concurrent B", ownerIdentityB, tenantId);
+            Assert.True(requestA.IsSuccess, requestA.Error);
+            Assert.True(requestB.IsSuccess, requestB.Error);
+
+            var approvals = await Task.WhenAll(
+                first.svc.ApproveAsync(requestA.Data!.Id, ownerIdentityA, tenantId),
+                second.svc.ApproveAsync(requestB.Data!.Id, ownerIdentityB, tenantId));
+
+            var executed = await first.ctx.Refunds
+                .Where(item => item.TenantId == tenantId && item.Status == "executed")
+                .SumAsync(item => item.Amount);
+            Assert.InRange(executed, 0m, 1000m);
+            Assert.True(approvals.Count(result => result.IsSuccess) <= 1);
+        }
+        finally
+        {
+            await first.ctx.MemberCredits.Where(item => item.TenantId == tenantId).ExecuteDeleteAsync();
+            await first.ctx.AuditEvents.Where(item => item.TenantId == tenantId).ExecuteDeleteAsync();
+            await first.ctx.Refunds.Where(item => item.TenantId == tenantId).ExecuteDeleteAsync();
+            await first.ctx.SaleLines.Where(item => item.TenantId == tenantId).ExecuteDeleteAsync();
+            await first.ctx.Memberships.Where(item => item.TenantId == tenantId).ExecuteDeleteAsync();
+            await first.ctx.Sales.Where(item => item.TenantId == tenantId).ExecuteDeleteAsync();
+            await first.ctx.MembershipPlans.Where(item => item.TenantId == tenantId).ExecuteDeleteAsync();
+            await first.ctx.GymMembers.Where(item => item.TenantId == tenantId).ExecuteDeleteAsync();
+            await first.ctx.AppUsers.Where(item => item.TenantId == tenantId).ExecuteDeleteAsync();
+            await first.ctx.Tenants.Where(item => item.Id == tenantId).ExecuteDeleteAsync();
+        }
+    }
+
     private static async Task<(Sale sale, SaleLine line, Guid warehouseId, Guid productId)> SeedRetailSaleWithStockAsync(
         GymFlowProDbContext ctx, Guid tenantId, Guid soldByUserId, int qty, decimal onHandAfterSale)
     {
@@ -779,9 +830,11 @@ public class RefundServiceTests
         Assert.True(open.IsSuccess, open.Error);
 
         var total = product.SellPrice * qty;
+        var member = SeedMember(ctx, tenantId);
         var sale = new Sale
         {
             TenantId = tenantId,
+            MemberId = member.Id,
             SoldByUserId = soldByUserId,
             Subtotal = total,
             Total = total,

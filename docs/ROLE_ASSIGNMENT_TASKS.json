@@ -1,0 +1,587 @@
+﻿{
+    "schemaVersion":  1,
+    "title":  "GymFlowPro — Final Role Assignment Backlog",
+    "sourceOfTruth":  "Final Role Assignment Backlog (chat-normalized; 2026-09-02)",
+    "appliedAt":  "2026-09-02T19:45:00+03:00",
+    "normalizedAt":  "2026-09-02T22:55:00+03:00",
+    "notes":  [
+                  "Authoritative assignable task store for this cycle.",
+                  "Do not recreate DONE / SHIPPED / EXISTING work listed under alreadyDone.",
+                  "Statuses: READY | BLOCKED | NEEDS DECISION | IN PROGRESS | VERIFY | DONE"
+              ],
+    "alreadyDone":  [
+                        {
+                            "id":  "SHIPPED-CLASSES-API",
+                            "title":  "GET /api/member/classes (+ detail) read-only Member Classes API",
+                            "reason":  "DONE — do not recreate; FL-01 consumes it"
+                        },
+                        {
+                            "id":  "SHIPPED-ORDERS-API",
+                            "title":  "GET /api/member/orders + hardened member identity resolve",
+                            "reason":  "DONE — do not recreate; FL-02 consumes it"
+                        },
+                        {
+                            "id":  "SHIPPED-STAFF-MEMBERID",
+                            "title":  "Staff /api/member-orders?memberId= filter",
+                            "reason":  "DONE — W-01 is VERIFY only"
+                        },
+                        {
+                            "id":  "SHIPPED-PARTIAL-PAY-FE",
+                            "title":  "Add Member onboard partialPayment + due date FE",
+                            "reason":  "DONE — R-02 / QA-03 operate the path"
+                        },
+                        {
+                            "id":  "SHIPPED-RUNNING-COSTS",
+                            "title":  "Running Costs API/UI + Owner Cost to run",
+                            "reason":  "DONE — M-01 / O-01 / QA-05 use it"
+                        },
+                        {
+                            "id":  "SHIPPED-SOURCETYPE-LOCAL",
+                            "title":  "CashExpense SourceType migration applied locally",
+                            "reason":  "DONE locally — DO-01 verifies non-local envs"
+                        },
+                        {
+                            "id":  "SHIPPED-UNIT-ISOLATION",
+                            "title":  "Member order/class unit isolation tests",
+                            "reason":  "DONE — expand coverage via QA-01…QA-06"
+                        }
+                    ],
+    "tasks":  [
+                  {
+                      "id":  "D-01",
+                      "title":  "Decide who may void running costs (+ required reason)",
+                      "description":  "Owner product decision for void authority on running costs.",
+                      "category":  "PRODUCT DECISION",
+                      "primaryOwner":  "Owner",
+                      "supportingRoles":  [
+                                              "Manager"
+                                          ],
+                      "priority":  "P1",
+                      "dependency":  null,
+                      "acceptanceCriteria":  "Written policy: role, window, reason",
+                      "status":  "NEEDS DECISION"
+                  },
+                  {
+                      "id":  "D-02",
+                      "title":  "Decide payroll cash vs shift drawer (OD-04)",
+                      "description":  "Owner go/no-go on linking payroll cash to the shift drawer.",
+                      "category":  "PRODUCT DECISION",
+                      "primaryOwner":  "Owner",
+                      "supportingRoles":  [
+                                              "Backend",
+                                              "Manager"
+                                          ],
+                      "priority":  "P2",
+                      "dependency":  null,
+                      "acceptanceCriteria":  "Go/no-go recorded",
+                      "status":  "NEEDS DECISION"
+                  },
+                  {
+                      "id":  "D-03",
+                      "title":  "Decide when Member online class book/pay is enabled",
+                      "description":  "Owner go/no-go for enabling Member App online class book/pay.",
+                      "category":  "PRODUCT DECISION",
+                      "primaryOwner":  "Owner",
+                      "supportingRoles":  [
+                                              "Flutter",
+                                              "Backend"
+                                          ],
+                      "priority":  "P2",
+                      "dependency":  "Classes browse stable",
+                      "acceptanceCriteria":  "Go/no-go recorded",
+                      "status":  "NEEDS DECISION"
+                  },
+                  {
+                      "id":  "D-04",
+                      "title":  "Confirm full-month payroll overlap + UI warning for this release",
+                      "description":  "Confirm keep current full-month payroll overlap policy and warning for this release.",
+                      "category":  "PRODUCT DECISION",
+                      "primaryOwner":  "Owner",
+                      "supportingRoles":  [
+                                              "Manager",
+                                              "Web"
+                                          ],
+                      "priority":  "P1",
+                      "dependency":  null,
+                      "acceptanceCriteria":  "Confirm keep current policy",
+                      "status":  "NEEDS DECISION"
+                  },
+                  {
+                      "id":  "O-01",
+                      "title":  "Review monthly Owner KPIs (Cost to run / Gross / Net; not Sales Report)",
+                      "description":  "Owner monthly review of Cost to run, Gross, and Net using Owner finance UI.",
+                      "category":  "BUSINESS",
+                      "primaryOwner":  "Owner",
+                      "supportingRoles":  [
+                                              "Manager"
+                                          ],
+                      "priority":  "P1",
+                      "dependency":  "Finance UI live",
+                      "acceptanceCriteria":  "Owner can explain OpEx vs payroll vs AP vs cash",
+                      "status":  "READY",
+                      "progressNote":  "SOP/docs ready; awaiting gym role execution"
+                  },
+                  {
+                      "id":  "M-01",
+                      "title":  "Enforce Running Costs posting SOP (catalog; cash needs open shift)",
+                      "description":  "Manager SOP so OpEx is posted correctly and payroll/AP are never logged as OpEx.",
+                      "category":  "BUSINESS",
+                      "primaryOwner":  "Manager",
+                      "supportingRoles":  [
+                                              "Receptionist"
+                                          ],
+                      "priority":  "P0",
+                      "dependency":  "Expenses live",
+                      "acceptanceCriteria":  "OpEx posted correctly; payroll/AP never as OpEx",
+                      "status":  "READY",
+                      "progressNote":  "SOP/docs ready; awaiting gym role execution"
+                  },
+                  {
+                      "id":  "M-02",
+                      "title":  "Train reception: partial pay ≠ discount; due date; collect later",
+                      "description":  "Train desk that underpay creates AmountDue with due date; not a discount.",
+                      "category":  "BUSINESS",
+                      "primaryOwner":  "Manager",
+                      "supportingRoles":  [
+                                              "Receptionist"
+                                          ],
+                      "priority":  "P0",
+                      "dependency":  "Partial-pay UI live",
+                      "acceptanceCriteria":  "Desk can underpay + collect without failed sales",
+                      "status":  "READY",
+                      "progressNote":  "SOP/docs ready; awaiting gym role execution"
+                  },
+                  {
+                      "id":  "M-03",
+                      "title":  "Close/approve payroll periods so Net profit can display",
+                      "description":  "Complete payroll periods overlapping the Owner month so Net profit can show.",
+                      "category":  "BUSINESS",
+                      "primaryOwner":  "Manager",
+                      "supportingRoles":  [
+                                              "Owner"
+                                          ],
+                      "priority":  "P1",
+                      "dependency":  "Payroll module",
+                      "acceptanceCriteria":  "Periods overlapping Owner month are COMPLETE",
+                      "status":  "READY",
+                      "progressNote":  "SOP/docs ready; awaiting gym role execution"
+                  },
+                  {
+                      "id":  "M-04",
+                      "title":  "Supervise class schedule/capacity for Member App accuracy",
+                      "description":  "Supervise schedules and capacity so Member App upcoming classes stay accurate.",
+                      "category":  "BUSINESS",
+                      "primaryOwner":  "Manager",
+                      "supportingRoles":  [
+                                              "Trainer"
+                                          ],
+                      "priority":  "P1",
+                      "dependency":  "Sessions exist",
+                      "acceptanceCriteria":  "No chronic empty/wrong upcoming classes",
+                      "status":  "READY",
+                      "progressNote":  "SOP/docs ready; awaiting gym role execution"
+                  },
+                  {
+                      "id":  "T-01",
+                      "title":  "Keep schedule, coach assignment, and capacity accurate",
+                      "description":  "Trainer keeps session coach, time, and seats accurate for Member App.",
+                      "category":  "BUSINESS",
+                      "primaryOwner":  "Trainer",
+                      "supportingRoles":  [
+                                              "Manager"
+                                          ],
+                      "priority":  "P1",
+                      "dependency":  "Session generation",
+                      "acceptanceCriteria":  "App shows correct trainer/time/seats",
+                      "status":  "READY",
+                      "progressNote":  "SOP/docs ready; awaiting gym role execution"
+                  },
+                  {
+                      "id":  "R-01",
+                      "title":  "Open shift before cash OpEx or cash membership payment",
+                      "description":  "Reception opens shift before any cash OpEx or cash membership payment.",
+                      "category":  "BUSINESS",
+                      "primaryOwner":  "Receptionist",
+                      "supportingRoles":  [
+                                              "Manager"
+                                          ],
+                      "priority":  "P0",
+                      "dependency":  "Shifts",
+                      "acceptanceCriteria":  "Cash paths succeed in normal ops",
+                      "status":  "READY",
+                      "progressNote":  "SOP/docs ready; awaiting gym role execution"
+                  },
+                  {
+                      "id":  "R-02",
+                      "title":  "Use partial payment + due date on Add Member when underpaying",
+                      "description":  "On Add Member, underpay with partialPayment due date so AmountDue is created.",
+                      "category":  "BUSINESS",
+                      "primaryOwner":  "Receptionist",
+                      "supportingRoles":  [
+                                              "Manager"
+                                          ],
+                      "priority":  "P0",
+                      "dependency":  "Onboard FE done",
+                      "acceptanceCriteria":  "Underpay succeeds; AmountDue created",
+                      "status":  "READY",
+                      "progressNote":  "SOP/docs ready; awaiting gym role execution"
+                  },
+                  {
+                      "id":  "R-03",
+                      "title":  "Collect outstanding membership balances on Member 360",
+                      "description":  "Collect outstanding AmountDue via Collect Payment on Member 360.",
+                      "category":  "BUSINESS",
+                      "primaryOwner":  "Receptionist",
+                      "supportingRoles":  [
+                                              "Manager"
+                                          ],
+                      "priority":  "P0",
+                      "dependency":  "AmountDue sales",
+                      "acceptanceCriteria":  "Due reduced/cleared via Collect Payment",
+                      "status":  "READY",
+                      "progressNote":  "SOP/docs ready; awaiting gym role execution"
+                  },
+                  {
+                      "id":  "R-04",
+                      "title":  "Book/pay classes at reception after member browses app",
+                      "description":  "After Member browses classes in app, book/pay at reception so capacity decreases.",
+                      "category":  "BUSINESS",
+                      "primaryOwner":  "Receptionist",
+                      "supportingRoles":  [
+                                              "Trainer",
+                                              "Member"
+                                          ],
+                      "priority":  "P1",
+                      "dependency":  "Staff booking APIs",
+                      "acceptanceCriteria":  "Capacity decreases after desk booking",
+                      "status":  "READY",
+                      "progressNote":  "SOP/docs ready; awaiting gym role execution"
+                  },
+                  {
+                      "id":  "MB-01",
+                      "title":  "Browse upcoming classes (info only; visit reception to book/pay)",
+                      "description":  "Member App behavior: browse upcoming classes only; book/pay at reception.",
+                      "category":  "BUSINESS",
+                      "primaryOwner":  "Member",
+                      "supportingRoles":  [
+                                              "Flutter"
+                                          ],
+                      "priority":  "P1",
+                      "dependency":  "FL-01",
+                      "acceptanceCriteria":  "Sees schedule/trainer/price/seats; no book/pay",
+                      "status":  "BLOCKED",
+                      "blockedOn":  "FL-01"
+                  },
+                  {
+                      "id":  "MB-02",
+                      "title":  "View only own Profile → Orders",
+                      "description":  "Member App behavior: Profile Orders shows only the signed-in member\u0027s orders.",
+                      "category":  "BUSINESS",
+                      "primaryOwner":  "Member",
+                      "supportingRoles":  [
+                                              "Flutter"
+                                          ],
+                      "priority":  "P0",
+                      "dependency":  "FL-02",
+                      "acceptanceCriteria":  "Never sees another member\u0027s orders",
+                      "status":  "BLOCKED",
+                      "blockedOn":  "FL-02"
+                  },
+                  {
+                      "id":  "BE-01",
+                      "title":  "Expense category breakdown API (Owner drill-down)",
+                      "description":  "Backend API returning OpEx totals by category for a period (Owner drill-down).",
+                      "category":  "BACKEND",
+                      "primaryOwner":  "Backend",
+                      "supportingRoles":  [
+                                              "Web"
+                                          ],
+                      "priority":  "P2",
+                      "dependency":  null,
+                      "acceptanceCriteria":  "OpEx by category for period",
+                      "status":  "READY"
+                  },
+                  {
+                      "id":  "BE-02",
+                      "title":  "Link payroll disbursement to CashMovement",
+                      "description":  "Only if D-02 = yes: include payroll cash in drawer/Z-Report via CashMovement.",
+                      "category":  "BACKEND",
+                      "primaryOwner":  "Backend",
+                      "supportingRoles":  [
+                                              "DevOps / Platform"
+                                          ],
+                      "priority":  "P2",
+                      "dependency":  "D-02 = yes",
+                      "acceptanceCriteria":  "Drawer/Z-Report includes payroll cash when enabled",
+                      "status":  "BLOCKED",
+                      "blockedOn":  "D-02 = yes"
+                  },
+                  {
+                      "id":  "FL-01",
+                      "title":  "Implement Classes list/detail via GET /api/member/classes + reception CTA; remove book/pay",
+                      "description":  "Flutter Member Classes UI against shipped Classes API; info-only with reception CTA.",
+                      "category":  "FLUTTER",
+                      "primaryOwner":  "Flutter",
+                      "supportingRoles":  [
+                                              "Backend",
+                                              "QA"
+                                          ],
+                      "priority":  "P0",
+                      "dependency":  "Classes API DONE",
+                      "acceptanceCriteria":  "Upcoming only; GET creates 0 bookings/payments",
+                      "status":  "READY"
+                  },
+                  {
+                      "id":  "FL-02",
+                      "title":  "Point Profile Orders to GET /api/member/orders (never /api/member-orders)",
+                      "description":  "Flutter Profile Orders uses member-scoped orders endpoint only.",
+                      "category":  "FLUTTER",
+                      "primaryOwner":  "Flutter",
+                      "supportingRoles":  [
+                                              "Backend",
+                                              "QA"
+                                          ],
+                      "priority":  "P0",
+                      "dependency":  "Orders API DONE",
+                      "acceptanceCriteria":  "Member A never sees Member B; IDOR safe",
+                      "status":  "READY"
+                  },
+                  {
+                      "id":  "W-01",
+                      "title":  "Verify Member 360 Orders shows only current member (hard refresh)",
+                      "description":  "VERIFY existing memberId filter: Member 360 Orders ≠ gym-wide inbox.",
+                      "category":  "WEB",
+                      "primaryOwner":  "Web",
+                      "supportingRoles":  [
+                                              "QA"
+                                          ],
+                      "priority":  "P0",
+                      "dependency":  "Staff memberId filter DONE",
+                      "acceptanceCriteria":  "Profile ≠ gym-wide inbox",
+                      "status":  "DONE",
+                      "progressNote":  "member-detail.selftest + defense filter + memberId query"
+                  },
+                  {
+                      "id":  "W-02",
+                      "title":  "Complete Collect Payment on Member 360 (pick sale → pay → refresh)",
+                      "description":  "Finish Collect Payment UX so staff can clear AmountDue on Member 360.",
+                      "category":  "WEB",
+                      "primaryOwner":  "Web",
+                      "supportingRoles":  [
+                                              "Backend",
+                                              "Receptionist"
+                                          ],
+                      "priority":  "P1",
+                      "dependency":  "Outstanding sales",
+                      "acceptanceCriteria":  "Staff clears AmountDue on Member 360",
+                      "status":  "DONE",
+                      "progressNote":  "Collect Payment pick/pay/refresh selftest green"
+                  },
+                  {
+                      "id":  "W-03",
+                      "title":  "Add Owner financial glossary (Revenue vs Cash, Cost to run, AP, payroll warning)",
+                      "description":  "Owner-facing glossary aligned to financial-v1 definitions.",
+                      "category":  "WEB",
+                      "primaryOwner":  "Web",
+                      "supportingRoles":  [
+                                              "Owner"
+                                          ],
+                      "priority":  "P1",
+                      "dependency":  "Dashboard live",
+                      "acceptanceCriteria":  "Help matches financial-v1",
+                      "status":  "DONE",
+                      "progressNote":  "Owner financial glossary + dashboard-home.selftest"
+                  },
+                  {
+                      "id":  "W-04",
+                      "title":  "Document staff-web local API must use HTTPS profile :5001",
+                      "description":  "Document that local staff web expects https://localhost:5001 (launch-profile https).",
+                      "category":  "WEB",
+                      "primaryOwner":  "Web",
+                      "supportingRoles":  [
+                                              "DevOps / Platform"
+                                          ],
+                      "priority":  "P1",
+                      "dependency":  null,
+                      "acceptanceCriteria":  "Login Network error avoided when API on https",
+                      "status":  "DONE",
+                      "progressNote":  "docs/getting-started/STAFF_WEB_LOCAL_HTTPS.md"
+                  },
+                  {
+                      "id":  "QA-01",
+                      "title":  "Regression: Member Orders isolation + IDOR + empty list",
+                      "description":  "QA pack for member orders isolation, IDOR, and empty-list behavior.",
+                      "category":  "QA",
+                      "primaryOwner":  "QA",
+                      "supportingRoles":  [
+                                              "Flutter",
+                                              "Backend"
+                                          ],
+                      "priority":  "P0",
+                      "dependency":  "FL-02 for E2E",
+                      "acceptanceCriteria":  "A≠B; unauth 401; empty ≠ all",
+                      "status":  "DONE",
+                      "progressNote":  "Live member JWT: A=10 B=1 overlap0 IDOR404 unauth401"
+                  },
+                  {
+                      "id":  "QA-02",
+                      "title":  "Regression: Staff inbox (all) vs Member 360 (memberId)",
+                      "description":  "QA pack proving inbox stays unfiltered while Member 360 is filtered.",
+                      "category":  "QA",
+                      "primaryOwner":  "QA",
+                      "supportingRoles":  [
+                                              "Web"
+                                          ],
+                      "priority":  "P0",
+                      "dependency":  "W-01",
+                      "acceptanceCriteria":  "Inbox unfiltered; 360 filtered",
+                      "status":  "DONE",
+                      "progressNote":  "live-smoke.mjs inbox11 A10 B1 foreign0"
+                  },
+                  {
+                      "id":  "QA-03",
+                      "title":  "Regression: partial pay + due date + collect later",
+                      "description":  "QA pack for underpay onboard + later collect path.",
+                      "category":  "QA",
+                      "primaryOwner":  "QA",
+                      "supportingRoles":  [
+                                              "Web",
+                                              "Receptionist"
+                                          ],
+                      "priority":  "P0",
+                      "dependency":  "R-02 path",
+                      "acceptanceCriteria":  "Underpay + collect path green",
+                      "status":  "DONE",
+                      "progressNote":  "live-smoke debtors/{id}/sales AmountDue sales"
+                  },
+                  {
+                      "id":  "QA-04",
+                      "title":  "Regression: Classes read-only side effects + real seats",
+                      "description":  "QA pack: Classes GET creates no booking/payment; seats match capacity math.",
+                      "category":  "QA",
+                      "primaryOwner":  "QA",
+                      "supportingRoles":  [
+                                              "Flutter",
+                                              "Backend"
+                                          ],
+                      "priority":  "P0",
+                      "dependency":  "FL-01 for E2E",
+                      "acceptanceCriteria":  "GET no booking/payment; seats correct",
+                      "status":  "DONE",
+                      "progressNote":  "Live classes GET; bookings 17-\u003e17; MemberClassServiceTests"
+                  },
+                  {
+                      "id":  "QA-05",
+                      "title":  "Regression: OpEx excludes payroll; payroll warning; Net profit gate",
+                      "description":  "QA pack for finance OpEx vs payroll separation and Net profit gate.",
+                      "category":  "QA",
+                      "primaryOwner":  "QA",
+                      "supportingRoles":  [
+                                              "Backend",
+                                              "Web"
+                                          ],
+                      "priority":  "P0",
+                      "dependency":  "Finance live",
+                      "acceptanceCriteria":  "Day-1 month + COMPLETE rules hold",
+                      "status":  "DONE",
+                      "progressNote":  "live financial-v1 opex vs payroll separate"
+                  },
+                  {
+                      "id":  "QA-06",
+                      "title":  "Cross-tenant smoke: orders, expenses, classes",
+                      "description":  "Cross-tenant smoke that Tenant A never sees Tenant B data.",
+                      "category":  "QA",
+                      "primaryOwner":  "QA",
+                      "supportingRoles":  [
+                                              "Backend"
+                                          ],
+                      "priority":  "P0",
+                      "dependency":  null,
+                      "acceptanceCriteria":  "Tenant A never sees Tenant B",
+                      "status":  "DONE",
+                      "progressNote":  "cross-tenant unit: orders+classes+expenses"
+                  },
+                  {
+                      "id":  "DO-01",
+                      "title":  "Apply/verify CashExpense SourceType migration on all non-local envs",
+                      "description":  "Verify SourceType migration on staging/prod so running-cost inserts succeed.",
+                      "category":  "DEVOPS / PLATFORM",
+                      "primaryOwner":  "DevOps / Platform",
+                      "supportingRoles":  [
+                                              "Backend"
+                                          ],
+                      "priority":  "P0",
+                      "dependency":  "Migration exists",
+                      "acceptanceCriteria":  "Running-cost inserts succeed everywhere",
+                      "status":  "READY"
+                  },
+                  {
+                      "id":  "DO-02",
+                      "title":  "Release verify: https API + required feature flags (inventory/store as needed)",
+                      "description":  "Staging release check: https API login and Classes/Orders reachability.",
+                      "category":  "DEVOPS / PLATFORM",
+                      "primaryOwner":  "DevOps / Platform",
+                      "supportingRoles":  [
+                                              "Web"
+                                          ],
+                      "priority":  "P1",
+                      "dependency":  null,
+                      "acceptanceCriteria":  "Staging login + Classes/Orders reachable",
+                      "status":  "READY"
+                  },
+                  {
+                      "id":  "BJ-01",
+                      "title":  "Monitor session generation so upcoming classes materialize",
+                      "description":  "VERIFY SessionGenerationJob keeps upcoming classes populated when schedules exist.",
+                      "category":  "BACKGROUND JOB",
+                      "primaryOwner":  "Background Jobs",
+                      "supportingRoles":  [
+                                              "Manager",
+                                              "Trainer"
+                                          ],
+                      "priority":  "P1",
+                      "dependency":  "SessionGenerationJob",
+                      "acceptanceCriteria":  "Classes not empty when schedules exist",
+                      "status":  "DONE",
+                      "progressNote":  "SessionGenerationJobScheduler + SESSION_GENERATION_MONITOR.md"
+                  }
+              ],
+    "audit":  {
+                  "action":  "Normalized existing 33 tasks to Final Role Assignment Backlog (status drift reversed; no new IDs)",
+                  "expectedIds":  [
+                                      "D-01",
+                                      "D-02",
+                                      "D-03",
+                                      "D-04",
+                                      "O-01",
+                                      "M-01",
+                                      "M-02",
+                                      "M-03",
+                                      "M-04",
+                                      "T-01",
+                                      "R-01",
+                                      "R-02",
+                                      "R-03",
+                                      "R-04",
+                                      "MB-01",
+                                      "MB-02",
+                                      "BE-01",
+                                      "BE-02",
+                                      "FL-01",
+                                      "FL-02",
+                                      "W-01",
+                                      "W-02",
+                                      "W-03",
+                                      "W-04",
+                                      "QA-01",
+                                      "QA-02",
+                                      "QA-03",
+                                      "QA-04",
+                                      "QA-05",
+                                      "QA-06",
+                                      "DO-01",
+                                      "DO-02",
+                                      "BJ-01"
+                                  ]
+              }
+}

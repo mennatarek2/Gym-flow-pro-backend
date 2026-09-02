@@ -291,6 +291,28 @@ public class StockLedgerService : IStockLedgerService
             return Result<List<StockAllocationSlice>>.Failure(
                 $"Insufficient sellable stock (available {available}, requested {qty}) / رصيد قابل للبيع غير كافٍ");
 
+        var inboundCosts = await _db.StockMovements.AsNoTracking()
+            .Where(m => m.TenantId == tenantId
+                && m.ProductId == productId
+                && m.WarehouseId == warehouseId
+                && m.QtyDelta > 0m
+                && m.UnitCost.HasValue)
+            .GroupBy(m => m.BatchId)
+            .Select(group => new
+            {
+                BatchId = group.Key,
+                Quantity = group.Sum(m => m.QtyDelta),
+                TotalCost = group.Sum(m => m.QtyDelta * m.UnitCost!.Value)
+            })
+            .ToListAsync(ct);
+        var unitCosts = inboundCosts
+            .Where(item => item.Quantity > 0m && item.BatchId.HasValue)
+            .ToDictionary(item => item.BatchId!.Value, item => (decimal?)item.TotalCost / item.Quantity);
+        var unbatchedUnitCost = inboundCosts
+            .Where(item => item.Quantity > 0m && !item.BatchId.HasValue)
+            .Select(item => (decimal?)item.TotalCost / item.Quantity)
+            .FirstOrDefault();
+
         var remaining = qty;
         var slices = new List<StockAllocationSlice>();
         foreach (var bucket in buckets)
@@ -298,7 +320,14 @@ public class StockLedgerService : IStockLedgerService
             if (remaining <= 0) break;
             var take = Math.Min(bucket.Qty, remaining);
             if (take <= 0) continue;
-            slices.Add(new StockAllocationSlice { BatchId = bucket.BatchId, Qty = take });
+            slices.Add(new StockAllocationSlice
+            {
+                BatchId = bucket.BatchId,
+                Qty = take,
+                UnitCost = bucket.BatchId.HasValue
+                    ? unitCosts.TryGetValue(bucket.BatchId.Value, out var unitCost) ? unitCost : null
+                    : unbatchedUnitCost
+            });
             remaining -= take;
         }
 

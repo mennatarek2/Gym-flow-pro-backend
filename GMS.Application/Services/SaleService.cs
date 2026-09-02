@@ -88,6 +88,15 @@ public class SaleService : ISaleService
         if (cart.Count == 0)
             return Fail(SaleFailureReasons.PlanNotFound, "Sale has no lines / لا توجد أسطر في البيع");
 
+        if (request.Payments.Any(payment => !IsDeskPaymentMethod(payment.Method)
+            || payment.Amount <= 0m))
+        {
+            return Fail("PAYMENT_METHOD_NOT_READY",
+                "Electronic payments must be authorized through their gateway before recording the sale / يجب اعتماد المدفوعات الإلكترونية عبر بوابتها قبل تسجيل البيع");
+        }
+        foreach (var payment in request.Payments)
+            payment.Method = payment.Method.Trim().ToLowerInvariant();
+
         var hasMembershipLine = cart.Any(IsMembershipLike);
         var hasRetailLine = cart.Any(l => IsRetail(l.LineType));
         if (hasRetailLine)
@@ -419,7 +428,11 @@ public class SaleService : ISaleService
                     DescriptionAr = row.Product?.NameAr ?? row.Plan?.NameAr,
                     Qty = row.Req.Qty,
                     UnitPrice = row.UnitPrice,
-                    LineTotal = netLineTotal
+                    LineTotal = netLineTotal,
+                    // Cost is assigned only from the immutable stock allocation below.
+                    // Product.CostPrice is a current catalog hint, not historical COGS.
+                    UnitCost = null,
+                    CogsAmount = null
                 };
                 _dbContext.SaleLines.Add(saleLine);
 
@@ -453,6 +466,8 @@ public class SaleService : ISaleService
                     Amount = payment.Amount,
                     Currency = "EGP",
                     Status = "success",
+                    SettlementStatus = payment.Method == "cash" ? "settled" : "pending",
+                    SettledAtUtc = payment.Method == "cash" ? DateTime.UtcNow : null,
                     PaidAtUtc = DateTime.UtcNow,
                     SaleId = sale.Id,
                     ReceivedByUserId = staffUser.Id,
@@ -492,6 +507,8 @@ public class SaleService : ISaleService
                             alloc.Error ?? $"Insufficient stock for {product.Sku} / رصيد غير كافٍ");
                     }
 
+                    decimal allocatedCost = 0m;
+                    var completeCost = true;
                     foreach (var slice in alloc.Data!)
                     {
                         var post = await _stockLedger.PostAsync(new StockLedgerPostRequest
@@ -501,7 +518,7 @@ public class SaleService : ISaleService
                             WarehouseId = warehouse.Id,
                             BatchId = slice.BatchId,
                             QtyDelta = -slice.Qty,
-                            UnitCost = product.CostPrice,
+                            UnitCost = slice.UnitCost,
                             Reason = StockMovementReasons.Sale,
                             ReferenceType = StockReferenceTypes.SaleLine,
                             ReferenceId = saleLine.Id,
@@ -517,6 +534,17 @@ public class SaleService : ISaleService
                             return Fail(SaleFailureReasons.InsufficientStock,
                                 post.Error ?? $"Insufficient stock for {product.Sku} / رصيد غير كافٍ");
                         }
+
+                        if (slice.UnitCost is { } unitCost)
+                            allocatedCost += slice.Qty * unitCost;
+                        else
+                            completeCost = false;
+                    }
+
+                    if (completeCost && saleLine.Qty > 0m)
+                    {
+                        saleLine.CogsAmount = RoundHalfUp(allocatedCost);
+                        saleLine.UnitCost = RoundHalfUp(allocatedCost / saleLine.Qty);
                     }
                 }
             }
@@ -671,6 +699,10 @@ public class SaleService : ISaleService
     private static bool IsRetail(string? t) =>
         string.Equals(t?.Trim(), "retail", StringComparison.OrdinalIgnoreCase);
 
+    private static bool IsDeskPaymentMethod(string? method) =>
+        string.Equals(method?.Trim(), "cash", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(method?.Trim(), "account_credit", StringComparison.OrdinalIgnoreCase);
+
     private static bool IsMembershipLike(CreateSaleLineRequest line) => IsMembershipLike(line.LineType);
 
     private static bool IsMembershipLike(string? t)
@@ -691,8 +723,19 @@ public class SaleService : ISaleService
     public async Task<Result<SaleResponse>> RecordPaymentAsync(
         Guid saleId, Guid tenantId, Guid staffUserId, RecordPaymentRequest request)
     {
+        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? transaction = null;
         try
         {
+            var method = request.Method.Trim().ToLowerInvariant();
+            if (!IsDeskPaymentMethod(method) || request.Amount <= 0m)
+            {
+                return Fail("PAYMENT_METHOD_NOT_READY",
+                    "Electronic payments must be authorized through their gateway before recording the sale / يجب اعتماد المدفوعات الإلكترونية عبر بوابتها قبل تسجيل البيع");
+            }
+
+            if (_dbContext.Database.IsRelational())
+                transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+
             var sale = await _dbContext.Sales.FirstOrDefaultAsync(s => s.Id == saleId && s.TenantId == tenantId);
             if (sale == null)
                 return Fail(SaleFailureReasons.SaleNotFound, "Sale not found / عملية البيع غير موجودة");
@@ -704,7 +747,25 @@ public class SaleService : ISaleService
                     "This sale has no outstanding balance / لا يوجد رصيد مستحق على عملية البيع");
             }
 
-            if (request.Amount > sale.AmountDue)
+            var allocated = await _dbContext.PaymentTransactions
+                .Where(payment => payment.TenantId == tenantId
+                    && payment.SaleId == saleId
+                    && payment.Status == "success"
+                    && payment.Amount > 0m)
+                .SumAsync(payment => (decimal?)payment.Amount) ?? 0m;
+            var adjustments = await _dbContext.SaleAdjustments
+                .Where(adjustment => adjustment.TenantId == tenantId
+                    && adjustment.SaleId == saleId
+                    && adjustment.Status == "posted")
+                .SumAsync(adjustment => (decimal?)adjustment.Amount) ?? 0m;
+            var canonicalDue = Math.Max(0m, RoundHalfUp(sale.Total - allocated - adjustments));
+            if (Math.Abs(sale.AmountDue - canonicalDue) > 0.01m)
+            {
+                return Fail("SALE_RECONCILIATION_REQUIRED",
+                    "The sale balance does not reconcile with its payment and adjustment records / رصيد البيع لا يتطابق مع سجلات الدفع والتسويات");
+            }
+
+            if (request.Amount > canonicalDue)
                 return Fail(SaleFailureReasons.PaymentExceedsAmountDue,
                     "Payment amount exceeds the outstanding balance / مبلغ الدفع يتجاوز الرصيد المستحق");
 
@@ -716,7 +777,7 @@ public class SaleService : ISaleService
                 return Fail(SaleFailureReasons.StaffUserNotFound, "Staff user not found / المستخدم غير موجود");
 
             Guid? shiftId = null;
-            if (request.Method == "cash")
+            if (method == "cash")
             {
                 shiftId = await _shiftService.GetCurrentOpenShiftIdAsync(staffUserId, tenantId);
                 if (shiftId == null)
@@ -729,7 +790,7 @@ public class SaleService : ISaleService
                 .Select(p => (Guid?)p.MembershipId)
                 .FirstOrDefaultAsync();
 
-            sale.AmountDue = Math.Max(0m, RoundHalfUp(sale.AmountDue - request.Amount));
+            sale.AmountDue = Math.Max(0m, RoundHalfUp(canonicalDue - request.Amount));
             if (sale.AmountDue == 0m)
                 sale.Status = "completed";
             sale.UpdatedAtUtc = DateTime.UtcNow;
@@ -739,16 +800,18 @@ public class SaleService : ISaleService
                 TenantId = tenantId,
                 MemberId = sale.MemberId,
                 MembershipId = membershipId,
-                Gateway = request.Method,
+                Gateway = method,
                 ExternalRef = $"POS:{saleId}:{Guid.NewGuid():N}",
                 Amount = request.Amount,
                 Currency = "EGP",
                 Status = "success",
+                SettlementStatus = method == "cash" ? "settled" : "pending",
+                SettledAtUtc = method == "cash" ? DateTime.UtcNow : null,
                 PaidAtUtc = DateTime.UtcNow,
                 SaleId = saleId,
                 ReceivedByUserId = staffUser.Id,
                 ShiftId = shiftId,
-                Method = request.Method
+                Method = method
             };
             _dbContext.PaymentTransactions.Add(payment);
 
@@ -773,19 +836,17 @@ public class SaleService : ISaleService
 
             // The payment already committed — a failure recording the drawer movement must not make
             // the caller think the payment itself failed (mirrors CreateSaleAsync's same pattern).
-            if (shiftId.HasValue && request.Method == "cash")
+            if (shiftId.HasValue && method == "cash")
             {
-                try
-                {
-                    await _shiftService.RecordMovementAsync(
-                        shiftId.Value, "sale", request.Amount, saleId, null, staffUserId, tenantId);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex,
-                        "Failed to record cash movement for debt payment on sale {SaleId} on shift {ShiftId}", saleId, shiftId);
-                }
+                var movement = await _shiftService.RecordMovementAsync(
+                    shiftId.Value, "sale", request.Amount, saleId, null, staffUserId, tenantId);
+                if (!movement.IsSuccess)
+                    return Fail("CASH_MOVEMENT_FAILED",
+                        movement.Error ?? "Failed to record the cash movement / فشل تسجيل الحركة النقدية");
             }
+
+            if (transaction != null)
+                await transaction.CommitAsync();
 
             return Result<SaleResponse>.Success(new SaleResponse
             {
@@ -808,8 +869,15 @@ public class SaleService : ISaleService
         }
         catch (Exception ex)
         {
+            if (transaction != null)
+                await transaction.RollbackAsync();
             _logger.LogError(ex, "Error recording payment for sale {SaleId}", saleId);
             return Result<SaleResponse>.Failure("Failed to record payment / فشل تسجيل الدفعة", ex.Message);
+        }
+        finally
+        {
+            if (transaction != null)
+                await transaction.DisposeAsync();
         }
     }
 

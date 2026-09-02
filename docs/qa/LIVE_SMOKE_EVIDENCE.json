@@ -1,0 +1,23 @@
+{
+  "at": "2026-09-02T19:53:51.611Z",
+  "gym": "GYM-TEST-01",
+  "qa02": {
+    "pass": true,
+    "inbox": 11,
+    "A": 10,
+    "B": 1,
+    "foreignA": 0,
+    "foreignB": 0
+  },
+  "qa03": {
+    "pass": true,
+    "debtor": "F96AEF70-78E9-42C5-A9A3-A0F758B32F6E",
+    "sales": 3
+  },
+  "qa05": {
+    "pass": true,
+    "calculationVersion": "financial-v1",
+    "operatingExpenses": 15000,
+    "payrollExpense": 12500
+  }
+}

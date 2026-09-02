@@ -75,3 +75,29 @@ public class PayrollAdjustment : BaseEntity
     public PayrollPeriod? PayrollPeriod { get; set; }
     public Employee? Employee { get; set; }
 }
+
+/// <summary>
+/// Actual payroll disbursement. It is separate from payroll calculation and
+/// liability recognition so cash flow cannot be inferred from payroll totals.
+/// </summary>
+public class PayrollPayment : BaseEntity
+{
+    public Guid TenantId { get; set; }
+    public Guid PayrollPeriodId { get; set; }
+    public Guid PayrollLineId { get; set; }
+    public decimal Amount { get; set; }
+    public DateOnly PaidDate { get; set; }
+    public string PaymentMethod { get; set; } = "bank_transfer";
+    public string? Reference { get; set; }
+    public Guid PaidByAppUserId { get; set; }
+    public Guid CashExpenseId { get; set; }
+    public Guid? CashMovementId { get; set; }
+    public string Status { get; set; } = "posted";
+
+    public Tenant? Tenant { get; set; }
+    public PayrollPeriod? PayrollPeriod { get; set; }
+    public PayrollLine? PayrollLine { get; set; }
+    public AppUser? PaidByAppUser { get; set; }
+    public CashExpense? CashExpense { get; set; }
+    public CashMovement? CashMovement { get; set; }
+}

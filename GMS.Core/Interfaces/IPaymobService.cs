@@ -10,6 +10,11 @@ public interface IPaymobService
     /// </summary>
     Task<string> CreatePaymentIntentAsync(Guid membershipId, decimal amount, string memberPhone);
 
+    /// <summary>Creates a source-bound intent for a sale and its tenant/member identity.</summary>
+    Task<string> CreatePaymentIntentAsync(
+        Guid saleId, Guid memberId, Guid tenantId, decimal amount, string memberPhone) =>
+        CreatePaymentIntentAsync(saleId, amount, memberPhone);
+
     /// <summary>
     /// Verifies the HMAC-SHA512 signature of an incoming webhook.
     /// </summary>

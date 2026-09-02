@@ -86,3 +86,32 @@ public class PayrollAdjustmentConfiguration : IEntityTypeConfiguration<PayrollAd
         builder.HasOne(a => a.Employee).WithMany().HasForeignKey(a => a.EmployeeId).OnDelete(DeleteBehavior.Restrict);
     }
 }
+
+public class PayrollPaymentConfiguration : IEntityTypeConfiguration<PayrollPayment>
+{
+    public void Configure(EntityTypeBuilder<PayrollPayment> builder)
+    {
+        builder.ToTable("payroll_payments");
+        builder.HasKey(p => p.Id);
+        builder.Property(p => p.Id).HasDefaultValueSql("NEWSEQUENTIALID()").ValueGeneratedOnAdd();
+        builder.Property(p => p.TenantId).IsRequired();
+        builder.Property(p => p.PayrollPeriodId).IsRequired();
+        builder.Property(p => p.PayrollLineId).IsRequired();
+        builder.Property(p => p.Amount).IsRequired().HasColumnType("DECIMAL(14,2)");
+        builder.Property(p => p.PaidDate).IsRequired().HasColumnType("DATE");
+        builder.Property(p => p.PaymentMethod).IsRequired().HasMaxLength(30).HasColumnType("VARCHAR(30)");
+        builder.Property(p => p.Reference).HasMaxLength(200).HasColumnType("NVARCHAR(200)");
+        builder.Property(p => p.Status).IsRequired().HasMaxLength(20).HasColumnType("VARCHAR(20)");
+        builder.Property(p => p.PaidByAppUserId).IsRequired();
+        builder.Property(p => p.CashExpenseId).IsRequired();
+        builder.Property(p => p.CashMovementId);
+        builder.Property(p => p.IsDeleted).IsRequired().HasDefaultValue(false);
+        builder.HasIndex(p => new { p.TenantId, p.PayrollPeriodId, p.PaidDate });
+        builder.HasOne(p => p.Tenant).WithMany().HasForeignKey(p => p.TenantId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(p => p.PayrollPeriod).WithMany().HasForeignKey(p => p.PayrollPeriodId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(p => p.PayrollLine).WithMany().HasForeignKey(p => p.PayrollLineId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(p => p.PaidByAppUser).WithMany().HasForeignKey(p => p.PaidByAppUserId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(p => p.CashExpense).WithMany().HasForeignKey(p => p.CashExpenseId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(p => p.CashMovement).WithMany().HasForeignKey(p => p.CashMovementId).OnDelete(DeleteBehavior.SetNull);
+    }
+}

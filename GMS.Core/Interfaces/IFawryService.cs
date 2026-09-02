@@ -10,6 +10,10 @@ public interface IFawryService
     /// </summary>
     Task<string> CreateOrderAsync(Guid membershipId, decimal amount);
 
+    /// <summary>Creates a source-bound order for a sale and its tenant/member identity.</summary>
+    Task<string> CreateOrderAsync(Guid saleId, Guid memberId, Guid tenantId, decimal amount) =>
+        CreateOrderAsync(saleId, amount);
+
     /// <summary>
     /// Verifies the SHA-256 signature of an incoming Fawry webhook.
     /// </summary>

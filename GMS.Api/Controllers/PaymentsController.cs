@@ -73,7 +73,22 @@ public class PaymentsController : BaseApiController
             var success = obj.GetProperty("success").GetBoolean();
             if (!success)
             {
-                _logger.LogInformation("[Paymob Webhook] Payment not successful — ignoring");
+                var failedRef = obj.TryGetProperty("id", out var failedId)
+                    ? failedId.ToString()
+                    : string.Empty;
+                var failedAmount = obj.TryGetProperty("amount_cents", out var failedCents)
+                    ? failedCents.GetDecimal() / 100m
+                    : 0m;
+                var failedOrder = obj.TryGetProperty("order", out var failedOrderValue)
+                    && failedOrderValue.TryGetProperty("merchant_order_id", out var failedMerchant)
+                    ? failedMerchant.GetString() ?? string.Empty
+                    : string.Empty;
+                var identity = ParsePaymentIdentity(failedOrder);
+                if (identity.TenantId != Guid.Empty && !string.IsNullOrWhiteSpace(failedRef) && failedAmount > 0m)
+                    await _paymentService.RecordFailedPaymentAsync(
+                        "paymob", failedRef, failedAmount, identity.MemberId, identity.TenantId,
+                        bodyStr, hmacValid, identity.SaleId == Guid.Empty ? null : identity.SaleId, "card_paymob");
+                _logger.LogInformation("[Paymob Webhook] Payment failure recorded");
                 return Ok(new { status = "ignored", reason = "payment_not_successful" });
             }
 
@@ -84,25 +99,26 @@ public class PaymentsController : BaseApiController
             // Extract member/tenant from merchant_order_id or order metadata
             var merchantOrderId = obj.GetProperty("order").GetProperty("merchant_order_id").GetString() ?? "";
 
-            // Attempt to parse memberId and tenantId from metadata
-            // Format expected: "memberId|tenantId" or just membershipId
-            Guid memberId = Guid.Empty, tenantId = Guid.Empty;
-            if (merchantOrderId.Contains('|'))
-            {
-                var parts = merchantOrderId.Split('|');
-                Guid.TryParse(parts[0], out memberId);
-                Guid.TryParse(parts[1], out tenantId);
-            }
+            // Canonical format: saleId|memberId|tenantId. The two-part legacy
+            // format remains parseable but is rejected by the service without a sale.
+            var (saleId, memberId, tenantId) = ParsePaymentIdentity(merchantOrderId);
+
+            if (tenantId == Guid.Empty || (saleId == Guid.Empty && memberId == Guid.Empty))
+                return BadRequest(new { status = "rejected", reason = "missing_payment_identity" });
 
             var result = await _paymentService.HandleSuccessfulPaymentAsync(
-                "paymob", externalRef, amount, memberId, tenantId, bodyStr, hmacValid);
+                "paymob", externalRef, amount, memberId, tenantId, bodyStr, hmacValid,
+                saleId == Guid.Empty ? null : saleId, "card_paymob");
 
-            return Ok(new { status = result.IsSuccess ? "processed" : "failed", message = result.IsSuccess ? result.Data : result.Error });
+            return result.IsSuccess
+                ? Ok(new { status = "processed", message = result.Data })
+                : StatusCode(StatusCodes.Status422UnprocessableEntity,
+                    new { status = "failed", message = result.Error });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "[Paymob Webhook] Error processing payload");
-            return Ok(new { status = "error" }); // Return 200 to prevent Paymob retries
+            return StatusCode(StatusCodes.Status500InternalServerError, new { status = "retryable_error" });
         }
     }
 
@@ -137,7 +153,21 @@ public class PaymentsController : BaseApiController
             var statusCode = payload.GetProperty("orderStatus").GetString();
             if (statusCode != "PAID")
             {
-                _logger.LogInformation("[Fawry Webhook] Status {Status} — ignoring", statusCode);
+                var failedRef = payload.TryGetProperty("fawryRefNumber", out var failedRefValue)
+                    ? failedRefValue.GetString() ?? string.Empty
+                    : string.Empty;
+                var failedAmount = payload.TryGetProperty("paymentAmount", out var failedAmountValue)
+                    ? failedAmountValue.GetDecimal()
+                    : 0m;
+                var failedMerchant = payload.TryGetProperty("merchantRefNum", out var failedMerchantValue)
+                    ? failedMerchantValue.GetString() ?? string.Empty
+                    : string.Empty;
+                var identity = ParsePaymentIdentity(failedMerchant);
+                if (identity.TenantId != Guid.Empty && !string.IsNullOrWhiteSpace(failedRef) && failedAmount > 0m)
+                    await _paymentService.RecordFailedPaymentAsync(
+                        "fawry", failedRef, failedAmount, identity.MemberId, identity.TenantId,
+                        bodyStr, sigValid, identity.SaleId == Guid.Empty ? null : identity.SaleId, "fawry");
+                _logger.LogInformation("[Fawry Webhook] Status {Status} — failure recorded", statusCode);
                 return Ok(new { status = "ignored" });
             }
 
@@ -145,23 +175,24 @@ public class PaymentsController : BaseApiController
             var amount = payload.GetProperty("paymentAmount").GetDecimal();
             var merchantRefNum = payload.GetProperty("merchantRefNum").GetString() ?? "";
 
-            Guid memberId = Guid.Empty, tenantId = Guid.Empty;
-            if (merchantRefNum.Contains('|'))
-            {
-                var parts = merchantRefNum.Split('|');
-                Guid.TryParse(parts[0], out memberId);
-                Guid.TryParse(parts[1], out tenantId);
-            }
+            var (saleId, memberId, tenantId) = ParsePaymentIdentity(merchantRefNum);
+
+            if (tenantId == Guid.Empty || (saleId == Guid.Empty && memberId == Guid.Empty))
+                return BadRequest(new { status = "rejected", reason = "missing_payment_identity" });
 
             var result = await _paymentService.HandleSuccessfulPaymentAsync(
-                "fawry", externalRef, amount, memberId, tenantId, bodyStr, sigValid);
+                "fawry", externalRef, amount, memberId, tenantId, bodyStr, sigValid,
+                saleId == Guid.Empty ? null : saleId, "fawry");
 
-            return Ok(new { status = result.IsSuccess ? "processed" : "failed", message = result.IsSuccess ? result.Data : result.Error });
+            return result.IsSuccess
+                ? Ok(new { status = "processed", message = result.Data })
+                : StatusCode(StatusCodes.Status422UnprocessableEntity,
+                    new { status = "failed", message = result.Error });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "[Fawry Webhook] Error processing payload");
-            return Ok(new { status = "error" });
+            return StatusCode(StatusCodes.Status500InternalServerError, new { status = "retryable_error" });
         }
     }
 
@@ -172,5 +203,26 @@ public class PaymentsController : BaseApiController
         await Request.Body.CopyToAsync(ms);
         Request.Body.Position = 0;
         return ms.ToArray();
+    }
+
+    private static (Guid SaleId, Guid MemberId, Guid TenantId) ParsePaymentIdentity(string value)
+    {
+        var parts = value.Split('|', StringSplitOptions.TrimEntries);
+        if (parts.Length == 3)
+        {
+            Guid.TryParse(parts[0], out var saleId);
+            Guid.TryParse(parts[1], out var memberId);
+            Guid.TryParse(parts[2], out var tenantId);
+            return (saleId, memberId, tenantId);
+        }
+
+        if (parts.Length == 2)
+        {
+            Guid.TryParse(parts[0], out var memberId);
+            Guid.TryParse(parts[1], out var tenantId);
+            return (Guid.Empty, memberId, tenantId);
+        }
+
+        return (Guid.Empty, Guid.Empty, Guid.Empty);
     }
 }

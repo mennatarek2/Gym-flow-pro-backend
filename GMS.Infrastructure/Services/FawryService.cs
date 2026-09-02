@@ -27,20 +27,26 @@ public class FawryService : IFawryService
         _logger = logger;
     }
 
-    public async Task<string> CreateOrderAsync(Guid membershipId, decimal amount)
+    public Task<string> CreateOrderAsync(Guid membershipId, decimal amount) =>
+        Task.FromException<string>(
+            new InvalidOperationException("A sale-bound payment order is required."));
+
+    public async Task<string> CreateOrderAsync(Guid saleId, Guid memberId, Guid tenantId, decimal amount)
     {
+        if (saleId == Guid.Empty || memberId == Guid.Empty || tenantId == Guid.Empty || amount <= 0m)
+            throw new ArgumentException("A valid sale, member, tenant, and positive amount are required.");
+
         var merchantCode = _config["Fawry:MerchantCode"];
         var securityKey = _config["Fawry:SecurityKey"];
 
         if (string.IsNullOrEmpty(merchantCode))
         {
-            _logger.LogWarning("[Fawry] Merchant code not configured — returning mock reference");
-            return $"FAWRY-MOCK-{membershipId.ToString()[..8].ToUpper()}";
+            throw new InvalidOperationException("Fawry merchant code is not configured; payment orders are disabled.");
         }
 
         try
         {
-            var merchantRefNum = $"GFP-{membershipId.ToString()[..8].ToUpper()}-{DateTime.UtcNow:yyMMddHHmmss}";
+            var merchantRefNum = $"{saleId:N}|{memberId:N}|{tenantId:N}";
 
             // Build signature: merchantCode + merchantRefNum + amount + securityKey
             var signatureInput = $"{merchantCode}{merchantRefNum}{amount:F2}{securityKey}";
@@ -52,7 +58,7 @@ public class FawryService : IFawryService
                 merchantRefNum,
                 amount = amount,
                 currencyCode = "EGP",
-                description = $"GymFlowPro Membership - {membershipId}",
+                description = $"GymFlowPro Sale - {saleId}",
                 paymentExpiry = DateTime.UtcNow.AddHours(48).ToString("yyyy-MM-ddTHH:mm:ssZ"),
                 signature
             };
@@ -62,8 +68,8 @@ public class FawryService : IFawryService
 
             if (response.IsSuccessStatusCode)
             {
-                _logger.LogInformation("[Fawry] Order created: {Ref} for membership {MembershipId}",
-                    merchantRefNum, membershipId);
+                _logger.LogInformation("[Fawry] Order created: {Ref} for sale {SaleId}",
+                    merchantRefNum, saleId);
                 return merchantRefNum;
             }
             else
@@ -75,7 +81,7 @@ public class FawryService : IFawryService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[Fawry] Exception creating order for {MembershipId}", membershipId);
+            _logger.LogError(ex, "[Fawry] Exception creating order for {SaleId}", saleId);
             throw;
         }
     }
@@ -85,15 +91,18 @@ public class FawryService : IFawryService
         var securityKey = _config["Fawry:SecurityKey"];
         if (string.IsNullOrEmpty(securityKey))
         {
-            _logger.LogWarning("[Fawry] Security key not configured — SKIPPING verification (dev only!)");
-            return true;
+            _logger.LogError("[Fawry] Security key is not configured — rejecting webhook");
+            return false;
         }
 
         var bodyStr = Encoding.UTF8.GetString(body);
         var signatureInput = bodyStr + securityKey;
         var computed = ComputeSha256(signatureInput);
-
-        var isValid = computed == signature;
+        var supplied = signature.Trim().ToLowerInvariant();
+        var isValid = supplied.Length == computed.Length
+            && CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(computed),
+                Encoding.UTF8.GetBytes(supplied));
 
         if (!isValid)
         {
@@ -110,8 +119,7 @@ public class FawryService : IFawryService
     }
 
     /// <summary>
-    /// Requests a refund via Fawry's refund API. Mirrors CreateOrderAsync's dev-mode fallback:
-    /// without a configured merchant code, this mock-succeeds rather than blocking local development.
+    /// Requests a refund via Fawry's refund API.
     /// </summary>
     public async Task<bool> RefundAsync(string externalRef, decimal amount)
     {
@@ -120,8 +128,8 @@ public class FawryService : IFawryService
 
         if (string.IsNullOrEmpty(merchantCode))
         {
-            _logger.LogWarning("[Fawry] Merchant code not configured — mock-succeeding refund for {ExternalRef}", externalRef);
-            return true;
+            _logger.LogError("[Fawry] Merchant code is not configured — rejecting refund for {ExternalRef}", externalRef);
+            return false;
         }
 
         try

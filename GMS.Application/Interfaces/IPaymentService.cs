@@ -14,5 +14,23 @@ public interface IPaymentService
     /// </summary>
     Task<Result<string>> HandleSuccessfulPaymentAsync(
         string gateway, string externalRef, decimal amount,
-        Guid memberId, Guid tenantId, string? rawPayload, bool hmacVerified);
+        Guid memberId, Guid tenantId, string? rawPayload, bool hmacVerified,
+        Guid? saleId = null, string? paymentMethod = null);
+
+    Task<Result<string>> RecordFailedPaymentAsync(
+        string gateway, string externalRef, decimal amount,
+        Guid memberId, Guid tenantId, string? rawPayload, bool hmacVerified,
+        Guid? saleId = null, string? paymentMethod = null);
+
+    /// <summary>
+    /// Marks a successful electronic payment settled only when a separately verified
+    /// provider settlement event has been received.
+    /// </summary>
+    Task<Result<string>> ConfirmSettlementAsync(
+        Guid paymentTransactionId,
+        Guid tenantId,
+        string gateway,
+        string externalRef,
+        string? rawPayload,
+        bool externalEvidenceVerified);
 }

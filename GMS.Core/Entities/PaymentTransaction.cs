@@ -23,8 +23,15 @@ public class PaymentTransaction : BaseEntity
     /// <summary>Currency code.</summary>
     public string Currency { get; set; } = "EGP";
 
-    /// <summary>Payment status: "success", "failed", "refunded".</summary>
+    /// <summary>Payment lifecycle: pending, success, failed, reversed, refunded.</summary>
     public string Status { get; set; } = "success";
+
+    /// <summary>
+    /// Settlement lifecycle: unknown, pending, settled, failed, reversed.
+    /// A successful payment is not necessarily settled cash.
+    /// </summary>
+    public string SettlementStatus { get; set; } = "unknown";
+    public DateTime? SettledAtUtc { get; set; }
 
     /// <summary>Raw webhook payload (JSON) for audit.</summary>
     public string? RawPayload { get; set; }

@@ -39,8 +39,24 @@ public class PaymentService : IPaymentService
 
     public async Task<Result<string>> HandleSuccessfulPaymentAsync(
         string gateway, string externalRef, decimal amount,
-        Guid memberId, Guid tenantId, string? rawPayload, bool hmacVerified)
+        Guid memberId, Guid tenantId, string? rawPayload, bool hmacVerified,
+        Guid? saleId = null, string? paymentMethod = null)
     {
+        if (tenantId == Guid.Empty || (!saleId.HasValue && memberId == Guid.Empty))
+            return Result<string>.Failure("Payment identity is incomplete.");
+        if (string.IsNullOrWhiteSpace(gateway) || string.IsNullOrWhiteSpace(externalRef))
+            return Result<string>.Failure("Payment gateway reference is required.");
+        if (amount <= 0m)
+            return Result<string>.Failure("Payment amount must be greater than zero.");
+        if (!hmacVerified)
+            return Result<string>.Failure("Payment signature was not verified.");
+
+        gateway = gateway.Trim().ToLowerInvariant();
+        externalRef = externalRef.Trim();
+        paymentMethod = string.IsNullOrWhiteSpace(paymentMethod)
+            ? gateway
+            : paymentMethod.Trim().ToLowerInvariant();
+
         // Webhooks are AllowAnonymous — TenantMiddleware does not SetTenant. Establish ambient
         // context from the verified payload tenant so EF filters and membership queries work.
         var tenant = await _dbContext.Tenants
@@ -53,139 +69,231 @@ public class PaymentService : IPaymentService
 
         _tenantContext.SetTenant(tenant.Id, tenant.Name, tenant.TimeZone);
 
-        // === STEP 1: Idempotency check (global ExternalRef) ===
+        var isRelational = _dbContext.Database.IsRelational();
+        await using var transaction = isRelational
+            ? await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable)
+            : null;
+
+        // Gateway references are idempotent only inside their tenant and gateway.
         var existingTx = await _dbContext.PaymentTransactions
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(p => p.ExternalRef == externalRef);
+            .FirstOrDefaultAsync(p => p.TenantId == tenantId
+                && p.Gateway == gateway
+                && p.ExternalRef == externalRef);
 
+        PaymentTransaction? salePayment = null;
         if (existingTx != null)
         {
-            _logger.LogInformation(
-                "[Payment] Duplicate webhook ignored: {Gateway} ExternalRef={Ref}",
-                gateway, externalRef);
-            return Result<string>.Success("Duplicate — already processed");
-        }
-
-        var member = await _dbContext.GymMembers
-            .FirstOrDefaultAsync(m => m.Id == memberId && m.TenantId == tenantId);
-
-        if (member == null)
-            return Result<string>.Failure("Member not found");
-
-        var today = MembershipOperational.TodayCairo();
-        var allMemberships = await _dbContext.Memberships
-            .Include(m => m.Plan)
-            .Where(m => m.MemberId == memberId && m.TenantId == tenantId)
-            .ToListAsync();
-
-        // Prefer unpaid pending renew created at the desk (dates + transition already baked).
-        var pendingMembership = allMemberships
-            .Where(m => m.Status == "pending" && m.PaymentDate == null)
-            .OrderByDescending(m => m.CreatedAtUtc)
-            .FirstOrDefault();
-
-        Membership activated;
-        if (pendingMembership != null)
-        {
-            var mode = string.IsNullOrWhiteSpace(pendingMembership.PlanTransitionMode)
-                ? PlanTransitionModes.CancelAndSwitch
-                : pendingMembership.PlanTransitionMode!;
-
-            pendingMembership.Status = "active";
-            pendingMembership.PaymentMethod = gateway;
-            pendingMembership.AmountPaid = amount;
-            pendingMembership.PaymentDate = DateTime.UtcNow;
-            pendingMembership.UpdatedAtUtc = DateTime.UtcNow;
-
-            MembershipRenewalDating.ApplyPriorOpenHandling(
-                allMemberships, pendingMembership.Id, mode, today, apply: true);
-
-            activated = pendingMembership;
-        }
-        else
-        {
-            var covering = MembershipOperational.SelectCoveringToday(allMemberships, today);
-            var planSource = covering
-                             ?? MembershipOperational.SelectOperational(allMemberships, today)
-                             ?? allMemberships.OrderByDescending(m => m.EndDate).FirstOrDefault();
-
-            if (planSource?.Plan == null)
-                return Result<string>.Failure("No membership plan found for renewal");
-
-            // Webhook without desk pending: start a fresh period (no forced rollover).
-            var mode = PlanTransitionModes.CancelAndSwitch;
-            var (newStartDate, newEndDate) = MembershipRenewalDating.Calculate(
-                covering ?? planSource, planSource.Plan, mode, today);
-
-            activated = new Membership
+            if (existingTx.Amount != amount || existingTx.SaleId != saleId)
+                return Result<string>.Failure("Payment reference was already used for different payment data.");
+            if (existingTx.Status == "success")
             {
-                TenantId = tenantId,
-                MemberId = memberId,
-                PlanId = planSource.PlanId,
-                StartDate = newStartDate,
-                EndDate = newEndDate,
-                Status = "active",
-                SessionsRemaining = planSource.Plan.PlanType == "session_pack"
-                    ? planSource.Plan.SessionCount
-                    : null,
-                PaymentMethod = gateway,
-                AmountPaid = amount,
-                PaymentDate = DateTime.UtcNow,
-                PlanTransitionMode = mode,
-                CreatedAtUtc = DateTime.UtcNow
-            };
-
-            await _dbContext.Memberships.AddAsync(activated);
-            MembershipRenewalDating.ApplyPriorOpenHandling(
-                allMemberships, activated.Id, mode, today, apply: true);
+                _logger.LogInformation(
+                    "[Payment] Duplicate webhook ignored: {Gateway} ExternalRef={Ref}",
+                    gateway, externalRef);
+                return Result<string>.Success("Duplicate — already processed");
+            }
+            if (existingTx.Status != "failed")
+                return Result<string>.Failure("Payment reference is not retryable.");
+            salePayment = existingTx;
         }
 
-        var paymentTx = new PaymentTransaction
+        if (!saleId.HasValue)
+            return Result<string>.Failure("Payment source sale is required.");
+
+        var sale = await _dbContext.Sales
+            .FirstOrDefaultAsync(s => s.Id == saleId.Value && s.TenantId == tenantId, CancellationToken.None);
+        if (sale == null)
+            return Result<string>.Failure("Payment source sale was not found.");
+        if (sale.Status is "refunded" or "cancelled")
+            return Result<string>.Failure("Payment source sale is not collectable.");
+        if (sale.MemberId.HasValue && memberId != Guid.Empty && sale.MemberId != memberId)
+            return Result<string>.Failure("Payment member does not match the source sale.");
+        if (!sale.MemberId.HasValue && memberId != Guid.Empty)
+            return Result<string>.Failure("A memberless sale cannot use a member identity.");
+        var allocated = await _dbContext.PaymentTransactions
+            .Where(payment => payment.TenantId == tenantId
+                && payment.SaleId == sale.Id
+                && payment.Status == "success"
+                && payment.Amount > 0m
+                && (salePayment == null || payment.Id != salePayment.Id))
+            .SumAsync(payment => (decimal?)payment.Amount) ?? 0m;
+        var adjustments = await _dbContext.SaleAdjustments
+            .Where(adjustment => adjustment.TenantId == tenantId
+                && adjustment.SaleId == sale.Id
+                && adjustment.Status == "posted")
+            .SumAsync(adjustment => (decimal?)adjustment.Amount) ?? 0m;
+        var canonicalDue = Math.Max(0m, decimal.Round(
+            sale.Total - allocated - adjustments, 2, MidpointRounding.AwayFromZero));
+        if (Math.Abs(sale.AmountDue - canonicalDue) > 0.01m)
+            return Result<string>.Failure("SALE_RECONCILIATION_REQUIRED");
+        if (amount > canonicalDue)
+            return Result<string>.Failure("Payment amount exceeds the outstanding sale balance.");
+
+        sale.AmountDue = decimal.Round(sale.AmountDue - amount, 2, MidpointRounding.AwayFromZero);
+        sale.Status = sale.AmountDue == 0m ? "completed" : "partially_paid";
+        sale.UpdatedAtUtc = DateTime.UtcNow;
+
+        // Membership sales are commercial Sale facts first. The membership remains pending
+        // until the sale is fully paid; the verified payment event is the only activation path
+        // for gateway-created memberships.
+        var membershipId = await _dbContext.SaleLines
+            .Where(line => line.SaleId == sale.Id
+                && line.TenantId == tenantId
+                && line.LineType == "membership")
+            .Select(line => line.ReferenceId)
+            .FirstOrDefaultAsync();
+        if (membershipId.HasValue)
+        {
+            var membership = await _dbContext.Memberships
+                .FirstOrDefaultAsync(item => item.Id == membershipId.Value && item.TenantId == tenantId);
+            if (membership != null)
+            {
+                membership.AmountPaid = decimal.Round(membership.AmountPaid + amount, 2, MidpointRounding.AwayFromZero);
+                membership.PaymentDate = DateTime.UtcNow;
+                if (sale.AmountDue == 0m)
+                    membership.Status = "active";
+                membership.UpdatedAtUtc = DateTime.UtcNow;
+            }
+        }
+
+        salePayment ??= new PaymentTransaction
         {
             TenantId = tenantId,
-            MemberId = memberId,
-            MembershipId = activated.Id,
+            MemberId = sale.MemberId ?? (memberId == Guid.Empty ? null : memberId),
             Gateway = gateway,
             ExternalRef = externalRef,
             Amount = amount,
+            Currency = "EGP",
             Status = "success",
+            // A verified provider success callback is external settlement evidence.
+            // Historical rows are never upgraded by this path.
+            SettlementStatus = "settled",
+            SettledAtUtc = DateTime.UtcNow,
             RawPayload = rawPayload,
-            HmacVerified = hmacVerified,
-            PaidAtUtc = DateTime.UtcNow
+            HmacVerified = true,
+            PaidAtUtc = DateTime.UtcNow,
+            SaleId = sale.Id,
+            Method = paymentMethod
         };
-
-        await _dbContext.PaymentTransactions.AddAsync(paymentTx);
+        if (salePayment.Id == Guid.Empty)
+            _dbContext.PaymentTransactions.Add(salePayment);
+        else
+        {
+            salePayment.Status = "success";
+            salePayment.SettlementStatus = "pending";
+            salePayment.RawPayload = rawPayload;
+            salePayment.HmacVerified = true;
+            salePayment.PaidAtUtc = DateTime.UtcNow;
+            salePayment.SaleId = sale.Id;
+            salePayment.Method = paymentMethod;
+        }
         await _dbContext.SaveChangesAsync();
-
-        var planType = activated.Plan?.PlanType
-            ?? (await _dbContext.MembershipPlans.AsNoTracking()
-                .Where(p => p.Id == activated.PlanId)
-                .Select(p => p.PlanType)
-                .FirstOrDefaultAsync())
-            ?? string.Empty;
-
-        try
-        {
-            await _referralAttribution.TryConvertOnPaidActivateAsync(
-                tenantId, memberId, saleId: paymentTx.SaleId, amount, planType);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Referral convert failed after payment {Ref}", externalRef);
-        }
+        if (transaction != null)
+            await transaction.CommitAsync();
 
         _logger.LogInformation(
-            "[Payment] Processed: {Gateway} {Ref} → Member {MemberNumber}, " +
-            "membership {Start}–{End} (mode={Mode}), amount {Amount} EGP",
-            gateway, externalRef, member.MemberNumber,
-            activated.StartDate, activated.EndDate,
-            activated.PlanTransitionMode ?? PlanTransitionModes.CancelAndSwitch,
-            amount);
+            "[Payment] Processed settled-source event: {Gateway} {Ref} → Sale {SaleId}, amount {Amount} EGP",
+            gateway, externalRef, sale.Id, amount);
+        return Result<string>.Success($"Payment recorded for sale {sale.Id}");
+    }
 
-        BackgroundJob.Enqueue<IWhatsAppService>(
-            svc => svc.SendRenewalConfirmationAsync(
-                member.PhoneNumber, member.FullName, activated.EndDate.ToDateTime(TimeOnly.MinValue)));
+    public async Task<Result<string>> ConfirmSettlementAsync(
+        Guid paymentTransactionId,
+        Guid tenantId,
+        string gateway,
+        string externalRef,
+        string? rawPayload,
+        bool externalEvidenceVerified)
+    {
+        if (!externalEvidenceVerified)
+            return Result<string>.Failure("Settlement evidence was not verified.");
+        if (tenantId == Guid.Empty || paymentTransactionId == Guid.Empty
+            || string.IsNullOrWhiteSpace(gateway) || string.IsNullOrWhiteSpace(externalRef))
+            return Result<string>.Failure("Settlement identity is incomplete.");
 
-        return Result<string>.Success($"Membership renewed until {activated.EndDate}");
+        var payment = await _dbContext.PaymentTransactions
+            .FirstOrDefaultAsync(item => item.Id == paymentTransactionId
+                && item.TenantId == tenantId
+                && item.Gateway == gateway.Trim().ToLowerInvariant()
+                && item.ExternalRef == externalRef.Trim());
+        if (payment == null)
+            return Result<string>.Failure("Payment transaction was not found.");
+        if (payment.Status == "failed" || payment.Status == "reversed")
+            return Result<string>.Failure("Only a successful payment can be settled.");
+        if (payment.SettlementStatus == "settled")
+            return Result<string>.Success("Settlement already recorded.");
+
+        payment.SettlementStatus = "settled";
+        payment.SettledAtUtc = DateTime.UtcNow;
+        if (!string.IsNullOrWhiteSpace(rawPayload))
+            payment.RawPayload = rawPayload;
+        await _dbContext.SaveChangesAsync();
+        return Result<string>.Success("Payment settlement recorded.");
+    }
+
+    public async Task<Result<string>> RecordFailedPaymentAsync(
+        string gateway, string externalRef, decimal amount,
+        Guid memberId, Guid tenantId, string? rawPayload, bool hmacVerified,
+        Guid? saleId = null, string? paymentMethod = null)
+    {
+        if (tenantId == Guid.Empty || string.IsNullOrWhiteSpace(gateway)
+            || string.IsNullOrWhiteSpace(externalRef) || amount <= 0m || !hmacVerified)
+            return Result<string>.Failure("Failed payment event is incomplete or unverified.");
+
+        gateway = gateway.Trim().ToLowerInvariant();
+        externalRef = externalRef.Trim();
+        paymentMethod = string.IsNullOrWhiteSpace(paymentMethod)
+            ? gateway
+            : paymentMethod.Trim().ToLowerInvariant();
+
+        var tenant = await _dbContext.Tenants.IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == tenantId && !item.IsDeleted);
+        if (tenant == null)
+            return Result<string>.Failure("Tenant not found");
+        _tenantContext.SetTenant(tenant.Id, tenant.Name, tenant.TimeZone);
+
+        var isRelational = _dbContext.Database.IsRelational();
+        await using var transaction = isRelational
+            ? await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable)
+            : null;
+        var existing = await _dbContext.PaymentTransactions.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(item => item.TenantId == tenantId
+                && item.Gateway == gateway
+                && item.ExternalRef == externalRef);
+        if (existing != null)
+            return existing.Amount == amount && existing.Status == "failed"
+                ? Result<string>.Success("Duplicate — already processed")
+                : Result<string>.Failure("Payment reference was already used for different payment data.");
+
+        if (saleId.HasValue)
+        {
+            var sourceExists = await _dbContext.Sales.AnyAsync(item =>
+                item.Id == saleId.Value && item.TenantId == tenantId);
+            if (!sourceExists)
+                return Result<string>.Failure("Payment source sale was not found.");
+        }
+
+        _dbContext.PaymentTransactions.Add(new PaymentTransaction
+        {
+            TenantId = tenantId,
+            MemberId = memberId == Guid.Empty ? null : memberId,
+            Gateway = gateway,
+            ExternalRef = externalRef,
+            Amount = amount,
+            Currency = "EGP",
+            Status = "failed",
+            SettlementStatus = "failed",
+            RawPayload = rawPayload,
+            HmacVerified = true,
+            PaidAtUtc = DateTime.UtcNow,
+            SaleId = saleId,
+            Method = paymentMethod
+        });
+        await _dbContext.SaveChangesAsync();
+        if (transaction != null)
+            await transaction.CommitAsync();
+        return Result<string>.Success("Failed payment recorded");
     }
 }

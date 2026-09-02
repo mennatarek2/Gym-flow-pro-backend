@@ -17,7 +17,7 @@ public interface IMemberStoreService
         Guid tenantId, Guid identityUserId, Guid orderId, CancellationToken ct = default);
 
     Task<Result<List<MemberOrderListItemDto>>> ListOrdersForStaffAsync(
-        Guid tenantId, string? status = null, CancellationToken ct = default);
+        Guid tenantId, string? status = null, Guid? memberId = null, CancellationToken ct = default);
 
     Task<Result<MemberOrderDto>> GetOrderForStaffAsync(
         Guid tenantId, Guid orderId, CancellationToken ct = default);

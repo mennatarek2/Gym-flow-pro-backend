@@ -208,8 +208,13 @@ public class InvoiceService : IInvoiceService
             if (!string.IsNullOrWhiteSpace(query.LineType))
             {
                 var lineType = query.LineType.Trim();
+                var pascalNeedle = "\"LineType\":\"" + lineType + "\"";
+                var camelNeedle = "\"lineType\":\"" + lineType + "\"";
                 q = q.Where(i =>
-                    i.Sale != null && i.Sale.Lines.Any(l => l.LineType == lineType));
+                    (i.Sale != null && i.Sale.Lines.Any(l => l.LineType == lineType))
+                    || (i.LinesSnapshot != null && (
+                        i.LinesSnapshot.Contains(pascalNeedle)
+                        || i.LinesSnapshot.Contains(camelNeedle))));
             }
 
             var totalCount = await q.CountAsync();

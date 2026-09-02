@@ -56,9 +56,10 @@ public class SaleServiceTests
     private const string LocalDbConnectionString =
         "Server=(localdb)\\mssqllocaldb;Database=GymFlowProDb;Trusted_Connection=true;Encrypt=false;";
 
-    private static (GymFlowProDbContext ctx, SaleService svc, Guid tenantId) CreateSut(bool useLocalDb = false)
+    private static (GymFlowProDbContext ctx, SaleService svc, Guid tenantId) CreateSut(
+        bool useLocalDb = false, Guid? tenantIdOverride = null)
     {
-        var tenantId = Guid.NewGuid();
+        var tenantId = tenantIdOverride ?? Guid.NewGuid();
 
         var options = useLocalDb
             ? new DbContextOptionsBuilder<GymFlowProDbContext>().UseSqlServer(LocalDbConnectionString).Options
@@ -924,6 +925,57 @@ public class SaleServiceTests
         Assert.Equal(3m, (await ledger.GetOnHandAsync(tenantId, product.Id, warehouse.Id, sooner.Id)).Data);
         Assert.Equal(5m, (await ledger.GetOnHandAsync(tenantId, product.Id, warehouse.Id, later.Id)).Data);
         Assert.Equal(8m, (await ledger.GetAvailableAsync(tenantId, product.Id, warehouse.Id)).Data);
+    }
+
+    [Fact]
+    public async Task RecordPayment_TwoConcurrentDebtorPayments_CannotOverAllocateSale()
+    {
+        var tenantId = Guid.NewGuid();
+        var first = CreateSut(useLocalDb: true, tenantIdOverride: tenantId);
+        var second = CreateSut(useLocalDb: true, tenantIdOverride: tenantId);
+        try
+        {
+            SeedTenant(first.ctx, tenantId);
+            var (staffA, identityA) = SeedStaff(first.ctx, tenantId);
+            var (staffB, identityB) = SeedStaff(first.ctx, tenantId);
+            SeedOpenShift(first.ctx, tenantId, staffA.Id);
+            SeedOpenShift(first.ctx, tenantId, staffB.Id);
+            var sale = new Sale
+            {
+                TenantId = tenantId,
+                SoldByUserId = staffA.Id,
+                Total = 1000m,
+                AmountDue = 1000m,
+                Status = "partially_paid"
+            };
+            first.ctx.Sales.Add(sale);
+            await first.ctx.SaveChangesAsync();
+
+            var results = await Task.WhenAll(
+                first.svc.RecordPaymentAsync(
+                    sale.Id, tenantId, identityA,
+                    new RecordPaymentRequest { Amount = 700m, Method = "cash" }),
+                second.svc.RecordPaymentAsync(
+                    sale.Id, tenantId, identityB,
+                    new RecordPaymentRequest { Amount = 700m, Method = "cash" }));
+
+            var paid = await first.ctx.PaymentTransactions
+                .Where(item => item.TenantId == tenantId && item.SaleId == sale.Id)
+                .SumAsync(item => item.Amount);
+            var reloaded = await first.ctx.Sales.SingleAsync(item => item.Id == sale.Id);
+            Assert.InRange(paid, 0m, 1000m);
+            Assert.True(reloaded.AmountDue >= 0m);
+            Assert.True(results.Count(result => result.IsSuccess) <= 1);
+        }
+        finally
+        {
+            await first.ctx.CashMovements.Where(item => item.TenantId == tenantId).ExecuteDeleteAsync();
+            await first.ctx.PaymentTransactions.Where(item => item.TenantId == tenantId).ExecuteDeleteAsync();
+            await first.ctx.Shifts.Where(item => item.TenantId == tenantId).ExecuteDeleteAsync();
+            await first.ctx.Sales.Where(item => item.TenantId == tenantId).ExecuteDeleteAsync();
+            await first.ctx.AppUsers.Where(item => item.TenantId == tenantId).ExecuteDeleteAsync();
+            await first.ctx.Tenants.Where(item => item.Id == tenantId).ExecuteDeleteAsync();
+        }
     }
 
     private static async Task<(Product product, Warehouse warehouse)> SeedStockedProductAsync(

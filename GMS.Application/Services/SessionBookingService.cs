@@ -110,6 +110,7 @@ public class SessionBookingService : ISessionBookingService
                 .Select(ToBookingDto)
                 .ToList()
         };
+        await AttachInvoicesAsync(tenantId, detail.Bookings, ct);
         return Result<SessionDetailDto>.Success(detail);
     }
 
@@ -315,7 +316,9 @@ public class SessionBookingService : ISessionBookingService
         // Prefer ClassFull over BookingNew (avoid spam on every book).
         await TryNotifyClassFullAsync(tenantId, session, ct);
 
-        return Result<BookingDto>.Success(ToBookingDto(booking));
+        var created = ToBookingDto(booking);
+        await AttachInvoicesAsync(tenantId, new List<BookingDto> { created }, ct);
+        return Result<BookingDto>.Success(created);
     }
 
     private async Task TryNotifyClassFullAsync(Guid tenantId, ActivitySession session, CancellationToken ct)
@@ -551,8 +554,37 @@ public class SessionBookingService : ISessionBookingService
         GuestPhone = b.GuestPhone,
         Status = b.Status,
         Source = b.Source,
+        SaleId = b.SaleId,
         CheckedInAtUtc = b.CheckedInAtUtc
     };
+
+    private async Task AttachInvoicesAsync(Guid tenantId, List<BookingDto> bookings, CancellationToken ct)
+    {
+        var saleIds = bookings
+            .Where(b => b.SaleId.HasValue)
+            .Select(b => b.SaleId!.Value)
+            .Distinct()
+            .ToList();
+        if (saleIds.Count == 0) return;
+
+        var invoices = await _db.Invoices.AsNoTracking()
+            .Where(i => i.TenantId == tenantId
+                        && i.SaleId != null
+                        && saleIds.Contains(i.SaleId.Value)
+                        && i.Type == "invoice"
+                        && i.Status != "voided")
+            .Select(i => new { i.SaleId, i.Id, i.InvoiceNumber })
+            .ToListAsync(ct);
+
+        foreach (var booking in bookings)
+        {
+            if (!booking.SaleId.HasValue) continue;
+            var invoice = invoices.FirstOrDefault(i => i.SaleId == booking.SaleId);
+            if (invoice == null) continue;
+            booking.InvoiceId = invoice.Id;
+            booking.InvoiceNumber = invoice.InvoiceNumber;
+        }
+    }
 
     private async Task<int> LateCancellationHours(Guid tenantId, CancellationToken ct)
     {

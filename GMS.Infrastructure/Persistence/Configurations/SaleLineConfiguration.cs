@@ -25,6 +25,8 @@ public class SaleLineConfiguration : IEntityTypeConfiguration<SaleLine>
         builder.Property(l => l.Qty).HasDefaultValue(1).IsRequired();
         builder.Property(l => l.UnitPrice).HasColumnType("DECIMAL(12,2)").IsRequired();
         builder.Property(l => l.LineTotal).HasColumnType("DECIMAL(12,2)").IsRequired();
+        builder.Property(l => l.UnitCost).HasColumnType("DECIMAL(12,2)");
+        builder.Property(l => l.CogsAmount).HasColumnType("DECIMAL(14,2)");
 
         builder.Property(l => l.CreatedAtUtc)
             .HasColumnType("DATETIME2")

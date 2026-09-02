@@ -14,7 +14,8 @@ using GMS.Infrastructure.Persistence;
 /// <summary>
 /// Membership lifecycle: assign, renew, history.
 /// Cash assign/renew creates a Sale + PaymentTransaction and records shift cash movement
-/// (same drawer invariant as SaleService).
+/// (same drawer invariant as SaleService). Gateway-pending memberships remain pending until
+/// their payment flow is migrated to a source Sale.
 /// </summary>
 public class MembershipService : IMembershipService
 {
@@ -605,7 +606,9 @@ public class MembershipService : IMembershipService
                 SaleId = sale.Id,
                 ReceivedByUserId = staffUser.Id,
                 ShiftId = shiftId,
-                Method = paymentMethod
+                Method = paymentMethod,
+                SettlementStatus = IsCashPayment(paymentMethod) ? "settled" : "pending",
+                SettledAtUtc = IsCashPayment(paymentMethod) ? DateTime.UtcNow : null
             });
         }
 
@@ -637,6 +640,7 @@ public class MembershipService : IMembershipService
 
         return sale.Id;
     }
+
 
     private async Task<MembershipDto> MapToDtoAsync(Membership membership)
     {

@@ -13,7 +13,7 @@ public class InvoiceQueryRequest
     /// <summary>'invoice' | 'credit_note'</summary>
     public string? Type { get; set; }
 
-    /// <summary>Optional SaleLine.LineType filter: membership | retail | trial | day_pass | fee.</summary>
+    /// <summary>Optional SaleLine.LineType filter: membership | retail | drop_in | trial | day_pass | fee.</summary>
     public string? LineType { get; set; }
 
     public int Page { get; set; } = 1;

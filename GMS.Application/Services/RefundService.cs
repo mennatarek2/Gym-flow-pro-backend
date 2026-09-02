@@ -60,7 +60,8 @@ public class RefundService : IRefundService
     }
 
     public async Task<Result<RefundDto>> RequestAsync(
-        Guid saleId, decimal amount, string method, string reason, Guid requestedByUserId, Guid tenantId)
+        Guid saleId, decimal amount, string method, string reason, Guid requestedByUserId, Guid tenantId,
+        Guid? paymentTransactionId = null)
     {
         try
         {
@@ -71,12 +72,70 @@ public class RefundService : IRefundService
             var requester = await ResolveStaffUserAsync(requestedByUserId, tenantId);
             if (requester == null)
                 return Fail(RefundFailureReasons.StaffUserNotFound, "Staff user not found / المستخدم غير موجود");
+            if (amount <= 0m)
+                return Fail(RefundFailureReasons.InvalidAmount, "Refund amount must be greater than zero / يجب أن يكون مبلغ الاسترداد أكبر من صفر");
+            method = method.Trim().ToLowerInvariant();
+            if (method is not ("cash" or "gateway" or "credit"))
+                return Fail("REFUND_METHOD_INVALID", "Refund method must be cash, gateway, or credit / طريقة الاسترداد غير صالحة");
 
-            var alreadyExecuted = await _dbContext.Refunds
-                .Where(r => r.SaleId == saleId && r.TenantId == tenantId && r.Status == "executed")
-                .SumAsync(r => (decimal?)r.Amount) ?? 0m;
+            var candidateMethods = GetPaymentMethods(method);
+            var allPayments = await _dbContext.PaymentTransactions
+                .Where(p => p.SaleId == saleId
+                    && p.TenantId == tenantId
+                    && p.Status == "success"
+                    && p.Method != null
+                    && p.Amount > 0m)
+                .OrderBy(p => p.CreatedAtUtc)
+                .ToListAsync();
+            var hasCashEvidence = await _dbContext.CashMovements.AnyAsync(m =>
+                m.TenantId == tenantId
+                && m.Type == "sale"
+                && m.ReferenceId == saleId
+                && m.Amount > 0m);
+            var candidatePayments = allPayments
+                .Where(p => candidateMethods.Contains(p.Method!))
+                .ToList();
+            PaymentTransaction? sourcePayment = null;
+            if (paymentTransactionId.HasValue)
+            {
+                sourcePayment = candidatePayments.FirstOrDefault(p => p.Id == paymentTransactionId.Value);
+                if (sourcePayment == null)
+                    return Fail("REFUND_SOURCE_INVALID", "The selected payment is not a valid source for this sale/refund.");
+            }
+            else if (candidatePayments.Count == 1)
+            {
+                sourcePayment = candidatePayments[0];
+                paymentTransactionId = sourcePayment.Id;
+            }
+            else if (candidatePayments.Count > 1)
+            {
+                return Fail("REFUND_SOURCE_REQUIRED", "Select the exact payment leg for this split sale.");
+            }
+            if (allPayments.Count > 0 && candidatePayments.Count == 0)
+                return Fail("REFUND_SOURCE_MISSING", "No payment leg matches the requested refund method.");
 
-            var remainder = sale.Total - alreadyExecuted;
+            var alreadyExecutedQuery = _dbContext.Refunds
+                .Where(r => r.SaleId == saleId && r.TenantId == tenantId && r.Status == "executed");
+            var alreadyExecuted = sourcePayment == null
+                ? await alreadyExecutedQuery.SumAsync(r => (decimal?)r.Amount) ?? 0m
+                : await alreadyExecutedQuery
+                    .Where(r => r.PaymentTransactionId == sourcePayment.Id)
+                    .SumAsync(r => (decimal?)r.Amount) ?? 0m;
+            // Legacy sales created before PaymentTransaction.SaleId was mandatory have no
+            // allocatable payment row. Their recorded paid portion is still a bounded,
+            // auditable compatibility source; new split-payment sales must provide a source
+            // payment and never fall back to this balance inference.
+            var paidAmount = sourcePayment?.Amount
+                ?? (candidatePayments.Count > 0
+                    ? candidatePayments
+                        .Where(payment => IsRefundablePayment(payment, hasCashEvidence))
+                        .Sum(p => p.Amount)
+                    : Math.Max(0m, sale.Total - sale.AmountDue));
+            if (sourcePayment != null && !IsRefundablePayment(sourcePayment, hasCashEvidence))
+                return Fail("REFUND_SOURCE_UNSETTLED", "The selected payment has no trusted settlement evidence.");
+            if (paidAmount <= 0m)
+                return Fail("REFUND_SOURCE_MISSING", "No refundable payment was found for this sale.");
+            var remainder = paidAmount - alreadyExecuted;
 
             if (remainder <= 0m)
                 return Fail(RefundFailureReasons.SaleFullyRefunded, "This sale has already been fully refunded / تم استرداد قيمة عملية البيع بالكامل");
@@ -87,8 +146,6 @@ public class RefundService : IRefundService
 
             // Best-effort auto-resolution of the specific payment being reversed, so ApproveAsync
             // knows which gateway (paymob/fawry) to call for a 'gateway' method refund.
-            var paymentTransactionId = await ResolvePaymentTransactionIdAsync(saleId, tenantId, method);
-
             var refund = new Refund
             {
                 TenantId = tenantId,
@@ -120,7 +177,7 @@ public class RefundService : IRefundService
     {
         var isRelational = _dbContext.Database.IsRelational();
         var transaction = isRelational
-            ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted)
+            ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable)
             : null;
 
         try
@@ -151,6 +208,59 @@ public class RefundService : IRefundService
 
             if (sale == null)
                 return Fail(RefundFailureReasons.SaleNotFound, "Sale not found / عملية البيع غير موجودة");
+
+            if (refund.PaymentTransactionId.HasValue)
+            {
+                var source = refund.PaymentTransaction;
+                if (source == null
+                    || source.TenantId != tenantId
+                    || source.SaleId != sale.Id
+                    || source.Status != "success")
+                    return Fail("REFUND_SOURCE_INVALID", "The original payment source is no longer valid.");
+
+                var sourceRefunded = await _dbContext.Refunds
+                    .Where(item => item.PaymentTransactionId == source.Id
+                        && item.TenantId == tenantId
+                        && item.Status == "executed"
+                        && item.Id != refund.Id)
+                    .SumAsync(item => (decimal?)item.Amount) ?? 0m;
+                if (refund.Amount > source.Amount - sourceRefunded)
+                    return Fail(RefundFailureReasons.RefundExceedsRemainder,
+                        "Refund amount exceeds the refundable amount of the original payment.");
+                var hasCashEvidence = await _dbContext.CashMovements.AnyAsync(m =>
+                    m.TenantId == tenantId
+                    && m.Type == "sale"
+                    && m.ReferenceId == sale.Id
+                    && m.Amount > 0m);
+                if (!IsRefundablePayment(source, hasCashEvidence))
+                    return Fail("REFUND_SOURCE_UNSETTLED",
+                        "The original payment has no trusted settlement evidence.");
+            }
+
+            var salePayments = await _dbContext.PaymentTransactions
+                .Where(payment => payment.TenantId == tenantId
+                    && payment.SaleId == sale.Id
+                    && payment.Status == "success"
+                    && payment.Amount > 0m)
+                .ToListAsync();
+            var saleHasCashEvidence = await _dbContext.CashMovements.AnyAsync(m =>
+                m.TenantId == tenantId
+                && m.Type == "sale"
+                && m.ReferenceId == sale.Id
+                && m.Amount > 0m);
+            var trustedPaidTotal = salePayments
+                .Where(payment => IsRefundablePayment(payment, saleHasCashEvidence))
+                .Sum(payment => payment.Amount);
+            if (salePayments.Count == 0)
+                trustedPaidTotal = Math.Max(0m, sale.Total - sale.AmountDue);
+            var executedSaleRefunds = await _dbContext.Refunds
+                .Where(item => item.TenantId == tenantId
+                    && item.SaleId == sale.Id
+                    && item.Status == "executed")
+                .SumAsync(item => (decimal?)item.Amount) ?? 0m;
+            if (refund.Amount > trustedPaidTotal - executedSaleRefunds)
+                return Fail(RefundFailureReasons.RefundExceedsRemainder,
+                    "Refund amount exceeds the trusted refundable balance.");
 
             await _auditService.LogAsync("refund.approved", "Refund", refund.Id, null,
                 new { approvedByUserId = approver.Id, method = refund.Method, amount = refund.Amount });
@@ -195,7 +305,11 @@ public class RefundService : IRefundService
 
                 case "credit":
                 {
-                    var memberId = sale.MemberId ?? Guid.Empty;
+                    if (!sale.MemberId.HasValue)
+                        return Fail(RefundFailureReasons.CreditMemberRequired,
+                            "Credit refunds require a member sale / استرداد الرصيد يتطلب عملية بيع مرتبطة بعضو");
+
+                    var memberId = sale.MemberId.Value;
                     _dbContext.MemberCredits.Add(new MemberCredit
                     {
                         TenantId = tenantId,
@@ -219,8 +333,16 @@ public class RefundService : IRefundService
                 .Where(r => r.SaleId == sale.Id && r.TenantId == tenantId && r.Status == "executed")
                 .SumAsync(r => (decimal?)r.Amount) ?? 0m;
             executedTotal += refund.Amount;
+            var paidTotal = await _dbContext.PaymentTransactions
+                .Where(p => p.SaleId == sale.Id
+                    && p.TenantId == tenantId
+                    && p.Status == "success"
+                    && p.Amount > 0m)
+                .SumAsync(p => (decimal?)p.Amount) ?? 0m;
+            if (paidTotal == 0m)
+                paidTotal = Math.Max(0m, sale.Total - sale.AmountDue);
 
-            sale.Status = executedTotal >= sale.Total ? "refunded" : "partially_refunded";
+            sale.Status = executedTotal >= paidTotal ? "refunded" : "partially_refunded";
             sale.UpdatedAtUtc = DateTime.UtcNow;
 
             if (sale.Status == "refunded")
@@ -531,6 +653,10 @@ public class RefundService : IRefundService
     // PRIVATE HELPERS
     // ========================================================================
 
+    private static bool IsRefundablePayment(PaymentTransaction payment, bool hasCashEvidence) =>
+        string.Equals(payment.SettlementStatus, "settled", StringComparison.OrdinalIgnoreCase)
+        || (string.Equals(payment.Method, "cash", StringComparison.OrdinalIgnoreCase) && hasCashEvidence);
+
     private async Task<AppUser?> ResolveStaffUserAsync(Guid identityUserId, Guid tenantId)
     {
         var identityUserIdStr = identityUserId.ToString();
@@ -546,7 +672,9 @@ public class RefundService : IRefundService
         var candidateMethods = method switch
         {
             "cash" => new[] { "cash" },
-            "credit" => new[] { "account_credit" },
+            // A credit refund is a non-cash disposition of money actually
+            // collected; it can originate from any collected payment leg.
+            "credit" => new[] { "cash", "card_paymob", "fawry", "vodafone", "instapay", "account_credit" },
             "gateway" => new[] { "card_paymob", "fawry", "vodafone", "instapay" },
             _ => Array.Empty<string>()
         };
@@ -560,6 +688,14 @@ public class RefundService : IRefundService
             .Select(p => (Guid?)p.Id)
             .FirstOrDefaultAsync();
     }
+
+    private static string[] GetPaymentMethods(string method) => method switch
+    {
+        "cash" => new[] { "cash" },
+        "credit" => new[] { "cash", "card_paymob", "fawry", "vodafone", "instapay", "account_credit" },
+        "gateway" => new[] { "card_paymob", "fawry", "vodafone", "instapay" },
+        _ => Array.Empty<string>()
+    };
 
     private static Result<RefundDto> Fail(string code, string message) =>
         Result<RefundDto>.Failure($"{code}|{message}");

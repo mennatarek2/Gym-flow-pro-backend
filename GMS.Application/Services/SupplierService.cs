@@ -226,6 +226,7 @@ public class SupplierService : ISupplierService
             Amount = -Math.Abs(request.Amount),
             Reason = SupplierLedgerReasons.Payment,
             Note = noteParts.Count > 0 ? string.Join("; ", noteParts) : null,
+            EffectiveAtUtc = request.PaidAtUtc?.ToUniversalTime() ?? DateTime.UtcNow,
             CreatedAtUtc = DateTime.UtcNow
         };
         _db.SupplierLedgerEntries.Add(entry);

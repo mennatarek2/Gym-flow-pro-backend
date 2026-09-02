@@ -528,6 +528,7 @@ WHERE Id = {poLine.Id} AND TenantId = {tenantId}
                     Reason = SupplierLedgerReasons.Purchase,
                     ReferenceType = "GoodsReceipt",
                     ReferenceId = grn.Id,
+                    EffectiveAtUtc = DateTime.UtcNow,
                     CreatedAtUtc = DateTime.UtcNow
                 });
             }

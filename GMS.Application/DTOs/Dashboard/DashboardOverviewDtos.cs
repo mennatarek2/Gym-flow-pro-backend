@@ -58,14 +58,39 @@ public sealed class DashboardTodayDto
 
 public sealed class DashboardFinancialDto
 {
+    public string CalculationVersion { get; set; } = "financial-v1";
     public decimal CashCollected { get; set; }
+    public decimal Collections { get; set; }
+    public decimal SettledCashInflow { get; set; }
+    public bool SettledCashAvailable { get; set; }
+    public decimal Revenue { get; set; }
+    public decimal RevenueAdjustments { get; set; }
     public decimal Refunds { get; set; }
+    public decimal CashRefunds { get; set; }
+    public decimal CreditRefunds { get; set; }
     public decimal Outstanding { get; set; }
     public decimal? Expenses { get; set; }
+    public decimal? Cogs { get; set; }
+    public decimal? GrossProfit { get; set; }
+    public decimal? PayrollExpense { get; set; }
+    public decimal? OperatingExpenses { get; set; }
     public decimal? NetProfit { get; set; }
     public decimal? ProfitMargin { get; set; }
+    public decimal CashOutflows { get; set; }
+    public decimal NetCashFlow { get; set; }
+    public bool CashFlowAvailable { get; set; }
+    public bool NetProfitAvailable { get; set; }
+    public bool SupplierCashPaymentsAvailable { get; set; }
+    public decimal AccountsReceivable { get; set; }
+    public int AccountsReceivableCount { get; set; }
+    public decimal AccountsPayable { get; set; }
+    public bool CogsAvailable { get; set; }
+    public bool PayrollAvailable { get; set; }
+    public string PayrollCoverageStatus { get; set; } = "NO_PAYROLL_PERIOD";
+    public List<string> FinancialDataIssues { get; set; } = new();
+    public Dictionary<string, string> TrustStates { get; set; } = new();
     public List<DashboardRevenueBreakdownDto> Breakdown { get; set; } = new();
-    public List<DashboardTrendPointDto> CashTrend { get; set; } = new();
+    public List<DashboardTrendPointDto> RevenueTrend { get; set; } = new();
 }
 
 public sealed class DashboardRevenueBreakdownDto

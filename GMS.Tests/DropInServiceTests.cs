@@ -106,6 +106,7 @@ public class DropInServiceTests
         Assert.True(retry.IsSuccess, retry.Error);
         Assert.Equal(first.Data, retry.Data);
         Assert.Equal(1, await db.Sales.CountAsync(s => s.TenantId == _tenantA));
+        Assert.Equal(1, await db.CashMovements.CountAsync(m => m.ReferenceId == first.Data && m.Type == "sale"));
     }
 
     [Fact]
@@ -134,10 +135,11 @@ public class DropInServiceTests
         var secondBooking = await bookingSvc.CreateBookingAsync(_tenantA, new GMS.Application.DTOs.Activities.CreateBookingRequest
         { SessionId = sessionB.Id, MemberId = member.Id, SaleId = secondSale.Data, Source = "drop_in" }, staff);
         Assert.True(secondBooking.IsSuccess, secondBooking.Error);
+        Assert.Equal(2, await db.CashMovements.CountAsync(m => m.Type == "sale" && m.TenantId == _tenantA));
     }
 
     [Fact]
-    public async Task Guest_DropIn_Creates_GuestSale_And_Booking()
+    public async Task Guest_DropIn_Creates_GuestSale_And_Booking_WithCash()
     {
         var (db, _) = NewContext(_tenantA);
         var (_, activity) = await SeedMemberAndActivityAsync(db, _tenantA);
@@ -146,7 +148,7 @@ public class DropInServiceTests
 
         var purchase = await Service(db).PurchaseDropInAsync(
             _tenantA, null, "  Walk-in Guest  ", "  +201000000099  ", session.Id, staff,
-            paymentMethod: "card_paymob");
+            paymentMethod: "cash");
 
         Assert.True(purchase.IsSuccess, purchase.Error);
         var sale = await db.Sales.SingleAsync(s => s.Id == purchase.Data);
@@ -154,6 +156,8 @@ public class DropInServiceTests
         Assert.Equal("Walk-in Guest", sale.GuestName);
         Assert.Equal("+201000000099", sale.GuestPhone);
         Assert.Equal(1, await db.PaymentTransactions.CountAsync(p => p.SaleId == sale.Id));
+        Assert.Equal(1, await db.CashMovements.CountAsync(m =>
+            m.ReferenceId == sale.Id && m.Type == "sale" && m.Amount == 150m));
 
         var booking = await BookingService(db).CreateBookingAsync(_tenantA,
             new GMS.Application.DTOs.Activities.CreateBookingRequest

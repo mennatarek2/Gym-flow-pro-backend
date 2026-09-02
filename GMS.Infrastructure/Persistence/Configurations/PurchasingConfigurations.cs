@@ -152,6 +152,7 @@ public class SupplierLedgerEntryConfiguration : IEntityTypeConfiguration<Supplie
         builder.Property(e => e.Reason).IsRequired().HasMaxLength(32).HasColumnType("VARCHAR(32)");
         builder.Property(e => e.ReferenceType).HasMaxLength(64).HasColumnType("VARCHAR(64)");
         builder.Property(e => e.Note).HasMaxLength(500).HasColumnType("NVARCHAR(500)");
+        builder.Property(e => e.EffectiveAtUtc).HasColumnType("DATETIME2");
         builder.Property(e => e.CreatedAtUtc).IsRequired();
         builder.Property(e => e.IsDeleted).IsRequired().HasDefaultValue(false);
         builder.HasIndex(e => new { e.TenantId, e.SupplierId });

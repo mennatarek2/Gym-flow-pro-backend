@@ -50,6 +50,9 @@ public class DropInService : IDropInService
         paymentMethod = (paymentMethod ?? string.Empty).Trim().ToLowerInvariant();
         if (!SalePaymentRequestValidator.ValidMethods.Contains(paymentMethod))
             return Result<Guid>.Failure("Invalid payment method / طريقة دفع غير صالحة");
+        if (paymentMethod is not ("cash" or "account_credit"))
+            return Result<Guid>.Failure(
+                "Electronic drop-in payments must be authorized through a gateway before booking / يجب اعتماد مدفوعات الدخول الإلكتروني عبر البوابة قبل الحجز");
 
         guestName = guestName?.Trim();
         guestPhone = guestPhone?.Trim();
@@ -164,12 +167,13 @@ public class DropInService : IDropInService
         _db.PaymentTransactions.Add(new PaymentTransaction
         {
             TenantId = tenantId,
-            SaleId = null, // linked to sale.Id after SaveChanges (column has no FK by design)
+            SaleId = sale.Id,
             MemberId = memberId,
             Gateway = paymentMethod,
             ExternalRef = externalRef, // globally unique per payment_transactions index
             Amount = paid,
             Status = "success",
+            SettlementStatus = "settled",
             PaidAtUtc = DateTime.UtcNow,
             ShiftId = shiftId,
             ReceivedByUserId = sellerAppUserId.Value,
@@ -200,6 +204,21 @@ public class DropInService : IDropInService
             LineTotal = price.Value,
             CreatedAtUtc = DateTime.UtcNow
         });
+
+        if (shiftId.HasValue && paymentMethod == "cash")
+        {
+            _db.CashMovements.Add(new CashMovement
+            {
+                TenantId = tenantId,
+                ShiftId = shiftId.Value,
+                Type = "sale",
+                Amount = paid,
+                ReferenceId = sale.Id,
+                Reason = $"Drop-in: {session.Activity.Name}",
+                CreatedByUserId = sellerAppUserId.Value
+            });
+        }
+
         await _db.SaveChangesAsync(ct);
 
         // Account credit is consumed only after the sale has its stable id.
@@ -218,15 +237,6 @@ public class DropInService : IDropInService
 
         await _db.SaveChangesAsync(ct);
 
-        var tx = await _db.PaymentTransactions
-            .FirstOrDefaultAsync(p => p.ExternalRef == externalRef
-                                      && p.TenantId == tenantId && p.SaleId == null, ct);
-        if (tx != null)
-        {
-            tx.SaleId = sale.Id;
-            await _db.SaveChangesAsync(ct);
-        }
-
         // Paid drop-ins must always have a legal invoice. The job is a retry fallback if the
         // inline creation cannot allocate a number because of a transient database failure.
         if (_invoiceService != null)
@@ -240,19 +250,6 @@ public class DropInService : IDropInService
                 _logger.LogWarning(ex, "Inline invoice creation failed for drop-in sale {SaleId}; retrying in Hangfire", sale.Id);
             }
             await _invoiceService.EnqueueForSale(sale.Id);
-        }
-
-        if (shiftId.HasValue && _shiftService != null)
-        {
-            try
-            {
-                await _shiftService.RecordMovementAsync(
-                    shiftId.Value, "sale", paid, sale.Id, null, soldByUserId, tenantId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to record cash movement for drop-in sale {SaleId}", sale.Id);
-            }
         }
 
         _logger.LogInformation("Drop-in sale {SaleId} created ({Amount} EGP) member {MemberId} guest {GuestName} session {SessionId}",

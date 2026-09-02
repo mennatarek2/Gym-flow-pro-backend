@@ -7,7 +7,6 @@ using GMS.Application.DTOs.Activities;
 using GMS.Application.DTOs.Admin;
 using GMS.Application.DTOs.CallSheet;
 using GMS.Application.DTOs.Dashboard;
-using GMS.Application.DTOs.Debtors;
 using GMS.Application.DTOs.Reports;
 using GMS.Application.Interfaces;
 using GMS.Core.Constants;
@@ -22,8 +21,7 @@ public sealed class DashboardService : IDashboardService
     private const decimal NearFullThreshold = 0.8m;
 
     private readonly GymFlowProDbContext _db;
-    private readonly IReportsService _reports;
-    private readonly IDebtorsService _debtors;
+    private readonly IProfitabilityService _profitability;
     private readonly ICheckinService _checkins;
     private readonly IGymOccupancyService _occupancy;
     private readonly ISessionBookingService _sessions;
@@ -32,8 +30,7 @@ public sealed class DashboardService : IDashboardService
 
     public DashboardService(
         GymFlowProDbContext db,
-        IReportsService reports,
-        IDebtorsService debtors,
+        IProfitabilityService profitability,
         ICheckinService checkins,
         IGymOccupancyService occupancy,
         ISessionBookingService sessions,
@@ -41,8 +38,7 @@ public sealed class DashboardService : IDashboardService
         ITenantSettingsService settings)
     {
         _db = db;
-        _reports = reports;
-        _debtors = debtors;
+        _profitability = profitability;
         _checkins = checkins;
         _occupancy = occupancy;
         _sessions = sessions;
@@ -99,15 +95,15 @@ public sealed class DashboardService : IDashboardService
                 dto.Today.Outstanding = dto.Financial.Outstanding;
                 try
                 {
-                    var todaySales = await _reports.GetSalesReportAsync(tenantId, today, today);
-                    if (todaySales.IsSuccess && todaySales.Data != null)
-                        dto.Today.RevenueToday = todaySales.Data.CashInTotal;
+                    var todayFinancial = await _profitability.GetAsync(tenantId, today, today, ct);
+                    if (todayFinancial.IsSuccess && todayFinancial.Data != null)
+                        dto.Today.RevenueToday = todayFinancial.Data.Revenue;
                     else
-                        AddIssue(dto.DataIssues, "financial", "today_sales_unavailable");
+                        AddIssue(dto.DataIssues, "financial", "today_revenue_unavailable");
                 }
                 catch
                 {
-                    AddIssue(dto.DataIssues, "financial", "today_sales_unavailable");
+                    AddIssue(dto.DataIssues, "financial", "today_revenue_unavailable");
                 }
             }
         }
@@ -198,161 +194,78 @@ public sealed class DashboardService : IDashboardService
         List<DashboardDataIssueDto> issues,
         CancellationToken ct)
     {
-        SalesReportDto? sales = null;
-        RefundsReportDto? refunds = null;
+        ProfitabilityDto? financial = null;
 
         try
         {
-            var salesResult = await _reports.GetSalesReportAsync(tenantId, from, to);
-            if (salesResult.IsSuccess)
-                sales = salesResult.Data;
+            var profitability = await _profitability.GetAsync(tenantId, from, to, ct);
+            if (profitability.IsSuccess)
+                financial = profitability.Data;
             else
-                AddIssue(issues, "financial", "sales_unavailable");
-
-            var refundsResult = await _reports.GetRefundsReportAsync(tenantId, from, to);
-            if (refundsResult.IsSuccess)
-                refunds = refundsResult.Data;
-            else
-                AddIssue(issues, "financial", "refunds_unavailable");
+                AddIssue(issues, "financial", "profitability_unavailable");
         }
         catch
         {
-            AddIssue(issues, "financial", "reports_unavailable");
+            AddIssue(issues, "financial", "profitability_unavailable");
         }
 
-        if (sales == null && refunds == null)
+        if (financial == null)
             return null;
 
-        var breakdown = await BuildRevenueBreakdownAsync(tenantId, from, to, ct);
-        var cashTrend = (sales?.Days ?? new List<SalesReportDayDto>())
-            .Select(day => new DashboardTrendPointDto { Date = day.Date, Value = day.CashIn })
-            .ToList();
+        foreach (var issue in financial.DataIssues)
+            AddIssue(issues, "financial", issue);
 
-        decimal outstanding = 0m;
-        try
-        {
-            var debtors = await _debtors.GetSummaryAsync(tenantId);
-            outstanding = debtors.IsSuccess ? debtors.Data?.TotalOutstanding ?? 0m : 0m;
-            if (!debtors.IsSuccess)
-                AddIssue(issues, "financial", "outstanding_unavailable");
-        }
-        catch
-        {
-            AddIssue(issues, "financial", "outstanding_unavailable");
-        }
-
-        decimal? expenses = null;
-        if (canViewExpenses)
-        {
-            try
-            {
-                expenses = await _db.CashExpenses.AsNoTracking()
-                    .Where(expense => expense.TenantId == tenantId
-                                      && expense.Status == "posted"
-                                      && expense.ExpenseDate >= from
-                                      && expense.ExpenseDate <= to)
-                    .Select(expense => expense.Amount)
-                    .SumAsync(ct);
-            }
-            catch
-            {
-                AddIssue(issues, "financial", "expenses_unavailable");
-            }
-        }
-        var cashCollected = sales?.CashInTotal ?? 0m;
-        var refundsTotal = refunds?.Total ?? sales?.CashRefundsTotal ?? 0m;
-        var netCash = cashCollected - refundsTotal;
+        decimal? expenses = canViewExpenses ? financial.OperatingExpenses : null;
 
         return new DashboardFinancialDto
         {
-            CashCollected = cashCollected,
-            Refunds = refundsTotal,
-            Outstanding = outstanding,
+            CashCollected = financial.Collections,
+            CalculationVersion = financial.CalculationVersion,
+            Collections = financial.Collections,
+            SettledCashInflow = financial.SettledCashInflow,
+            SettledCashAvailable = financial.SettledCashAvailable,
+            Revenue = financial.Revenue,
+            RevenueAdjustments = financial.RevenueAdjustments,
+            Refunds = financial.Refunds,
+            CashRefunds = financial.CashRefunds,
+            CreditRefunds = financial.CreditRefunds,
+            Outstanding = financial.AccountsReceivable,
             Expenses = expenses,
-            NetProfit = expenses.HasValue ? netCash - expenses.Value : null,
-            ProfitMargin = expenses.HasValue && cashCollected > 0
-                ? decimal.Round((netCash - expenses.Value) / cashCollected * 100m, 2)
-                : null,
-            Breakdown = breakdown,
-            CashTrend = cashTrend
+            Cogs = financial.Cogs,
+            GrossProfit = financial.GrossProfit,
+            PayrollExpense = financial.PayrollExpense,
+            OperatingExpenses = expenses,
+            NetProfit = canViewExpenses ? financial.NetProfit : null,
+            NetProfitAvailable = canViewExpenses && financial.NetProfitAvailable,
+            ProfitMargin = canViewExpenses ? financial.ProfitMargin : null,
+            CashOutflows = financial.CashOutflows,
+            NetCashFlow = financial.NetCashFlow,
+            CashFlowAvailable = financial.CashFlowAvailable,
+            SupplierCashPaymentsAvailable = financial.SupplierCashPaymentsAvailable,
+            AccountsReceivable = financial.AccountsReceivable,
+            AccountsReceivableCount = financial.AccountsReceivableCount,
+            AccountsPayable = financial.AccountsPayable,
+            CogsAvailable = financial.CogsAvailable,
+            PayrollAvailable = financial.PayrollAvailable,
+            PayrollCoverageStatus = financial.PayrollCoverageStatus,
+            FinancialDataIssues = financial.DataIssues,
+            TrustStates = financial.TrustStates,
+            Breakdown = financial.RevenueBreakdown
+                .Select(item => new DashboardRevenueBreakdownDto
+                {
+                    Key = item.Key,
+                    Amount = item.Amount,
+                    Count = item.Count
+                })
+                .ToList(),
+            RevenueTrend = financial.RevenueTrend
+                .Select(item => new DashboardTrendPointDto
+                {
+                    Date = item.Date,
+                    Value = item.Value
+                })
+                .ToList()
         };
-    }
-
-    private async Task<List<DashboardRevenueBreakdownDto>> BuildRevenueBreakdownAsync(
-        Guid tenantId,
-        DateOnly from,
-        DateOnly to,
-        CancellationToken ct)
-    {
-        var range = MembershipOperational.CairoInclusiveRangeUtc(from, to);
-        var payments = await _db.PaymentTransactions.AsNoTracking()
-            .Where(p => p.TenantId == tenantId
-                        && p.Status == "success"
-                        && p.Amount > 0
-                        && p.PaidAtUtc >= range.UtcStart
-                        && p.PaidAtUtc < range.UtcEndExclusive)
-            .Select(p => new { p.Amount, p.SaleId, p.MembershipId })
-            .ToListAsync(ct);
-
-        var saleIds = payments.Where(p => p.SaleId.HasValue).Select(p => p.SaleId!.Value).Distinct().ToList();
-        var lineTypes = await _db.SaleLines.AsNoTracking()
-            .Where(line => line.TenantId == tenantId && saleIds.Contains(line.SaleId))
-            .Select(line => new { line.SaleId, line.LineType })
-            .ToListAsync(ct);
-        var membershipIds = payments.Where(p => p.MembershipId.HasValue)
-            .Select(p => p.MembershipId!.Value).Distinct().ToList();
-        var memberships = await _db.Memberships.AsNoTracking()
-            .Where(m => m.TenantId == tenantId && membershipIds.Contains(m.Id))
-            .Select(m => new { m.Id, m.LastRenewalDate, m.PlanTransitionMode })
-            .ToDictionaryAsync(m => m.Id, ct);
-
-        var totals = new Dictionary<string, (decimal Amount, int Count)>(StringComparer.Ordinal)
-        {
-            ["memberships"] = (0m, 0),
-            ["renewals"] = (0m, 0),
-            ["products"] = (0m, 0),
-            ["classes"] = (0m, 0)
-        };
-
-        foreach (var payment in payments)
-        {
-            var types = lineTypes.Where(line => line.SaleId == payment.SaleId)
-                .Select(line => line.LineType.Trim().ToLowerInvariant())
-                .ToHashSet(StringComparer.Ordinal);
-            string key;
-            if (payment.MembershipId.HasValue
-                && memberships.TryGetValue(payment.MembershipId.Value, out var membership)
-                && IsRenewal(membership.LastRenewalDate, membership.PlanTransitionMode))
-            {
-                key = "renewals";
-            }
-            else if (types.Contains("membership") || types.Contains("trial"))
-            {
-                key = "memberships";
-            }
-            else if (types.Contains("retail") || types.Contains("product"))
-            {
-                key = "products";
-            }
-            else if (types.Contains("drop_in") || types.Contains("day_pass") || types.Contains("class"))
-            {
-                key = "classes";
-            }
-            else
-            {
-                continue;
-            }
-
-            var current = totals[key];
-            totals[key] = (current.Amount + payment.Amount, current.Count + 1);
-        }
-
-        return totals.Select(pair => new DashboardRevenueBreakdownDto
-        {
-            Key = pair.Key,
-            Amount = pair.Value.Amount,
-            Count = pair.Value.Count
-        }).ToList();
     }
 
     private async Task AddAttendanceAsync(
@@ -545,28 +458,13 @@ public sealed class DashboardService : IDashboardService
                 });
         }
 
-        if (canFinance)
-        {
-            Result<DebtorsSummaryDto>? debtors = null;
-            try
+        if (canFinance && dto.Financial?.AccountsReceivableCount > 0)
+            dto.Attention.Items.Add(new DashboardAttentionItemDto
             {
-                debtors = await _debtors.GetSummaryAsync(tenantId);
-            }
-            catch
-            {
-                AddIssue(dto.DataIssues, "attention", "debtors_unavailable");
-            }
-
-            if (debtors?.IsSuccess == true && debtors.Data != null)
-                dto.Attention.Items.Add(new DashboardAttentionItemDto
-                {
-                    Key = "outstanding_payments",
-                    Count = debtors.Data.DebtorCount,
-                    Amount = debtors.Data.TotalOutstanding
-                });
-            else if (debtors != null)
-                AddIssue(dto.DataIssues, "attention", "debtors_unavailable");
-        }
+                Key = "outstanding_payments",
+                Count = dto.Financial.AccountsReceivableCount,
+                Amount = dto.Financial.AccountsReceivable
+            });
 
         var nearFull = dto.Operations.Sessions.Count(session => session.IsNearlyFull);
         if (nearFull > 0)

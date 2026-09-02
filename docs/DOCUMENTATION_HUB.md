@@ -347,7 +347,12 @@ This documentation suite covers:
 - **Project Lead:** [Contact]
 - **Slack Channel:** #gymflowpro-dev
 - **Wiki:** [Internal Wiki]
-- **Issue Tracker:** [GitHub Issues]
+- **Issue Tracker:** [GitHub Issues](https://github.com/mennatarek2/Gym-flow-pro/issues)
+- **Role Assignment Tasks (this cycle):** [ROLE_ASSIGNMENT_TASKS.json](./ROLE_ASSIGNMENT_TASKS.json) — Final Role Assignment Backlog applied (D/O/M/T/R/MB/BE/FL/W/QA/DO/BJ)
+- **Staff web local HTTPS (W-04):** [STAFF_WEB_LOCAL_HTTPS.md](./getting-started/STAFF_WEB_LOCAL_HTTPS.md)
+- **Release verify (DO-01/02):** [RELEASE_VERIFY_CHECKLIST.md](./deployment/RELEASE_VERIFY_CHECKLIST.md)
+- **Release QA pack:** [RELEASE_QA_PACK.md](./qa/RELEASE_QA_PACK.md)
+- **Ops SOPs:** [ROLE_SOPS.md](./ops/ROLE_SOPS.md)
 
 ### External Resources
 - **Stack Overflow:** Tag: `asp.net-core`, `entity-framework-core`
@@ -410,3 +415,5 @@ dotnet run --project GMS.Api
 
 **Ready to build amazing things? Start with [GETTING_STARTED.md](./GETTING_STARTED.md)! 🚀**
 
+
+- **Session generation monitor (BJ-01):** [SESSION_GENERATION_MONITOR.md](./ops/SESSION_GENERATION_MONITOR.md)

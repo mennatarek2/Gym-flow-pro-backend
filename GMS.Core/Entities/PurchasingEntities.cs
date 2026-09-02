@@ -105,6 +105,8 @@ public class SupplierLedgerEntry : BaseEntity
     public string? ReferenceType { get; set; }
     public Guid? ReferenceId { get; set; }
     public string? Note { get; set; }
+    /// <summary>Business date of the supplier obligation or settlement, when known.</summary>
+    public DateTime? EffectiveAtUtc { get; set; }
 
     public Tenant? Tenant { get; set; }
     public Supplier? Supplier { get; set; }

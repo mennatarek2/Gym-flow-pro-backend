@@ -99,4 +99,6 @@ public class StockAllocationSlice
 {
     public Guid? BatchId { get; set; }
     public decimal Qty { get; set; }
+    /// <summary>Weighted historical cost available for this stock bucket.</summary>
+    public decimal? UnitCost { get; set; }
 }

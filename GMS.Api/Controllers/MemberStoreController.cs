@@ -54,8 +54,11 @@ public class MemberStoreController : BaseApiController
 
     [HttpGet("orders")]
     [ProducesResponseType(typeof(List<MemberOrderListItemDto>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> ListMyOrders(CancellationToken ct)
+    public async Task<IActionResult> ListMyOrders([FromQuery] Guid? memberId, CancellationToken ct)
     {
+        // memberId is ignored — authenticated JWT identity is the only authorization source.
+        _ = memberId;
+
         if (!_tenantContext.IsInitialized)
             return Unauthorized(new { error = "Tenant context required." });
 

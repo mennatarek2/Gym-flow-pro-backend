@@ -133,7 +133,7 @@ public class PlatformBillingPaymentService : IPlatformBillingPaymentService
             };
         }
 
-        var fawryRef = await _fawry.CreateOrderAsync(invoice.Id, invoice.Total);
+        var fawryRef = await _fawry.CreateOrderAsync(invoice.Id, Guid.Empty, Guid.Empty, invoice.Total);
         var instapayLink = BuildInstapayLink(invoice, fawryRef);
 
         invoice.PaymentReference = fawryRef;
@@ -430,6 +430,10 @@ public class PlatformMerchantPaymobService : IPaymobService
     public Task<string> CreatePaymentIntentAsync(Guid membershipId, decimal amount, string memberPhone) =>
         Task.FromResult($"https://accept.paymob.com/mock-platform?invoice={membershipId}&amount={amount:F2}");
 
+    public Task<string> CreatePaymentIntentAsync(
+        Guid saleId, Guid memberId, Guid tenantId, decimal amount, string memberPhone) =>
+        Task.FromResult($"https://accept.paymob.com/mock-platform?invoice={saleId}&amount={amount:F2}");
+
     public bool VerifyWebhookSignature(byte[] body, string hmacHeader)
     {
         var hmacSecret = _configuration["PlatformPaymob:HmacSecret"];
@@ -520,7 +524,10 @@ public class PlatformMerchantFawryService : IFawryService
         _logger = logger;
     }
 
-    public Task<string> CreateOrderAsync(Guid membershipId, decimal amount)
+    public Task<string> CreateOrderAsync(Guid membershipId, decimal amount) =>
+        Task.FromResult($"PINV-{membershipId:N}");
+
+    public Task<string> CreateOrderAsync(Guid saleId, Guid memberId, Guid tenantId, decimal amount)
     {
         var merchantCode = _configuration["PlatformFawry:MerchantCode"];
         if (string.IsNullOrWhiteSpace(merchantCode))
@@ -528,7 +535,7 @@ public class PlatformMerchantFawryService : IFawryService
             _logger.LogWarning("[PlatformFawry] Merchant code not configured — returning mock reference.");
         }
 
-        return Task.FromResult($"PINV-{membershipId:N}");
+        return Task.FromResult($"PINV-{saleId:N}");
     }
 
     public bool VerifyWebhookSignature(byte[] body, string signature)

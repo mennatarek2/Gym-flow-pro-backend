@@ -1062,7 +1062,8 @@ export const IMPORTS_ENDPOINTS = {
 // § 16. Analytics Dashboards (AnalyticsController — api/analytics, [Authorize])
 // ═══════════════════════════════════════════════════════════════════════════
 
-export interface DashboardOverviewDto {
+/** Legacy analytics snapshot; retained for compatibility only. */
+export interface LegacyAnalyticsDashboardOverviewDto {
   activeMembers: number;
   expiredMembers: number;
   newMembersThisMonth: number;
@@ -1070,6 +1071,52 @@ export interface DashboardOverviewDto {
   checkinsToday: number;
   checkinsThisWeek: number;
   snapshotTimeUtc: string; // pre-computed snapshot, not live
+}
+
+export interface DashboardOverviewDto {
+  period: { key: string; from: string; to: string };
+  today: Record<string, number | null>;
+  financial?: DashboardFinancialDto | null;
+  business?: Record<string, number> | null;
+  operations: Record<string, unknown>;
+  attention: { items: Array<{ key: string; count: number; amount?: number | null }> };
+  quickActions: Array<{ key: string }>;
+  dataIssues: Array<{ section: string; code: string }>;
+}
+export interface DashboardFinancialDto {
+  calculationVersion: string;
+  cashCollected: number;
+  collections: number;
+  settledCashInflow: number;
+  settledCashAvailable: boolean;
+  revenue: number;
+  revenueAdjustments: number;
+  refunds: number;
+  cashRefunds: number;
+  creditRefunds: number;
+  outstanding: number;
+  expenses?: number | null;
+  cogs?: number | null;
+  grossProfit?: number | null;
+  payrollExpense?: number | null;
+  operatingExpenses?: number | null;
+  netProfit?: number | null;
+  profitMargin?: number | null;
+  cashOutflows: number;
+  netCashFlow: number;
+  cashFlowAvailable: boolean;
+  supplierCashPaymentsAvailable: boolean;
+  payrollCoverageStatus: "NO_PAYROLL_PERIOD" | "PAYROLL_DATA_INCOMPLETE" | "COMPLETE";
+  accountsReceivable: number;
+  accountsReceivableCount: number;
+  accountsPayable: number;
+  cogsAvailable: boolean;
+  payrollAvailable: boolean;
+  netProfitAvailable: boolean;
+  financialDataIssues: string[];
+  trustStates: Record<string, "TRUSTWORTHY" | "CONDITIONALLY_TRUSTWORTHY" | "UNAVAILABLE" | "REQUIRES_RECONCILIATION">;
+  breakdown: Array<{ key: string; amount: number; count: number }>;
+  revenueTrend: Array<{ date: string; value: number }>;
 }
 export interface RevenueChartDto {
   labels: string[]; // month names, e.g. "Jan"
@@ -1111,7 +1158,8 @@ export interface TrialAnalyticsDto {
 }
 
 export const ANALYTICS_ENDPOINTS = {
-  overview: { method: "GET", path: "/api/analytics/overview" }, // perm reports.financial.view -> DashboardOverviewDto
+  overview: { method: "GET", path: "/api/analytics/overview" }, // legacy analytics snapshot -> LegacyAnalyticsDashboardOverviewDto
+  dashboardOverview: { method: "GET", path: "/api/dashboard/overview" }, // role-filtered canonical dashboard -> DashboardOverviewDto
   revenue: { method: "GET", path: "/api/analytics/revenue" }, // perm reports.financial.view ; query: months=6 -> RevenueChartDto
   heatmap: { method: "GET", path: "/api/analytics/heatmap" }, // perm members.view -> AttendanceHeatmapDto
   memberStatus: { method: "GET", path: "/api/analytics/members-status" }, // perm members.view -> MemberStatusPieDto
@@ -1147,11 +1195,126 @@ export interface MemberRetentionDto {
   retentionRate: number; // 0-100
 }
 
+export interface ProfitabilityDto {
+  calculationVersion: string;
+  from: string;
+  to: string;
+  collections: number;
+  settledCashInflow: number;
+  settledCashAvailable: boolean;
+  revenue: number;
+  revenueAdjustments: number;
+  refunds: number;
+  cashRefunds: number;
+  creditRefunds: number;
+  cogs: number | null;
+  operatingExpenses: number;
+  payrollExpense: number | null;
+  payrollCashDisbursements: number;
+  supplierCashPayments: number;
+  grossProfit: number | null;
+  netProfit: number | null;
+  netProfitAvailable: boolean;
+  profitMargin: number | null;
+  cashOutflows: number;
+  netCashFlow: number;
+  accountsReceivable: number;
+  accountsReceivableCount: number;
+  accountsPayable: number;
+  cogsAvailable: boolean;
+  payrollAvailable: boolean;
+  payrollCoverageStatus: "NO_PAYROLL_PERIOD" | "PAYROLL_DATA_INCOMPLETE" | "COMPLETE";
+  cashFlowAvailable: boolean;
+  supplierCashPaymentsAvailable: boolean;
+  accountsPayableAvailable: boolean;
+  dataIssues: string[];
+  trustStates: Record<string, "TRUSTWORTHY" | "CONDITIONALLY_TRUSTWORTHY" | "UNAVAILABLE" | "REQUIRES_RECONCILIATION">;
+  revenueBreakdown: Array<{ key: string; amount: number; count: number }>;
+  revenueTrend: Array<{ date: string; value: number }>;
+}
+export interface CashFlowDto {
+  calculationVersion: string;
+  from: string;
+  to: string;
+  collections: number;
+  settledCashInflow: number;
+  settledCashAvailable: boolean;
+  cashRefunds: number;
+  operatingExpenseCashOutflows: number;
+  payrollCashDisbursements: number;
+  supplierCashPayments: number;
+  cashOutflows: number;
+  netCashFlow: number;
+  cashFlowAvailable: boolean;
+  supplierCashPaymentsAvailable: boolean;
+  payrollCoverageStatus: "NO_PAYROLL_PERIOD" | "PAYROLL_DATA_INCOMPLETE" | "COMPLETE";
+  dataIssues: string[];
+}
+export interface CashExpenseDto {
+  id: string;
+  expenseDate: string;
+  category: string;
+  amount: number;
+  status: "posted" | "void";
+  note?: string | null;
+  paymentMethod?: string | null;
+  payee?: string | null;
+  description?: string | null;
+  sourceType?: string | null;
+  sourceReference?: string | null;
+  idempotencyKey?: string | null;
+  shiftId?: string | null;
+}
+export interface CogsBackfillItemDto {
+  saleLineId: string;
+  oldCost: number | null;
+  evidence: string;
+  reconstructedCost: number | null;
+  status: "RECONSTRUCTABLE" | "UNAVAILABLE" | "ALREADY_RELIABLE";
+}
+export interface CogsBackfillDto {
+  scanned: number;
+  backfilled: number;
+  skipped: number;
+  skippedSaleLineIds: string[];
+  items: CogsBackfillItemDto[];
+}
+export interface SaleAdjustmentDto {
+  id: string;
+  saleId: string;
+  amount: number;
+  type: "write_off" | "cancellation";
+  status: "posted";
+  reason: string;
+  createdByUserId: string;
+  createdAtUtc: string;
+}
+export interface SaleBalanceReconciliationDto {
+  saleId: string;
+  previousAmountDue: number;
+  canonicalAmountDue: number;
+  allocatedPayments: number;
+  postedAdjustments: number;
+  status: "reconciled" | "already_reconciled";
+}
+
 export const REPORTS_ENDPOINTS = {
   attendanceSummary: { method: "GET", path: "/api/reports/attendance-summary" }, // perm members.view -> AttendanceSummaryItemDto[]
   revenueDetail: { method: "GET", path: "/api/reports/revenue-detail" }, // perm reports.financial.view -> RevenueDetailItemDto[]
   peakHours: { method: "GET", path: "/api/reports/peak-hours" }, // perm members.view -> PeakHourItemDto[]
   memberRetention: { method: "GET", path: "/api/reports/member-retention" }, // perm reports.financial.view -> MemberRetentionDto
+  profitability: { method: "GET", path: "/api/reports/profitability" }, // canonical report -> ProfitabilityDto
+  reconciliation: { method: "GET", path: "/api/reports/financial-reconciliation" }, // canonical compatibility alias -> ProfitabilityDto
+  cashFlow: { method: "GET", path: "/api/reports/cash-flow" }, // canonical cash-only report -> CashFlowDto
+  backfillCogs: { method: "POST", path: "/api/reports/profitability/backfill-cogs" }, // perm inventory.manage; traceable stock evidence only
+  adjustments: { method: "GET", path: "/api/sales/adjustments" }, // perm reports.financial.view -> SaleAdjustmentDto[]
+  reconcileSaleBalance: { method: "POST", path: "/api/sales/{saleId}/reconcile-balance" }, // perm payments.refund.approve; auditable denormalized-balance repair
+} as const;
+
+export const EXPENSES_ENDPOINTS = {
+  list: { method: "GET", path: "/api/expenses" }, // perm reports.expenses.view; query from,to -> CashExpenseDto[]
+  create: { method: "POST", path: "/api/expenses" }, // perm reports.expenses.manage -> CashExpenseDto
+  update: (id: string) => ({ method: "PATCH", path: `/api/expenses/${id}` }), // posted/void transition
 } as const;
 
 // ═══════════════════════════════════════════════════════════════════════════

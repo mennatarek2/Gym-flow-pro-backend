@@ -7,7 +7,9 @@ using GMS.Application.Common;
 using GMS.Application.DTOs.Debtors;
 using GMS.Application.Interfaces;
 using GMS.Core.Constants;
+using GMS.Core.Entities;
 using GMS.Core.Interfaces;
+using GMS.Core.Utilities;
 using GMS.Infrastructure.Persistence;
 
 /// <summary>
@@ -171,7 +173,7 @@ public class DebtorsService : IDebtorsService
                 try
                 {
                     paymentLink = await _paymobService.CreatePaymentIntentAsync(
-                        membershipId.Value, oldestSale.AmountDue, member.PhoneNumber);
+                        oldestSale.Id, memberId, tenantId, oldestSale.AmountDue, member.PhoneNumber);
                 }
                 catch (Exception ex)
                 {
@@ -207,25 +209,41 @@ public class DebtorsService : IDebtorsService
 
     private async Task<List<DebtorDto>> ComputeDebtorsAsync(Guid tenantId, Guid? memberId)
     {
-        var sales = _dbContext.Sales
-            .Where(s => s.TenantId == tenantId && s.Status == "partially_paid" && s.AmountDue > 0 && s.MemberId != null);
-        if (memberId.HasValue)
-            sales = sales.Where(s => s.MemberId == memberId.Value);
+        var sales = await _dbContext.Sales
+            .Where(s => s.TenantId == tenantId
+                && s.Status == "partially_paid"
+                && s.AmountDue > 0
+                && (!memberId.HasValue || s.MemberId == memberId.Value))
+            .Select(s => new
+            {
+                s.MemberId,
+                s.GuestName,
+                s.GuestPhone,
+                s.AmountDue,
+                s.DueDate
+            })
+            .ToListAsync();
 
-        var groups = await sales
-            .GroupBy(s => s.MemberId!.Value)
+        var groups = sales
+            .GroupBy(s => new { s.MemberId, s.GuestName, s.GuestPhone })
             .Select(g => new
             {
-                MemberId = g.Key,
+                g.Key.MemberId,
+                g.Key.GuestName,
+                g.Key.GuestPhone,
                 TotalDue = g.Sum(s => s.AmountDue),
                 OldestDueDate = g.Min(s => s.DueDate)
             })
-            .ToListAsync();
+            .ToList();
 
         if (groups.Count == 0)
             return new List<DebtorDto>();
 
-        var memberIds = groups.Select(g => g.MemberId).ToList();
+        var memberIds = groups
+            .Where(g => g.MemberId.HasValue)
+            .Select(g => g.MemberId!.Value)
+            .Distinct()
+            .ToList();
 
         var members = await _dbContext.GymMembers
             .Where(m => memberIds.Contains(m.Id))
@@ -237,27 +255,33 @@ public class DebtorsService : IDebtorsService
             .Select(g => new { MemberId = g.Key, LastPaymentAt = g.Max(p => p.PaidAtUtc) })
             .ToDictionaryAsync(g => g.MemberId, g => g.LastPaymentAt);
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = MembershipOperational.TodayCairo();
 
         var debtors = new List<(DebtorDto Dto, int DaysSinceDue)>();
 
         foreach (var group in groups)
         {
-            if (!members.TryGetValue(group.MemberId, out var member))
-                continue;
-
             var oldestDueDate = group.OldestDueDate ?? today;
             var daysSinceDue = today.DayNumber - oldestDueDate.DayNumber;
+            GymMember? member = null;
+            var hasMember = group.MemberId.HasValue
+                && members.TryGetValue(group.MemberId.Value, out member);
+            var fullName = hasMember ? member!.FullName : group.GuestName ?? "Guest sale";
+            var phone = hasMember ? member!.PhoneNumber : group.GuestPhone ?? string.Empty;
 
             var dto = new DebtorDto
             {
-                MemberId = member.Id,
-                FullName = member.FullName,
-                PhoneNumber = member.PhoneNumber,
+                MemberId = group.MemberId,
+                GuestName = hasMember ? null : group.GuestName,
+                FullName = fullName,
+                PhoneNumber = phone,
                 TotalDue = group.TotalDue,
                 OldestDueDate = oldestDueDate,
                 AgingBucket = ComputeAgingBucket(daysSinceDue),
-                LastPaymentAt = lastPayments.TryGetValue(group.MemberId, out var lastPaymentAt) ? lastPaymentAt : null
+                LastPaymentAt = group.MemberId.HasValue
+                    && lastPayments.TryGetValue(group.MemberId.Value, out var lastPaymentAt)
+                    ? lastPaymentAt
+                    : null
             };
 
             debtors.Add((dto, daysSinceDue));

@@ -32,16 +32,23 @@ public class PaymobService : IPaymobService
         _logger = logger;
     }
 
-    public async Task<string> CreatePaymentIntentAsync(Guid membershipId, decimal amount, string memberPhone)
+    public Task<string> CreatePaymentIntentAsync(Guid membershipId, decimal amount, string memberPhone) =>
+        Task.FromException<string>(
+            new InvalidOperationException("A sale-bound payment intent is required."));
+
+    public async Task<string> CreatePaymentIntentAsync(
+        Guid saleId, Guid memberId, Guid tenantId, decimal amount, string memberPhone)
     {
+        if (saleId == Guid.Empty || memberId == Guid.Empty || tenantId == Guid.Empty || amount <= 0m)
+            throw new ArgumentException("A valid sale, member, tenant, and positive amount are required.");
+
         var apiKey = _config["Paymob:ApiKey"];
         var integrationId = _config["Paymob:IntegrationId"];
         var iframeId = _config["Paymob:IframeId"];
 
         if (string.IsNullOrEmpty(apiKey))
         {
-            _logger.LogWarning("[Paymob] API key not configured — returning mock URL");
-            return $"https://paymob.com/mock-payment?amount={amount}&ref={membershipId}";
+            throw new InvalidOperationException("Paymob API key is not configured; payment intents are disabled.");
         }
 
         try
@@ -58,7 +65,7 @@ public class PaymobService : IPaymobService
                 delivery_needed = false,
                 amount_cents = (int)(amount * 100),
                 currency = "EGP",
-                merchant_order_id = membershipId.ToString(),
+                merchant_order_id = $"{saleId:N}|{memberId:N}|{tenantId:N}",
                 items = Array.Empty<object>()
             };
             var orderResponse = await _httpClient.PostAsJsonAsync("api/ecommerce/orders", orderPayload);
@@ -92,14 +99,14 @@ public class PaymobService : IPaymobService
 
             var redirectUrl = $"https://accept.paymob.com/api/acceptance/iframes/{iframeId}?payment_token={paymentKey}";
 
-            _logger.LogInformation("[Paymob] Payment intent created for membership {MembershipId}, amount {Amount} EGP",
-                membershipId, amount);
+            _logger.LogInformation("[Paymob] Payment intent created for sale {SaleId}, amount {Amount} EGP",
+                saleId, amount);
 
             return redirectUrl;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[Paymob] Failed to create payment intent for {MembershipId}", membershipId);
+            _logger.LogError(ex, "[Paymob] Failed to create payment intent for {SaleId}", saleId);
             throw;
         }
     }
@@ -123,15 +130,18 @@ public class PaymobService : IPaymobService
         var hmacSecret = _config["Paymob:HmacSecret"];
         if (string.IsNullOrEmpty(hmacSecret))
         {
-            _logger.LogWarning("[Paymob] HMAC secret not configured — SKIPPING verification (dev only!)");
-            return true; // Allow in dev when secret isn't set
+            _logger.LogError("[Paymob] HMAC secret is not configured — rejecting webhook");
+            return false;
         }
 
         using var hmac = new HMACSHA512(Encoding.UTF8.GetBytes(hmacSecret));
         var computedHash = hmac.ComputeHash(body);
         var computedHex = Convert.ToHexString(computedHash).ToLowerInvariant();
-
-        var isValid = computedHex == hmacHeader.ToLowerInvariant();
+        var suppliedHex = hmacHeader.Trim().ToLowerInvariant();
+        var isValid = suppliedHex.Length == computedHex.Length
+            && CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(computedHex),
+                Encoding.UTF8.GetBytes(suppliedHex));
 
         if (!isValid)
         {
@@ -142,9 +152,7 @@ public class PaymobService : IPaymobService
     }
 
     /// <summary>
-    /// Requests a refund via Paymob's void_refund API. Mirrors CreatePaymentIntentAsync's
-    /// dev-mode fallback: without a configured API key, this mock-succeeds rather than blocking
-    /// local development.
+    /// Requests a refund via Paymob's void_refund API.
     /// </summary>
     public async Task<bool> RefundAsync(string externalRef, decimal amount)
     {
@@ -152,8 +160,8 @@ public class PaymobService : IPaymobService
 
         if (string.IsNullOrEmpty(apiKey))
         {
-            _logger.LogWarning("[Paymob] API key not configured — mock-succeeding refund for {ExternalRef}", externalRef);
-            return true;
+            _logger.LogError("[Paymob] API key is not configured — rejecting refund for {ExternalRef}", externalRef);
+            return false;
         }
 
         try

@@ -478,7 +478,56 @@ public class SessionBookingEngineTests
         var ok = await svc.CreateBookingAsync(_tenantA, new CreateBookingRequest
         { SessionId = session.Id, MemberId = member.Id, Source = "drop_in", SaleId = goodSale.Id }, null);
         Assert.True(ok.IsSuccess, ok.Error);
+        Assert.Equal(goodSale.Id, ok.Data!.SaleId);
         Assert.Equal(goodSale.Id, (await db.ActivityBookings.SingleAsync(b => b.Id == ok.Data!.Id)).SaleId);
+    }
+
+    [Fact]
+    public async Task GetSessionDetail_PaidDropIn_ExposesInvoiceOnBooking()
+    {
+        var (db, _) = NewContext(_tenantA);
+        var (_, _, activity) = await SeedAsync(db, _tenantA, accessMode: null);
+        var (member, _) = await SeedMemberAsync(db, _tenantA, Guid.NewGuid());
+        var session = await SeedSessionViaSchedule(db, _tenantA, activity.Id, DateTime.UtcNow.AddHours(4));
+        var svc = BookingService(db);
+
+        var sale = new Sale
+        {
+            Id = Guid.NewGuid(), TenantId = _tenantA, MemberId = member.Id,
+            SoldByUserId = Guid.NewGuid(), Total = 150, Status = "completed"
+        };
+        sale.Lines.Add(new SaleLine
+        { TenantId = _tenantA, LineType = "drop_in", ReferenceId = activity.Id, UnitPrice = 150, LineTotal = 150 });
+        db.Sales.Add(sale);
+        var invoice = new Invoice
+        {
+            TenantId = _tenantA,
+            Type = "invoice",
+            InvoiceNumber = "INV-2026-000042",
+            SaleId = sale.Id,
+            MemberNameSnapshot = member.FullName,
+            MemberPhoneSnapshot = member.PhoneNumber ?? "01000000000",
+            LinesSnapshot = "[{\"LineType\":\"drop_in\",\"Description\":\"Drop-in: Yoga\",\"Qty\":1,\"UnitPrice\":150,\"LineTotal\":150}]",
+            Subtotal = 150m,
+            Total = 150m,
+            IssuedAt = DateTime.UtcNow,
+            Status = "issued"
+        };
+        db.Invoices.Add(invoice);
+        await db.SaveChangesAsync();
+
+        var booked = await svc.CreateBookingAsync(_tenantA, new CreateBookingRequest
+        { SessionId = session.Id, MemberId = member.Id, Source = "drop_in", SaleId = sale.Id }, null);
+        Assert.True(booked.IsSuccess, booked.Error);
+        Assert.Equal(invoice.Id, booked.Data!.InvoiceId);
+        Assert.Equal("INV-2026-000042", booked.Data.InvoiceNumber);
+
+        var detail = await svc.GetSessionDetailAsync(_tenantA, session.Id);
+        Assert.True(detail.IsSuccess, detail.Error);
+        var row = Assert.Single(detail.Data!.Bookings);
+        Assert.Equal(sale.Id, row.SaleId);
+        Assert.Equal(invoice.Id, row.InvoiceId);
+        Assert.Equal("INV-2026-000042", row.InvoiceNumber);
     }
 
     [Fact]
