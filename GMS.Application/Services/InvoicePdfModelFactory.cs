@@ -69,7 +69,7 @@ public static class InvoicePdfModelFactory
 
         if (tenant != null)
         {
-            model.TenantName = string.IsNullOrWhiteSpace(tenant.Name) ? "GymFlowPro Gym" : tenant.Name.Trim();
+            model.TenantName = string.IsNullOrWhiteSpace(tenant.Name) ? "HyMotion Gym" : tenant.Name.Trim();
             model.TenantNameAr = tenant.NameAr?.Trim() ?? string.Empty;
             model.GymCode = tenant.GymCode ?? string.Empty;
             model.LogoUrl = string.IsNullOrWhiteSpace(tenant.LogoUrl) ? null : tenant.LogoUrl.Trim();
@@ -140,7 +140,7 @@ public static class InvoicePdfModelFactory
     {
         if (settings != null)
         {
-            model.TenantName = string.IsNullOrWhiteSpace(settings.GymName) ? "GymFlowPro Gym" : settings.GymName.Trim();
+            model.TenantName = string.IsNullOrWhiteSpace(settings.GymName) ? "HyMotion Gym" : settings.GymName.Trim();
             model.TenantNameAr = settings.GymNameAr?.Trim() ?? string.Empty;
             model.GymCode = settings.GymCode ?? string.Empty;
             model.ShortName = NullIfBlank(settings.ShortName);

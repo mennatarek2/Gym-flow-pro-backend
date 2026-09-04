@@ -44,7 +44,7 @@ public class EmailSettings
     public string FromAddress { get; set; } = string.Empty;
 
     /// <summary>
-    /// Display name for "From" field (e.g., "GymFlowPro").
+    /// Display name for "From" field (e.g., "HyMotion").
     /// </summary>
     public string FromName { get; set; } = string.Empty;
 

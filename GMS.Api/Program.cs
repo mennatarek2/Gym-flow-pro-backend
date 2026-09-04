@@ -37,9 +37,9 @@ builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title = "GymFlowPro API",
+        Title = "HyMotion API",
         Version = "v1",
-        Description = "GymFlow Pro — Gym Management System API"
+        Description = "HyMotion — Gym Management System API"
     });
 
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -309,7 +309,7 @@ try
 }
 catch (Exception ex)
 {
-    Console.Error.WriteLine("=== GymFlowPro STARTUP FAILED ===");
+    Console.Error.WriteLine("=== HyMotion STARTUP FAILED ===");
     Console.Error.WriteLine(ex.ToString());
     throw;
 }
@@ -328,7 +328,7 @@ app.UseAuthorization();
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
     Authorization = new[] { new HangfireDashboardAuthFilter() },
-    DashboardTitle = "GymFlowPro — Background Jobs"
+    DashboardTitle = "HyMotion — Background Jobs"
 });
 
 app.MapHealthChecks("/health");

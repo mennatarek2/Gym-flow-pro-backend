@@ -97,7 +97,7 @@ public static class ProductionHostingExtensions
             app.UseSwagger();
             app.UseSwaggerUI(options =>
             {
-                options.SwaggerEndpoint("/swagger/v1/swagger.json", "GymFlowPro API v1");
+                options.SwaggerEndpoint("/swagger/v1/swagger.json", "HyMotion API v1");
                 options.RoutePrefix = string.Empty;
             });
         }

@@ -49,7 +49,7 @@ public class EmailOtpDeliveryStrategy : IOtpDeliveryStrategy
             var message = new MimeMessage();
             message.From.Add(new MailboxAddress(_emailSettings.FromName, _emailSettings.FromAddress));
             message.To.Add(new MailboxAddress(member.FullName, member.Email));
-            message.Subject = $"Your GymFlowPro verification code — {gymName}";
+            message.Subject = $"Your HyMotion verification code — {gymName}";
 
             // Build HTML email body
             var ttlMinutes = _emailSettings.OtpTtlMinutes ?? 5;
@@ -137,7 +137,7 @@ public class EmailOtpDeliveryStrategy : IOtpDeliveryStrategy
     <div style='max-width: 480px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); overflow: hidden;'>
         <!-- Header -->
         <div style='background-color: #111827; color: #ffffff; padding: 24px; text-align: center;'>
-            <h1 style='margin: 0; font-size: 24px; font-weight: 600;'>GymFlowPro</h1>
+            <h1 style='margin: 0; font-size: 24px; font-weight: 600;'>HyMotion</h1>
         </div>
 
         <!-- Body -->
@@ -166,7 +166,7 @@ public class EmailOtpDeliveryStrategy : IOtpDeliveryStrategy
 
         <!-- Footer -->
         <div style='background-color: #f3f4f6; padding: 16px; text-align: center; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb;'>
-            <p style='margin: 0;'>© {DateTime.UtcNow.Year} GymFlowPro. All rights reserved.</p>
+            <p style='margin: 0;'>© {DateTime.UtcNow.Year} HyMotion. All rights reserved.</p>
         </div>
     </div>
 </body>

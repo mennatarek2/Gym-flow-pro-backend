@@ -308,7 +308,7 @@ public static class InvoiceDocumentHtmlBuilder
     }
 
     private static string DisplayGymName(InvoicePdfModel model)
-        => string.IsNullOrWhiteSpace(model.TenantName) ? "GymFlowPro Gym" : model.TenantName.Trim();
+        => string.IsNullOrWhiteSpace(model.TenantName) ? "HyMotion Gym" : model.TenantName.Trim();
 
     private static string DisplayMemberName(InvoicePdfModel model)
         => string.IsNullOrWhiteSpace(model.MemberName) ? "Walk-in Customer" : model.MemberName.Trim();

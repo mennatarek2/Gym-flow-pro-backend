@@ -107,7 +107,7 @@ public class FourJawalyWhatsAppService : IWhatsAppService
     public async Task SendDocumentAsync(string phone, string memberName, string documentUrl, string caption, string captionAr)
     {
         var apiKey = _config["FourJawaly:ApiKey"];
-        var senderName = _config["FourJawaly:SenderName"] ?? "GymFlowPro";
+        var senderName = _config["FourJawaly:SenderName"] ?? "HyMotion";
 
         if (string.IsNullOrEmpty(apiKey))
         {
@@ -139,7 +139,7 @@ public class FourJawalyWhatsAppService : IWhatsAppService
     public async Task SendTemplateAsync(string phone, string templateName, Dictionary<string, string> parameters)
     {
         var apiKey = _config["FourJawaly:ApiKey"];
-        var senderName = _config["FourJawaly:SenderName"] ?? "GymFlowPro";
+        var senderName = _config["FourJawaly:SenderName"] ?? "HyMotion";
 
         if (string.IsNullOrEmpty(apiKey))
         {
@@ -202,7 +202,7 @@ public class FourJawalyWhatsAppService : IWhatsAppService
     private async Task SendMessageAsync(string phone, string message)
     {
         var apiKey = _config["FourJawaly:ApiKey"];
-        var senderName = _config["FourJawaly:SenderName"] ?? "GymFlowPro";
+        var senderName = _config["FourJawaly:SenderName"] ?? "HyMotion";
 
         if (string.IsNullOrEmpty(apiKey))
         {

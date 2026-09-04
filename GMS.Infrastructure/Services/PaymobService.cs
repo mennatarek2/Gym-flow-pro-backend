@@ -82,7 +82,7 @@ public class PaymobService : IPaymobService
                 billing_data = new
                 {
                     first_name = "Member",
-                    last_name = "GymFlowPro",
+                    last_name = "HyMotion",
                     email = "member@gymflowpro.com",
                     phone_number = memberPhone,
                     apartment = "NA", building = "NA", floor = "NA",

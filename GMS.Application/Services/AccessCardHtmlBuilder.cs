@@ -31,7 +31,7 @@ public static class AccessCardHtmlBuilder
         var gymArRaw = (gymNameAr ?? string.Empty).Trim();
         var showGymAr = !string.IsNullOrWhiteSpace(gymArRaw)
                         && !string.Equals(gymEn, gymArRaw, StringComparison.OrdinalIgnoreCase);
-        var gym = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(gymEn) ? "GymFlowPro Gym" : gymEn);
+        var gym = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(gymEn) ? "HyMotion Gym" : gymEn);
         var gymAr = WebUtility.HtmlEncode(gymArRaw);
         var showNameAr = !string.IsNullOrWhiteSpace(member.FullNameAr)
                          && !string.Equals(
@@ -106,7 +106,7 @@ public static class AccessCardHtmlBuilder
         else
             sb.Append("<div class=\"mark\" aria-hidden=\"true\"></div>");
         sb.Append("<div class=\"brand-col\">")
-          .Append("<div class=\"product\">GymFlowPro</div>")
+          .Append("<div class=\"product\">HyMotion</div>")
           .Append("<div class=\"gym\">").Append(gym).Append("</div>");
         if (showGymAr)
             sb.Append("<div class=\"gym-ar\">").Append(gymAr).Append("</div>");

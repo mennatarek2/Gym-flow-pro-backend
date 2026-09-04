@@ -58,7 +58,7 @@ public class FawryService : IFawryService
                 merchantRefNum,
                 amount = amount,
                 currencyCode = "EGP",
-                description = $"GymFlowPro Sale - {saleId}",
+                description = $"HyMotion Sale - {saleId}",
                 paymentExpiry = DateTime.UtcNow.AddHours(48).ToString("yyyy-MM-ddTHH:mm:ssZ"),
                 signature
             };

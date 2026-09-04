@@ -25,7 +25,7 @@ public class InvoicePdfRenderer : IInvoicePdfRenderer
     {
         var isCreditNote = model.Type == "credit_note";
         var qrBytes = GenerateQrCode(model.InvoiceNumber);
-        var gymName = string.IsNullOrWhiteSpace(model.TenantName) ? "GymFlowPro Gym" : model.TenantName.Trim();
+        var gymName = string.IsNullOrWhiteSpace(model.TenantName) ? "HyMotion Gym" : model.TenantName.Trim();
         var memberName = string.IsNullOrWhiteSpace(model.MemberName) ? "Walk-in Customer" : model.MemberName.Trim();
         var primary = ParseHex(model.PrimaryColor) ?? Color.FromRGB(122, 204, 0);
         var ink = Colors.Grey.Darken4;
