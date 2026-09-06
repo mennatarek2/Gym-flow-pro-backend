@@ -1,8 +1,10 @@
 namespace GMS.Application.Services;
 
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using GMS.Application.Common;
 using GMS.Application.DTOs.MemberStore;
+using GMS.Application.DTOs.Sales;
 using GMS.Application.Interfaces;
 using GMS.Core.Constants;
 using GMS.Core.Entities;
@@ -10,9 +12,8 @@ using GMS.Core.Interfaces;
 using GMS.Infrastructure.Persistence;
 
 /// <summary>
-/// Member App store catalog + operational fulfillment orders (Stage 0).
-/// Does not create Sale/Payment and never posts the stock ledger.
-/// Availability is a read-only check via <see cref="IStockLedgerService.GetAvailableAsync"/>.
+/// Member App store catalog + operational fulfillment orders.
+/// Accept/Ready/Reject are status-only. Complete creates a paid retail Sale (stock + invoice).
 /// </summary>
 public class MemberStoreService : IMemberStoreService
 {
@@ -20,17 +21,20 @@ public class MemberStoreService : IMemberStoreService
     private readonly IStockLedgerService _ledger;
     private readonly IAuditService _audit;
     private readonly IMemberOrderNotifier _notifier;
+    private readonly ISaleService _saleService;
 
     public MemberStoreService(
         GymFlowProDbContext db,
         IStockLedgerService ledger,
         IAuditService audit,
-        IMemberOrderNotifier notifier)
+        IMemberOrderNotifier notifier,
+        ISaleService saleService)
     {
         _db = db;
         _ledger = ledger;
         _audit = audit;
         _notifier = notifier;
+        _saleService = saleService;
     }
 
     public async Task<Result<List<MemberStoreProductDto>>> ListStoreProductsAsync(
@@ -269,7 +273,7 @@ public class MemberStoreService : IMemberStoreService
         if (order == null)
             return FailOrder("Order not found / الطلب غير موجود");
 
-        return Result<MemberOrderDto>.Success(MapMyOrder(order));
+        return Result<MemberOrderDto>.Success(await MapOrderAsync(order.Id, tenantId, ct));
     }
 
     public async Task<Result<List<MemberOrderListItemDto>>> ListOrdersForStaffAsync(
@@ -303,15 +307,12 @@ public class MemberStoreService : IMemberStoreService
     public async Task<Result<MemberOrderDto>> GetOrderForStaffAsync(
         Guid tenantId, Guid orderId, CancellationToken ct = default)
     {
-        var order = await _db.MemberOrders.AsNoTracking()
-            .Include(o => o.Lines)
-            .Include(o => o.Member)
-            .FirstOrDefaultAsync(o => o.Id == orderId && o.TenantId == tenantId, ct);
-
-        if (order == null)
+        var exists = await _db.MemberOrders.AsNoTracking()
+            .AnyAsync(o => o.Id == orderId && o.TenantId == tenantId, ct);
+        if (!exists)
             return FailOrder("Order not found / الطلب غير موجود");
 
-        return Result<MemberOrderDto>.Success(MapOrder(order));
+        return Result<MemberOrderDto>.Success(await MapOrderAsync(orderId, tenantId, ct));
     }
 
     public Task<Result<MemberOrderDto>> AcceptAsync(
@@ -353,9 +354,177 @@ public class MemberStoreService : IMemberStoreService
         Guid tenantId, Guid orderId, Guid identityUserId, CancellationToken ct = default)
         => TransitionAsync(tenantId, orderId, identityUserId, MemberOrderStatuses.Accepted, MemberOrderStatuses.Ready, ct);
 
-    public Task<Result<MemberOrderDto>> CompleteAsync(
-        Guid tenantId, Guid orderId, Guid identityUserId, CancellationToken ct = default)
-        => TransitionAsync(tenantId, orderId, identityUserId, MemberOrderStatuses.Ready, MemberOrderStatuses.Completed, ct);
+    public async Task<Result<MemberOrderDto>> CompleteAsync(
+        Guid tenantId,
+        Guid orderId,
+        Guid identityUserId,
+        IReadOnlySet<string>? callerPermissions = null,
+        CancellationToken ct = default)
+    {
+        var staff = await ResolveAppUserAsync(tenantId, identityUserId, ct);
+        if (staff == null)
+            return FailOrder("Staff user not found / المستخدم غير موجود");
+
+        var order = await _db.MemberOrders
+            .Include(o => o.Lines)
+            .Include(o => o.Member)
+            .FirstOrDefaultAsync(o => o.Id == orderId && o.TenantId == tenantId, ct);
+
+        if (order == null)
+            return FailOrder("Order not found / الطلب غير موجود");
+
+        // Idempotent: sale already linked — finish Completed if needed and return.
+        if (order.SaleId.HasValue)
+        {
+            if (!string.Equals(order.Status, MemberOrderStatuses.Completed, StringComparison.OrdinalIgnoreCase))
+            {
+                order.Status = MemberOrderStatuses.Completed;
+                order.CompletedAtUtc ??= DateTime.UtcNow;
+                order.CompletedByUserId ??= staff.Id;
+                order.UpdatedAtUtc = DateTime.UtcNow;
+                await _db.SaveChangesAsync(ct);
+                await AuditTransitionAsync(order, "member_order.completed", tenantId);
+                await NotifyStatusAsync(order, ct);
+            }
+
+            return Result<MemberOrderDto>.Success(await MapOrderAsync(order.Id, tenantId, ct));
+        }
+
+        if (!string.Equals(order.Status, MemberOrderStatuses.Ready, StringComparison.OrdinalIgnoreCase))
+            return FailOrder(
+                $"Cannot move to 'completed' from '{order.Status}' / لا يمكن الانتقال إلى completed من الحالة الحالية");
+
+        if (order.Lines == null || order.Lines.Count == 0)
+            return FailOrder("Order has no lines / الطلب بلا أصناف");
+
+        foreach (var line in order.Lines)
+        {
+            if (line.Qty <= 0m || line.Qty != Math.Truncate(line.Qty) || line.Qty > int.MaxValue)
+            {
+                return FailOrder(
+                    $"Fractional or invalid qty for {line.ProductSku} — sale requires whole units / كمية غير صحيحة للمنتج {line.ProductSku}");
+            }
+        }
+
+        var cashTotal = await ComputeExpectedCashTotalAsync(tenantId, order.Subtotal, ct);
+        var saleRequest = new CreateSaleRequest
+        {
+            IdempotencyKey = $"member-order:{order.Id}:sale",
+            MemberId = order.MemberId,
+            WarehouseId = order.WarehouseId,
+            Lines = order.Lines
+                .OrderBy(l => l.CreatedAtUtc)
+                .Select(l => new CreateSaleLineRequest
+                {
+                    LineType = "retail",
+                    ProductId = l.ProductId,
+                    Qty = (int)l.Qty,
+                    UnitPrice = l.UnitPrice
+                })
+                .ToList(),
+            Payments =
+            {
+                new SalePaymentRequest { Method = "cash", Amount = cashTotal }
+            }
+        };
+
+        var perms = callerPermissions ?? (IReadOnlySet<string>)new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            Permissions.SalesSell
+        };
+
+        var saleResult = await _saleService.CreateSaleAsync(saleRequest, identityUserId, tenantId, perms);
+        if (!saleResult.IsSuccess || saleResult.Data == null)
+        {
+            var err = saleResult.Error ?? "Sale failed / فشل البيع";
+            // Surface OPEN_SHIFT_REQUIRED clearly for the desk.
+            if (err.StartsWith(SaleFailureReasons.OpenShiftRequired, StringComparison.OrdinalIgnoreCase))
+            {
+                return FailOrder(
+                    $"{SaleFailureReasons.OpenShiftRequired}|An open shift is required to complete and take cash / يجب فتح وردية لإتمام الطلب وقبض النقد");
+            }
+
+            return FailOrder(err);
+        }
+
+        // Re-load tracked order after sale (sale uses same DbContext).
+        order = await _db.MemberOrders
+            .Include(o => o.Lines)
+            .Include(o => o.Member)
+            .FirstOrDefaultAsync(o => o.Id == orderId && o.TenantId == tenantId, ct);
+        if (order == null)
+            return FailOrder("Order not found after sale / الطلب غير موجود بعد البيع");
+
+        order.SaleId = saleResult.Data.SaleId;
+        order.Status = MemberOrderStatuses.Completed;
+        order.CompletedAtUtc = DateTime.UtcNow;
+        order.CompletedByUserId = staff.Id;
+        order.UpdatedAtUtc = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(ct);
+        await AuditTransitionAsync(order, "member_order.completed", tenantId);
+        await NotifyStatusAsync(order, ct);
+
+        var dto = MapOrder(
+            order,
+            saleResult.Data.SaleId,
+            saleResult.Data.InvoiceId,
+            saleResult.Data.InvoiceNumber);
+        return Result<MemberOrderDto>.Success(dto);
+    }
+
+    private async Task<decimal> ComputeExpectedCashTotalAsync(
+        Guid tenantId, decimal subtotal, CancellationToken ct)
+    {
+        var settings = await _db.Tenants.AsNoTracking()
+            .Where(t => t.Id == tenantId)
+            .Select(t => t.Settings)
+            .FirstOrDefaultAsync(ct);
+
+        var discounted = Math.Max(0m, RoundHalfUp(subtotal));
+        var vatEnabled = GetSettingBool(settings, TenantSettingsKeys.VatEnabled, false);
+        var vatRate = GetSettingDecimal(settings, TenantSettingsKeys.VatRate, 0.14m);
+        var tax = vatEnabled ? RoundHalfUp(discounted * vatRate) : 0m;
+        return RoundHalfUp(discounted + tax);
+    }
+
+    private static decimal RoundHalfUp(decimal value) =>
+        Math.Round(value, 2, MidpointRounding.AwayFromZero);
+
+    private static bool GetSettingBool(string? settingsJson, string key, bool defaultValue)
+    {
+        if (string.IsNullOrWhiteSpace(settingsJson))
+            return defaultValue;
+        try
+        {
+            using var doc = JsonDocument.Parse(settingsJson);
+            return doc.RootElement.TryGetProperty(key, out var value) &&
+                   value.ValueKind is JsonValueKind.True or JsonValueKind.False
+                ? value.GetBoolean()
+                : defaultValue;
+        }
+        catch (JsonException)
+        {
+            return defaultValue;
+        }
+    }
+
+    private static decimal GetSettingDecimal(string? settingsJson, string key, decimal defaultValue)
+    {
+        if (string.IsNullOrWhiteSpace(settingsJson))
+            return defaultValue;
+        try
+        {
+            using var doc = JsonDocument.Parse(settingsJson);
+            return doc.RootElement.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.Number
+                ? value.GetDecimal()
+                : defaultValue;
+        }
+        catch (JsonException)
+        {
+            return defaultValue;
+        }
+    }
 
     private async Task<Result<MemberOrderDto>> TransitionAsync(
         Guid tenantId,
@@ -394,10 +563,6 @@ public class MemberStoreService : IMemberStoreService
             case MemberOrderStatuses.Ready:
                 order.ReadyAtUtc = now;
                 order.ReadyByUserId = staff.Id;
-                break;
-            case MemberOrderStatuses.Completed:
-                order.CompletedAtUtc = now;
-                order.CompletedByUserId = staff.Id;
                 break;
         }
 
@@ -490,10 +655,35 @@ public class MemberStoreService : IMemberStoreService
             .Include(o => o.Lines)
             .Include(o => o.Member)
             .FirstAsync(o => o.Id == orderId && o.TenantId == tenantId, ct);
-        return MapOrder(order);
+
+        Guid? invoiceId = null;
+        string? invoiceNumber = null;
+        if (order.SaleId.HasValue)
+        {
+            var inv = await _db.Invoices.AsNoTracking()
+                .Where(i =>
+                    i.TenantId == tenantId
+                    && i.SaleId == order.SaleId
+                    && i.Type == "invoice"
+                    && i.Status != "voided")
+                .OrderByDescending(i => i.IssuedAt)
+                .Select(i => new { i.Id, i.InvoiceNumber })
+                .FirstOrDefaultAsync(ct);
+            if (inv != null)
+            {
+                invoiceId = inv.Id;
+                invoiceNumber = inv.InvoiceNumber;
+            }
+        }
+
+        return MapOrder(order, order.SaleId, invoiceId, invoiceNumber);
     }
 
-    private static MemberOrderDto MapOrder(MemberOrder o) => new()
+    private static MemberOrderDto MapOrder(
+        MemberOrder o,
+        Guid? saleId = null,
+        Guid? invoiceId = null,
+        string? invoiceNumber = null) => new()
     {
         Id = o.Id,
         OrderNumber = o.OrderNumber,
@@ -512,6 +702,9 @@ public class MemberStoreService : IMemberStoreService
         ReadyAtUtc = o.ReadyAtUtc,
         CompletedAtUtc = o.CompletedAtUtc,
         RejectedAtUtc = o.RejectedAtUtc,
+        SaleId = saleId ?? o.SaleId,
+        InvoiceId = invoiceId,
+        InvoiceNumber = invoiceNumber,
         Lines = o.Lines
             .OrderBy(l => l.CreatedAtUtc)
             .Select(l => new MemberOrderLineDto
@@ -540,7 +733,8 @@ public class MemberStoreService : IMemberStoreService
         Total = o.Total,
         Currency = o.Currency,
         LineCount = o.Lines?.Count ?? 0,
-        CreatedAtUtc = o.CreatedAtUtc
+        CreatedAtUtc = o.CreatedAtUtc,
+        SaleId = o.SaleId
     };
 
     /// <summary>Member App list DTO — same fields, ownership already enforced by query.</summary>

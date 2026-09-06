@@ -1,0 +1,12 @@
+{
+  "MEMBER_NOT_FOUND": "Member not found",
+  "MEMBER_PROFILE_NOT_FOUND": "Member profile not found",
+  "UNAUTHORIZED": "Please sign in again",
+  "FORBIDDEN": "You do not have access",
+  "VALIDATION_FAILED": "Please check the form and try again",
+  "GYM_CODE_REQUIRED": "Gym code is required.",
+  "ACTIVATION_CODE_REQUIRED": "Activation code is required.",
+  "INVALID_ACTIVATION": "Invalid or expired activation code.",
+  "NETWORK_ERROR": "Network error. Check your connection.",
+  "GENERIC_ERROR": "Something went wrong"
+}

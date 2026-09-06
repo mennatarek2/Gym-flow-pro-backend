@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [master, main]
   pull_request:
 
 jobs:
@@ -29,3 +29,25 @@ jobs:
 
       - name: ReconCheck build
         run: dotnet build GMS.Tests/ReconCheck/ReconCheck.csproj --no-restore --nologo -v q
+
+  frontend-i18n:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: Frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install
+        run: npm install
+
+      - name: Localization CI gate
+        run: npm run i18n:ci
+
+      - name: Refresh inventory (informational)
+        run: npm run i18n:inventory

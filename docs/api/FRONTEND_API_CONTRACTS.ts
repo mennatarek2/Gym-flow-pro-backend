@@ -522,6 +522,10 @@ export const ATTENDANCE_ENDPOINTS = {
   manualCheckin: { method: "POST", path: "/api/attendance/manual-checkin" }, // perm checkin.manual ; body: ManualCheckinRequest -> ManualCheckinResponse
   searchMembers: { method: "GET", path: "/api/attendance/search-members" }, // perm checkin.manual ; query: MemberSearchRequest -> MemberSearchResult[]
   today: { method: "GET", path: "/api/attendance/today" }, // perm members.view ; query: filter="all" -> TodayAttendanceDto[]
+  /** Member App Profile → Attendance. Own visits only. Do NOT use /attendance/history (does not exist). */
+  memberAttendance: { method: "GET", path: "/api/member/attendance" }, // policy AuthenticatedMember ; query: page, pageSize ; ignore memberId ; -> PagedResult<AttendanceSummaryDto>
+  occupancy: { method: "GET", path: "/api/attendance/occupancy" }, // staff members.view|attendance.view
+  memberOccupancy: { method: "GET", path: "/api/member/occupancy" }, // AuthenticatedMember
 } as const;
 
 // ═══════════════════════════════════════════════════════════════════════════

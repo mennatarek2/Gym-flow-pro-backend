@@ -41,6 +41,8 @@ public class MemberOrderConfiguration : IEntityTypeConfiguration<MemberOrder>
         builder.Property(x => x.MemberNotes).HasMaxLength(500).HasColumnType("NVARCHAR(500)");
         builder.Property(x => x.RejectionReason).HasMaxLength(500).HasColumnType("NVARCHAR(500)");
 
+        builder.Property(x => x.SaleId);
+
         builder.Property(x => x.AcceptedAtUtc);
         builder.Property(x => x.ReadyAtUtc);
         builder.Property(x => x.CompletedAtUtc);
@@ -62,6 +64,10 @@ public class MemberOrderConfiguration : IEntityTypeConfiguration<MemberOrder>
         builder.HasIndex(x => new { x.TenantId, x.Status, x.CreatedAtUtc });
         builder.HasIndex(x => new { x.TenantId, x.MemberId, x.CreatedAtUtc });
 
+        builder.HasIndex(x => new { x.TenantId, x.SaleId })
+            .IsUnique()
+            .HasFilter("[SaleId] IS NOT NULL AND [IsDeleted] = 0");
+
         builder.HasOne(x => x.Tenant)
             .WithMany()
             .HasForeignKey(x => x.TenantId)
@@ -75,6 +81,11 @@ public class MemberOrderConfiguration : IEntityTypeConfiguration<MemberOrder>
         builder.HasOne(x => x.Warehouse)
             .WithMany()
             .HasForeignKey(x => x.WarehouseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.Sale)
+            .WithMany()
+            .HasForeignKey(x => x.SaleId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.AcceptedByUser)

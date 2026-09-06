@@ -159,6 +159,86 @@ public sealed class ProfitabilityServiceTests
         Assert.Equal(0m, result.Data.SupplierCashPayments);
     }
 
+    [Fact]
+    public async Task SingleDayRange_DoesNotSubtractFullMonthPayroll_FromNetProfit()
+    {
+        var tenantId = Guid.NewGuid();
+        var options = new DbContextOptionsBuilder<GymFlowProDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        await using var db = new GymFlowProDbContext(options, new TestTenantContext(tenantId));
+
+        db.Sales.Add(new Sale
+        {
+            TenantId = tenantId,
+            Total = 1000m,
+            AmountDue = 0m,
+            Status = "completed",
+            CreatedAtUtc = Utc(1)
+        });
+        db.PaymentTransactions.Add(new PaymentTransaction
+        {
+            TenantId = tenantId,
+            Amount = 1000m,
+            Status = "success",
+            Method = "cash",
+            Gateway = "cash",
+            ExternalRef = "day-range-cash",
+            SettlementStatus = "settled",
+            PaidAtUtc = Utc(1),
+            CreatedAtUtc = Utc(1)
+        });
+
+        var period = new PayrollPeriod
+        {
+            TenantId = tenantId,
+            Year = 2026,
+            Month = 8,
+            Status = PayrollPeriodStatuses.Approved
+        };
+        db.PayrollPeriods.Add(period);
+        db.PayrollLines.Add(new PayrollLine
+        {
+            TenantId = tenantId,
+            PayrollPeriodId = period.Id,
+            EmployeeId = Guid.NewGuid(),
+            BasicSalary = 12500m,
+            NetSalary = 12500m
+        });
+        await db.SaveChangesAsync();
+
+        // SaveChanges stamps CreatedAtUtc = UtcNow on Added entities — pin historical timestamps after insert.
+        foreach (var sale in db.Sales.ToList())
+            sale.CreatedAtUtc = Utc(1);
+        foreach (var payment in db.PaymentTransactions.ToList())
+        {
+            payment.PaidAtUtc = Utc(1);
+            payment.CreatedAtUtc = Utc(1);
+        }
+        await db.SaveChangesAsync();
+
+        var day = await new ProfitabilityService(db).GetAsync(
+            tenantId, new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 1));
+
+        Assert.True(day.IsSuccess, day.Error);
+        Assert.Equal("PAYROLL_PERIOD_NOT_FULLY_COVERED", day.Data!.PayrollCoverageStatus);
+        Assert.False(day.Data.PayrollAvailable);
+        Assert.Null(day.Data.PayrollExpense);
+        Assert.Contains("payroll_period_not_fully_covered", day.Data.DataIssues);
+        Assert.True(day.Data.NetProfitAvailable);
+        // Revenue 1000 − COGS 0 − OpEx 0 − recognized payroll 0 (not 12,500)
+        Assert.Equal(1000m, day.Data.NetProfit);
+
+        var fullMonth = await new ProfitabilityService(db).GetAsync(
+            tenantId, new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 31));
+
+        Assert.True(fullMonth.IsSuccess, fullMonth.Error);
+        Assert.Equal("COMPLETE", fullMonth.Data!.PayrollCoverageStatus);
+        Assert.True(fullMonth.Data.PayrollAvailable);
+        Assert.Equal(12500m, fullMonth.Data.PayrollExpense);
+        Assert.Equal(1000m - 12500m, fullMonth.Data.NetProfit);
+    }
+
     private static DateTime Utc(int day) =>
         new(2026, 8, day, 12, 0, 0, DateTimeKind.Utc);
 

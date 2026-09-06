@@ -205,6 +205,7 @@ public class MembershipDeskOutstandingTests
             audit,
             new NoOpReferralAttribution(),
             new ActivityEntitlementService(ctx),
+            new SaleAdjustmentService(ctx, audit),
             NullLogger<MembershipService>.Instance);
         var debtors = new DebtorsService(
             ctx, new MemoryCache(), new NoOpWhatsApp(), new NoOpPaymob(),
@@ -376,14 +377,59 @@ public class MembershipDeskOutstandingTests
         Assert.Equal("cancelled", cancelled.Data!.Status);
 
         var sale = await h.Ctx.Sales.SingleAsync(s => s.MemberId == h.MemberId);
-        Assert.Equal("partially_paid", sale.Status);
+        Assert.Equal("cancelled", sale.Status);
         Assert.Equal(0m, sale.AmountDue);
         Assert.Null(sale.DueDate);
         Assert.Empty(h.Ctx.Refunds);
 
+        var adjustment = Assert.Single(h.Ctx.SaleAdjustments);
+        Assert.Equal("cancellation", adjustment.Type);
+        Assert.Equal("posted", adjustment.Status);
+        Assert.Equal(200m, adjustment.Amount); // plan 300 − paid 100
+
         var member = await h.Ctx.GymMembers.SingleAsync(m => m.Id == h.MemberId);
         Assert.True(member.IsActive);
         Assert.Equal(0, member.InvitationQuotaRemaining);
+
+        var debtors = await h.Debtors.GetDebtorsPagedAsync(h.TenantId, page: 1, pageSize: 1, h.MemberId);
+        Assert.True(debtors.IsSuccess, debtors.Error);
+        Assert.Empty(debtors.Data!.Items);
+    }
+
+    [Fact]
+    public async Task CashAssign_PartialThenCancel_ReconcileDoesNotResurrectDebt()
+    {
+        var h = CreateHarness(300m, seedCurrentMembership: false);
+        var opened = await h.Shifts.OpenAsync(0m, h.OwnerId, h.TenantId);
+        Assert.True(opened.IsSuccess, opened.Error);
+
+        var assigned = await h.Memberships.AssignMembershipAsync(
+            h.TenantId, h.MemberId,
+            new AssignMembershipRequest
+            {
+                PlanId = h.PlanId,
+                PaymentMethod = "cash",
+                AmountPaid = 100m
+            },
+            h.OwnerId);
+        Assert.True(assigned.IsSuccess, assigned.Error);
+
+        var cancelled = await h.Memberships.CancelMembershipAsync(h.TenantId, h.MemberId, h.OwnerId);
+        Assert.True(cancelled.IsSuccess, cancelled.Error);
+
+        var sale = await h.Ctx.Sales.SingleAsync(s => s.MemberId == h.MemberId);
+        Assert.Equal(0m, sale.AmountDue);
+        Assert.Equal("cancelled", sale.Status);
+
+        var adjustments = new SaleAdjustmentService(h.Ctx, new NoOpAudit());
+        var reconciled = await adjustments.ReconcileBalanceAsync(h.TenantId, h.OwnerId, sale.Id);
+        Assert.True(reconciled.IsSuccess, reconciled.Error);
+        Assert.Equal(0m, reconciled.Data!.CanonicalAmountDue);
+        Assert.Equal("already_reconciled", reconciled.Data.Status);
+
+        await h.Ctx.Entry(sale).ReloadAsync();
+        Assert.Equal(0m, sale.AmountDue);
+        Assert.Equal("cancelled", sale.Status);
 
         var debtors = await h.Debtors.GetDebtorsPagedAsync(h.TenantId, page: 1, pageSize: 1, h.MemberId);
         Assert.True(debtors.IsSuccess, debtors.Error);

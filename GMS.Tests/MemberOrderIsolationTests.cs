@@ -2,8 +2,10 @@ namespace GMS.Tests;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using GMS.Application.Common;
 using GMS.Application.DTOs.Inventory;
 using GMS.Application.DTOs.MemberStore;
+using GMS.Application.DTOs.Sales;
 using GMS.Application.Interfaces;
 using GMS.Application.Services;
 using GMS.Core.Constants;
@@ -24,6 +26,17 @@ public class MemberOrderIsolationTests
 
         public Task NotifyStatusChangedAsync(Guid tenantId, Guid orderId, string orderNumber, string status, Guid memberId, CancellationToken ct = default)
             => Task.CompletedTask;
+    }
+
+    private sealed class NoOpSaleService : ISaleService
+    {
+        public Task<Result<SaleResponse>> CreateSaleAsync(
+            CreateSaleRequest request, Guid staffUserId, Guid tenantId, IReadOnlySet<string> callerPermissions)
+            => Task.FromResult(Result<SaleResponse>.Failure("sale not used in isolation tests"));
+
+        public Task<Result<SaleResponse>> RecordPaymentAsync(
+            Guid saleId, Guid tenantId, Guid staffUserId, RecordPaymentRequest request)
+            => Task.FromResult(Result<SaleResponse>.Failure("sale not used in isolation tests"));
     }
 
     private sealed class TwinMembers
@@ -159,7 +172,7 @@ public class MemberOrderIsolationTests
             tenantContext,
             NullLogger<AuditService>.Instance);
 
-        var store = new MemberStoreService(ctx, ledger, audit, new NoOpNotifier());
+        var store = new MemberStoreService(ctx, ledger, audit, new NoOpNotifier(), new NoOpSaleService());
 
         return new TwinMembers
         {
@@ -316,7 +329,7 @@ public class MemberOrderIsolationTests
         var auditB = new AuditService(
             ctxB, new Microsoft.AspNetCore.Http.HttpContextAccessor(), tenantContextB,
             NullLogger<AuditService>.Instance);
-        var storeB = new MemberStoreService(ctxB, ledgerB, auditB, new NoOpNotifier());
+        var storeB = new MemberStoreService(ctxB, ledgerB, auditB, new NoOpNotifier(), new NoOpSaleService());
 
         var otherOrder = await storeB.CreateOrderAsync(tenantB, identityOther, OneLine(prodB.Id));
         Assert.True(otherOrder.IsSuccess, otherOrder.Error);

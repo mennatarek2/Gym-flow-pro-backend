@@ -25,6 +25,11 @@ public class Result
     {
         return new Result(false, message, error);
     }
+
+    public static Result Failure(AppError appError)
+    {
+        return new Result(false, appError.Message, appError.Slash);
+    }
 }
 
 /// <summary>
@@ -48,5 +53,10 @@ public class Result<T> : Result
     public static new Result<T> Failure(string error, string? message = null)
     {
         return new Result<T>(false, default, message, error);
+    }
+
+    public static Result<T> Failure(AppError appError)
+    {
+        return new Result<T>(false, default, appError.Message, appError.Slash);
     }
 }

@@ -116,7 +116,10 @@ public class MemberOrdersController : BaseApiController
         if (userId == Guid.Empty)
             return Unauthorized(new { error = "Staff identity required." });
 
-        var result = await _store.CompleteAsync(_tenantContext.TenantId, id, userId, ct);
+        var result = await _store.CompleteAsync(
+            _tenantContext.TenantId, id, userId,
+            User.FindAll(Permissions.ClaimType).Select(c => c.Value).ToHashSet(),
+            ct);
         return result.IsSuccess ? Ok(result.Data) : BadRequest(new { error = result.Error });
     }
 

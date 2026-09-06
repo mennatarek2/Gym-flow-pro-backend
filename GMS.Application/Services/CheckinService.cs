@@ -106,9 +106,13 @@ public class CheckinService : ICheckinService
         InvalidateMembershipCache(tenantId, member.Id);
 
         // REM-F7: surface concurrent exhaustion explicitly instead of reporting success.
+        // Attendance must not remain if the session was not consumed.
         if (sessionsRemaining == SessionDecrementFailed)
+        {
+            await CompensateFailedSessionCheckinAsync(attendance);
             return Fail<QrCheckinResponse>(
                 "No sessions remaining / لا توجد جلسات متبقية");
+        }
 
         _logger.LogInformation(
             "QR check-in: Member {MemberNumber} at tenant {GymCode}",
@@ -190,8 +194,11 @@ public class CheckinService : ICheckinService
 
         // REM-F7: surface concurrent exhaustion explicitly instead of reporting success.
         if (sessionsRemaining == SessionDecrementFailed)
+        {
+            await CompensateFailedSessionCheckinAsync(attendance);
             return Fail<ManualCheckinResponse>(
                 "No sessions remaining / لا توجد جلسات متبقية");
+        }
 
         _logger.LogInformation(
             "Manual check-in: Member {MemberNumber} by staff {StaffId} at tenant {TenantId}",
@@ -269,8 +276,11 @@ public class CheckinService : ICheckinService
 
         // REM-F7: surface concurrent exhaustion explicitly instead of reporting success.
         if (sessionsRemaining == SessionDecrementFailed)
+        {
+            await CompensateFailedSessionCheckinAsync(attendance);
             return Fail<ManualCheckinResponse>(
                 "No sessions remaining / لا توجد جلسات متبقية");
+        }
 
         _logger.LogInformation(
             "Barcode check-in: Member {MemberNumber} by staff {StaffId} at tenant {TenantId}",
@@ -389,6 +399,10 @@ public class CheckinService : ICheckinService
     private async Task<(Membership? membership, string? error)> ValidateMembershipGauntletAsync(
         GymMember member, Guid tenantId)
     {
+        // === STEP 2b: Member must be active (deactivated members cannot check in) ===
+        if (!member.IsActive)
+            return (null, "هذا العضو غير نشط / This member is inactive");
+
         // === STEP 3: Active membership exists ===
         var membership = await GetActiveMembershipCachedAsync(member.Id, tenantId);
         if (membership == null)
@@ -421,12 +435,12 @@ public class CheckinService : ICheckinService
             return (null, "انتهت صلاحية عضويتك / Your membership has expired");
         }
 
-        // === STEP 5: Time restriction check (time-limited plans) ===
+        // === STEP 5: Time restriction check (time-limited plans) — Cairo wall clock ===
         if (membership.Plan != null &&
             membership.Plan.TimeRestrictionStart.HasValue &&
             membership.Plan.TimeRestrictionEnd.HasValue)
         {
-            var nowTime = TimeOnly.FromDateTime(DateTime.UtcNow);
+            var nowTime = MembershipOperational.NowTimeCairo();
             var start = membership.Plan.TimeRestrictionStart.Value;
             var end = membership.Plan.TimeRestrictionEnd.Value;
 
@@ -457,11 +471,13 @@ public class CheckinService : ICheckinService
                 return (null, "TRIAL_VISITS_EXHAUSTED / لقد استنفدت جلساتك التجريبية");
         }
 
-        // === Duplicate check-in prevention ===
+        // === Duplicate check-in prevention (Cairo business day, not UTC midnight) ===
+        var cairoTodayRange = MembershipOperational.CairoInclusiveRangeUtc(today, today);
         var alreadyCheckedIn = await _dbContext.GymAttendances
             .AnyAsync(a => a.MemberId == member.Id
                         && a.TenantId == tenantId
-                        && a.CheckInAtUtc >= DateTime.UtcNow.Date);
+                        && a.CheckInAtUtc >= cairoTodayRange.UtcStart
+                        && a.CheckInAtUtc < cairoTodayRange.UtcEndExclusive);
 
         if (alreadyCheckedIn)
             return (null, "لقد سجلت دخولك اليوم بالفعل / You have already checked in today");
@@ -533,23 +549,68 @@ public class CheckinService : ICheckinService
         if (membership.Plan?.PlanType != "session_pack" || !membership.SessionsRemaining.HasValue)
             return membership.Plan?.PlanType == "session_pack" ? membership.SessionsRemaining : null;
 
-        // Atomic decrement via raw SQL to avoid concurrency issues
-        var affected = await _dbContext.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE memberships SET SessionsRemaining = SessionsRemaining - 1 WHERE Id = {membership.Id} AND SessionsRemaining > 0");
+        int affected;
+        if (_dbContext.Database.IsRelational())
+        {
+            // Atomic decrement via raw SQL to avoid concurrency issues
+            affected = await _dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE memberships SET SessionsRemaining = SessionsRemaining - 1 WHERE Id = {membership.Id} AND SessionsRemaining > 0");
+        }
+        else
+        {
+            // InMemory / non-relational: re-read remaining so concurrent exhaustion is visible
+            // even when a stale cached Membership instance still shows SessionsRemaining > 0.
+            var fresh = await _dbContext.Memberships.FirstAsync(m => m.Id == membership.Id);
+            if (!fresh.SessionsRemaining.HasValue || fresh.SessionsRemaining.Value <= 0)
+            {
+                affected = 0;
+            }
+            else
+            {
+                fresh.SessionsRemaining = fresh.SessionsRemaining.Value - 1;
+                await _dbContext.SaveChangesAsync();
+                membership.SessionsRemaining = fresh.SessionsRemaining;
+                affected = 1;
+            }
+        }
 
         if (affected == 0)
         {
             _logger.LogWarning(
                 "Session decrement affected 0 rows for membership {MembershipId} — consumed concurrently. " +
-                "Attendance was recorded but no session was consumed.",
+                "Attendance will be compensated (soft-deleted).",
                 membership.Id);
             return SessionDecrementFailed;
         }
 
-        // Reload to get the new value
-        await _dbContext.Entry(membership).ReloadAsync();
+        // Reload to get the new value after relational SQL path
+        if (_dbContext.Database.IsRelational())
+            await _dbContext.Entry(membership).ReloadAsync();
 
         return membership.SessionsRemaining;
+    }
+
+    /// <summary>
+    /// Soft-deletes an attendance row when session consumption failed after insert,
+    /// so failed check-ins do not leave an entitlement-free visit on record.
+    /// </summary>
+    private async Task CompensateFailedSessionCheckinAsync(GymAttendance attendance)
+    {
+        try
+        {
+            attendance.IsDeleted = true;
+            attendance.UpdatedAtUtc = DateTime.UtcNow;
+            await _dbContext.SaveChangesAsync();
+            _logger.LogWarning(
+                "Compensated check-in {AttendanceId}: soft-deleted after session decrement failure",
+                attendance.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to compensate check-in {AttendanceId} after session decrement failure",
+                attendance.Id);
+        }
     }
 
     /// <summary>Sentinel returned when the atomic session decrement could not consume a session.</summary>
@@ -573,8 +634,8 @@ public class CheckinService : ICheckinService
 
     public async Task<Result<List<TodayAttendanceDto>>> GetTodayAttendanceAsync(Guid tenantId, string filter = "all")
     {
-        var todayStart = DateTime.UtcNow.Date;
-        var todayEnd = todayStart.AddDays(1);
+        var today = MembershipOperational.TodayCairo();
+        var (todayStart, todayEnd) = MembershipOperational.CairoInclusiveRangeUtc(today, today);
 
         var query = _dbContext.GymAttendances
             .Include(a => a.Member)

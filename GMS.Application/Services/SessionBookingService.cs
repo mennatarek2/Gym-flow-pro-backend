@@ -271,6 +271,8 @@ public class SessionBookingService : ISessionBookingService
         // Serialize concurrent bookings for this session before re-counting capacity:
         // SQL Server takes UPDLOCK on the session row (released at commit); other
         // providers (tests) take the optimistic path below.
+        // When a membership quota applies, also lock the membership row so limited
+        // entitlements cannot be oversold across concurrent sessions.
         if (_db.Database.IsSqlServer())
         {
             await using var tx = await _db.Database.BeginTransactionAsync(ct);
@@ -279,14 +281,19 @@ public class SessionBookingService : ISessionBookingService
                 await _db.Database.ExecuteSqlInterpolatedAsync(
                     $"SELECT 1 FROM [activity_sessions] WITH (UPDLOCK, ROWLOCK) WHERE [id] = {session.Id} AND [TenantId] = {tenantId}", ct);
 
-                var currentActive = await _db.ActivityBookings.AsNoTracking()
-                    .Where(b => b.TenantId == tenantId && b.SessionId == session.Id && !b.IsDeleted
-                                && (b.Status == ActivityBookingStatuses.Booked || b.Status == ActivityBookingStatuses.CheckedIn))
-                    .CountAsync(ct);
-                if (currentActive >= session.Capacity)
+                if (coveringMembershipId.HasValue)
+                {
+                    await _db.Database.ExecuteSqlInterpolatedAsync(
+                        $"SELECT 1 FROM [memberships] WITH (UPDLOCK, ROWLOCK) WHERE [Id] = {coveringMembershipId.Value} AND [TenantId] = {tenantId}", ct);
+                }
+
+                var seatOrQuota = await AssertSeatAndQuotaAvailableAsync(
+                    tenantId, session.Id, session.Capacity, session.ActivityId,
+                    coveringMembershipId, request.MemberId, ct);
+                if (seatOrQuota != null)
                 {
                     await tx.RollbackAsync(ct);
-                    return Result<BookingDto>.Failure("Session is full / الحصة ممتلئة");
+                    return seatOrQuota;
                 }
 
                 _db.ActivityBookings.Add(booking);
@@ -302,7 +309,8 @@ public class SessionBookingService : ISessionBookingService
         }
         else
         {
-            var optimistic = await CreateBookingOptimisticAsync(tenantId, booking, session.Capacity, ct);
+            var optimistic = await CreateBookingOptimisticAsync(
+                tenantId, booking, session.Capacity, session.ActivityId, coveringMembershipId, ct);
             if (!optimistic.IsSuccess)
                 return optimistic;
         }
@@ -348,20 +356,62 @@ public class SessionBookingService : ISessionBookingService
         });
     }
 
+    /// <summary>
+    /// Re-check seat capacity and (when applicable) membership class quota inside the
+    /// booking transaction — after locks are taken — so concurrent requests cannot oversell.
+    /// Returns a failure result, or null when both checks pass.
+    /// </summary>
+    private async Task<Result<BookingDto>?> AssertSeatAndQuotaAvailableAsync(
+        Guid tenantId,
+        Guid sessionId,
+        int capacity,
+        Guid activityId,
+        Guid? coveringMembershipId,
+        Guid? memberId,
+        CancellationToken ct)
+    {
+        var currentActive = await _db.ActivityBookings.AsNoTracking()
+            .Where(b => b.TenantId == tenantId && b.SessionId == sessionId && !b.IsDeleted
+                        && (b.Status == ActivityBookingStatuses.Booked || b.Status == ActivityBookingStatuses.CheckedIn))
+            .CountAsync(ct);
+        if (currentActive >= capacity)
+            return Result<BookingDto>.Failure("Session is full / الحصة ممتلئة");
+
+        if (coveringMembershipId.HasValue && memberId.HasValue)
+        {
+            var membership = await _db.Memberships.AsNoTracking()
+                .FirstOrDefaultAsync(m => m.Id == coveringMembershipId.Value && m.TenantId == tenantId, ct);
+            if (membership == null)
+                return Result<BookingDto>.Failure("Covering membership not found / عضوية التغطية غير موجودة");
+
+            var remaining = await _entitlements.RemainingQuotaAsync(
+                tenantId, memberId.Value, activityId, membership, ct);
+            if (remaining.HasValue && remaining.Value <= 0)
+                return Result<BookingDto>.Failure(
+                    "Monthly class quota exhausted / تم استهلاك الحصة الشهرية بالكامل");
+        }
+
+        return null;
+    }
+
     private async Task<Result<BookingDto>> CreateBookingOptimisticAsync(
-        Guid tenantId, ActivityBooking booking, int capacity, CancellationToken ct)
+        Guid tenantId,
+        ActivityBooking booking,
+        int capacity,
+        Guid activityId,
+        Guid? coveringMembershipId,
+        CancellationToken ct)
     {
         try
         {
             await using var tx = await _db.Database.BeginTransactionAsync(ct);
-            var currentActive = await _db.ActivityBookings
-                .Where(b => b.TenantId == tenantId && b.SessionId == booking.SessionId && !b.IsDeleted
-                            && (b.Status == ActivityBookingStatuses.Booked || b.Status == ActivityBookingStatuses.CheckedIn))
-                .CountAsync(ct);
-            if (currentActive >= capacity)
+            var seatOrQuota = await AssertSeatAndQuotaAvailableAsync(
+                tenantId, booking.SessionId, capacity, activityId,
+                coveringMembershipId, booking.MemberId, ct);
+            if (seatOrQuota != null)
             {
                 await tx.RollbackAsync(ct);
-                return Result<BookingDto>.Failure("Session is full / الحصة ممتلئة");
+                return seatOrQuota;
             }
 
             _db.ActivityBookings.Add(booking);

@@ -31,6 +31,14 @@ public interface IMemberStoreService
     Task<Result<MemberOrderDto>> MarkReadyAsync(
         Guid tenantId, Guid orderId, Guid identityUserId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Ready → Completed: creates a paid retail cash sale (stock + invoice) via <see cref="ISaleService"/>,
+    /// then links <c>SaleId</c>. Requires an open shift for cash. Idempotent via sale idempotency key.
+    /// </summary>
     Task<Result<MemberOrderDto>> CompleteAsync(
-        Guid tenantId, Guid orderId, Guid identityUserId, CancellationToken ct = default);
+        Guid tenantId,
+        Guid orderId,
+        Guid identityUserId,
+        IReadOnlySet<string>? callerPermissions = null,
+        CancellationToken ct = default);
 }

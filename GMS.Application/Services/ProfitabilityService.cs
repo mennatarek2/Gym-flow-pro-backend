@@ -141,13 +141,16 @@ public sealed class ProfitabilityService : IProfitabilityService
             .ToListAsync(ct);
 
         var payrollPeriodsInRange = payrollPeriods
-            .Where(period => IsMonthInRange(period.Year, period.Month, from, to))
+            .Where(period => IsPayrollMonthFullyCovered(period.Year, period.Month, from, to))
             .ToList();
         var payrollLinesInRange = payrollPeriodsInRange
             .SelectMany(period => period.Lines)
             .ToList();
+        var overlappingButNotCovered = payrollPeriods
+            .Any(period => IsMonthOverlapping(period.Year, period.Month, from, to)
+                && !IsPayrollMonthFullyCovered(period.Year, period.Month, from, to));
         var payrollCoverageStatus = payrollPeriodsInRange.Count == 0
-            ? "NO_PAYROLL_PERIOD"
+            ? (overlappingButNotCovered ? "PAYROLL_PERIOD_NOT_FULLY_COVERED" : "NO_PAYROLL_PERIOD")
             : payrollLinesInRange.Count == 0
                 || payrollLinesInRange.Any(line => line.NetSalary < 0m)
                 ? "PAYROLL_DATA_INCOMPLETE"
@@ -247,8 +250,14 @@ public sealed class ProfitabilityService : IProfitabilityService
         var grossProfit = cogs.HasValue
             ? revenue - cogs.Value
             : (decimal?)null;
-        var netProfit = grossProfit.HasValue && payrollAvailable
-            ? grossProfit.Value - expenses - payrollInRange
+        // Net Profit recognizes payroll only for fully covered COMPLETE months.
+        // Partial ranges exclude payroll (amount 0) rather than absorbing a full month or blocking the KPI.
+        var payrollRecognized = payrollAvailable ? payrollInRange : 0m;
+        var netProfitGateOk = payrollAvailable
+            || payrollCoverageStatus == "NO_PAYROLL_PERIOD"
+            || payrollCoverageStatus == "PAYROLL_PERIOD_NOT_FULLY_COVERED";
+        var netProfit = grossProfit.HasValue && netProfitGateOk
+            ? grossProfit.Value - expenses - payrollRecognized
             : (decimal?)null;
         var cashOutflows = cashRefunds + expenses + payrollCashPayments + supplierPayments;
         var netCashFlow = settledCash - cashOutflows;
@@ -289,6 +298,8 @@ public sealed class ProfitabilityService : IProfitabilityService
             issues.Add("retail_refund_cogs_unavailable");
         if (payrollCoverageStatus == "NO_PAYROLL_PERIOD")
             issues.Add("no_payroll_period");
+        else if (payrollCoverageStatus == "PAYROLL_PERIOD_NOT_FULLY_COVERED")
+            issues.Add("payroll_period_not_fully_covered");
         else if (!payrollAvailable)
             issues.Add("payroll_data_incomplete");
         if (retailLines.Count == 0)
@@ -471,7 +482,19 @@ public sealed class ProfitabilityService : IProfitabilityService
         && !string.Equals(payment.Method, "account_credit", StringComparison.OrdinalIgnoreCase)
         && string.Equals(payment.SettlementStatus, "settled", StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsMonthInRange(int year, int month, DateOnly from, DateOnly to)
+    /// <summary>
+    /// Payroll is recognized in Net Profit only when the selected range fully contains the
+    /// payroll calendar month. Partial ranges (single day / MTD) must not absorb a full month's salaries.
+    /// Payroll is never prorated.
+    /// </summary>
+    private static bool IsPayrollMonthFullyCovered(int year, int month, DateOnly from, DateOnly to)
+    {
+        var periodStart = new DateOnly(year, month, 1);
+        var periodEnd = periodStart.AddMonths(1).AddDays(-1);
+        return from <= periodStart && to >= periodEnd;
+    }
+
+    private static bool IsMonthOverlapping(int year, int month, DateOnly from, DateOnly to)
     {
         var periodStart = new DateOnly(year, month, 1);
         var periodEnd = periodStart.AddMonths(1).AddDays(-1);

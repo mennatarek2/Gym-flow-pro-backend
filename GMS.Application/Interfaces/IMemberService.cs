@@ -28,6 +28,13 @@ public interface IMemberService
     Task<Result<PagedResult<AttendanceSummaryDto>>> GetMemberAttendanceAsync(
         Guid memberId, int page, int pageSize);
 
+    /// <summary>
+    /// Member App visit history for the authenticated identity only (own GymMember).
+    /// Resolves JWT sub → AppUser → GymMember; never accepts a client-supplied member id.
+    /// </summary>
+    Task<Result<PagedResult<AttendanceSummaryDto>>> GetMyAttendanceAsync(
+        Guid tenantId, Guid identityUserId, int page, int pageSize);
+
     Task<Result<MembershipSummaryDto>> GetCurrentMembershipAsync(Guid memberId);
 
     Task<Result<string>> FreezeMembershipAsync(Guid memberId, DateTime frozenUntil, string? reason);

@@ -1,0 +1,12 @@
+{
+  "MEMBER_NOT_FOUND": "العضو غير موجود",
+  "MEMBER_PROFILE_NOT_FOUND": "ملف العضو غير موجود",
+  "UNAUTHORIZED": "يرجى تسجيل الدخول مرة أخرى",
+  "FORBIDDEN": "ليس لديك صلاحية الوصول",
+  "VALIDATION_FAILED": "يرجى التحقق من النموذج والمحاولة مرة أخرى",
+  "GYM_CODE_REQUIRED": "رمز الصالة مطلوب.",
+  "ACTIVATION_CODE_REQUIRED": "رمز التفعيل مطلوب.",
+  "INVALID_ACTIVATION": "رمز التفعيل غير صالح أو منتهي.",
+  "NETWORK_ERROR": "خطأ في الشبكة. تحقق من اتصالك.",
+  "GENERIC_ERROR": "حدث خطأ ما"
+}

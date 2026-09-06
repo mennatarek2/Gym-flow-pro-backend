@@ -3,6 +3,7 @@ namespace GMS.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using GMS.Core.Entities;
 using GMS.Core.Interfaces;
+using GMS.Core.Utilities;
 using GMS.Infrastructure.Persistence;
 
 /// <summary>
@@ -26,10 +27,13 @@ public class AttendanceRepository : IAttendanceRepository
 
     public async Task<List<GymAttendance>> GetTodayAsync(Guid tenantId, CancellationToken ct = default)
     {
-        var todayUtc = DateTime.UtcNow.Date;
+        var today = MembershipOperational.TodayCairo();
+        var (utcStart, utcEndExclusive) = MembershipOperational.CairoInclusiveRangeUtc(today, today);
 
         return await _context.GymAttendances
-            .Where(a => a.TenantId == tenantId && a.CheckInAtUtc >= todayUtc)
+            .Where(a => a.TenantId == tenantId
+                        && a.CheckInAtUtc >= utcStart
+                        && a.CheckInAtUtc < utcEndExclusive)
             .Include(a => a.Member)
             .Include(a => a.Membership)
                 .ThenInclude(ms => ms!.Plan)
@@ -51,11 +55,13 @@ public class AttendanceRepository : IAttendanceRepository
 
     public async Task<bool> HasCheckedInTodayAsync(Guid memberId, Guid tenantId, CancellationToken ct = default)
     {
-        var todayUtc = DateTime.UtcNow.Date;
+        var today = MembershipOperational.TodayCairo();
+        var (utcStart, utcEndExclusive) = MembershipOperational.CairoInclusiveRangeUtc(today, today);
 
         return await _context.GymAttendances
             .AnyAsync(a => a.MemberId == memberId
                         && a.TenantId == tenantId
-                        && a.CheckInAtUtc >= todayUtc, ct);
+                        && a.CheckInAtUtc >= utcStart
+                        && a.CheckInAtUtc < utcEndExclusive, ct);
     }
 }

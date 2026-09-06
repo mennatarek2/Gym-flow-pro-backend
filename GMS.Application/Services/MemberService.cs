@@ -285,10 +285,53 @@ public class MemberService : IMemberService
 
         var member = await _memberRepo.GetByIdAsync(memberId);
         if (member == null)
-            return Result<PagedResult<AttendanceSummaryDto>>.Failure("Member not found");
+            return Result<PagedResult<AttendanceSummaryDto>>.Failure(
+                AppMessageCatalog.Get("MEMBER_NOT_FOUND"));
 
+        return await PageAttendanceAsync(memberId, page, pageSize);
+    }
+
+    public async Task<Result<PagedResult<AttendanceSummaryDto>>> GetMyAttendanceAsync(
+        Guid tenantId, Guid identityUserId, int page, int pageSize)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 50);
+
+        var gymMemberId = await ResolveGymMemberIdByIdentityAsync(tenantId, identityUserId);
+        if (gymMemberId == null)
+            return Result<PagedResult<AttendanceSummaryDto>>.Failure(
+                AppMessageCatalog.Get(
+                    "MEMBER_PROFILE_NOT_FOUND",
+                    "Member profile not found",
+                    "ملف العضو غير موجود"));
+
+        return await PageAttendanceAsync(gymMemberId.Value, page, pageSize);
+    }
+
+    private async Task<Guid?> ResolveGymMemberIdByIdentityAsync(Guid tenantId, Guid identityUserId)
+    {
+        if (identityUserId == Guid.Empty)
+            return null;
+
+        var identityId = identityUserId.ToString();
+        var appUserId = await _dbContext.AppUsers.AsNoTracking()
+            .Where(u => u.TenantId == tenantId && u.UserId == identityId && !u.IsDeleted)
+            .Select(u => (Guid?)u.Id)
+            .FirstOrDefaultAsync();
+        if (appUserId == null)
+            return null;
+
+        return await _dbContext.GymMembers.AsNoTracking()
+            .Where(m => m.TenantId == tenantId && m.AppUserId == appUserId.Value && !m.IsDeleted)
+            .Select(m => (Guid?)m.Id)
+            .FirstOrDefaultAsync();
+    }
+
+    private async Task<Result<PagedResult<AttendanceSummaryDto>>> PageAttendanceAsync(
+        Guid memberId, int page, int pageSize)
+    {
         var query = _dbContext.GymAttendances
-            .Where(a => a.MemberId == memberId)
+            .Where(a => a.MemberId == memberId && !a.IsDeleted)
             .OrderByDescending(a => a.CheckInAtUtc);
 
         var totalCount = await query.CountAsync();

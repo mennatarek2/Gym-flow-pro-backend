@@ -1,8 +1,8 @@
 namespace GMS.Core.Entities;
 
 /// <summary>
-/// Stage 0 member store request. Operational fulfillment only — does not create Sale/Payment
-/// and does not write the stock ledger. POS remains the financial + inventory deduction SoT.
+/// Member store fulfillment order. Accept/Ready are operational only (no stock/payment).
+/// Complete creates a paid retail <see cref="Sale"/> (stock + invoice) via SaleService and links <see cref="SaleId"/>.
 /// </summary>
 public class MemberOrder : BaseEntity
 {
@@ -25,6 +25,9 @@ public class MemberOrder : BaseEntity
     public string? MemberNotes { get; set; }
     public string? RejectionReason { get; set; }
 
+    /// <summary>Retail sale created on Complete (stock + invoice). Null until completed successfully.</summary>
+    public Guid? SaleId { get; set; }
+
     public DateTime? AcceptedAtUtc { get; set; }
     public DateTime? ReadyAtUtc { get; set; }
     public DateTime? CompletedAtUtc { get; set; }
@@ -40,6 +43,7 @@ public class MemberOrder : BaseEntity
     public Tenant? Tenant { get; set; }
     public GymMember? Member { get; set; }
     public Warehouse? Warehouse { get; set; }
+    public Sale? Sale { get; set; }
     public AppUser? AcceptedByUser { get; set; }
     public AppUser? ReadyByUser { get; set; }
     public AppUser? CompletedByUser { get; set; }

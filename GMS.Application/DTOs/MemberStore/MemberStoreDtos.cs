@@ -71,6 +71,12 @@ public class MemberOrderDto
     public DateTime? ReadyAtUtc { get; set; }
     public DateTime? CompletedAtUtc { get; set; }
     public DateTime? RejectedAtUtc { get; set; }
+
+    /// <summary>Retail sale created on Complete (stock + invoice).</summary>
+    public Guid? SaleId { get; set; }
+    public Guid? InvoiceId { get; set; }
+    public string? InvoiceNumber { get; set; }
+
     public List<MemberOrderLineDto> Lines { get; set; } = new();
 }
 
@@ -86,4 +92,7 @@ public class MemberOrderListItemDto
     public string Currency { get; set; } = "EGP";
     public int LineCount { get; set; }
     public DateTime CreatedAtUtc { get; set; }
+    public Guid? SaleId { get; set; }
+    public Guid? InvoiceId { get; set; }
+    public string? InvoiceNumber { get; set; }
 }

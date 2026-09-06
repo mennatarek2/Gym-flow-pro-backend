@@ -240,6 +240,7 @@ public class MembershipInvitationLifecycleTests
             audit,
             new NoOpReferralAttribution(),
             new ActivityEntitlementService(ctx),
+            new SaleAdjustmentService(ctx, audit),
             NullLogger<MembershipService>.Instance);
 
         var currentAfterRefund = await memberships.GetCurrentMembershipAsync(member.Id);

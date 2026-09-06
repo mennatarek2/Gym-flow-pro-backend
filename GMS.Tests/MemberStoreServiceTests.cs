@@ -2,8 +2,10 @@ namespace GMS.Tests;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using GMS.Application.Common;
 using GMS.Application.DTOs.Inventory;
 using GMS.Application.DTOs.MemberStore;
+using GMS.Application.DTOs.Sales;
 using GMS.Application.Interfaces;
 using GMS.Application.Services;
 using GMS.Core.Constants;
@@ -23,11 +25,64 @@ public class MemberStoreServiceTests
             => Task.CompletedTask;
     }
 
+    /// <summary>Test double for Complete → Sale. Does not touch stock/ledger (SaleService SoT in production).</summary>
+    private sealed class FakeSaleService : ISaleService
+    {
+        public string? FailWithCode { get; set; }
+        public int CreateCallCount { get; private set; }
+        public Guid LastSaleId { get; private set; }
+        public Guid LastInvoiceId { get; private set; }
+        public CreateSaleRequest? LastRequest { get; private set; }
+
+        public Task<Result<SaleResponse>> CreateSaleAsync(
+            CreateSaleRequest request, Guid staffUserId, Guid tenantId, IReadOnlySet<string> callerPermissions)
+        {
+            CreateCallCount++;
+            LastRequest = request;
+            if (!string.IsNullOrEmpty(FailWithCode))
+            {
+                return Task.FromResult(Result<SaleResponse>.Failure(
+                    $"{FailWithCode}|forced failure"));
+            }
+
+            // Idempotent replay by key
+            if (LastSaleId != Guid.Empty
+                && string.Equals(request.IdempotencyKey, LastRequest?.IdempotencyKey, StringComparison.Ordinal))
+            {
+                // first call already set LastSaleId; subsequent same key returns same
+            }
+
+            if (LastSaleId == Guid.Empty)
+            {
+                LastSaleId = Guid.NewGuid();
+                LastInvoiceId = Guid.NewGuid();
+            }
+
+            return Task.FromResult(Result<SaleResponse>.Success(new SaleResponse
+            {
+                SaleId = LastSaleId,
+                InvoiceId = LastInvoiceId,
+                InvoiceNumber = "INV-TEST-1",
+                InvoiceStatus = "ready",
+                Totals = new SaleTotalsDto
+                {
+                    Total = request.Payments.Sum(p => p.Amount),
+                    Paid = request.Payments.Sum(p => p.Amount)
+                }
+            }));
+        }
+
+        public Task<Result<SaleResponse>> RecordPaymentAsync(
+            Guid saleId, Guid tenantId, Guid staffUserId, RecordPaymentRequest request)
+            => Task.FromResult(Result<SaleResponse>.Failure("not implemented"));
+    }
+
     private sealed class Fixture
     {
         public GymFlowProDbContext Ctx { get; init; } = null!;
         public MemberStoreService Store { get; init; } = null!;
         public StockLedgerService Ledger { get; init; } = null!;
+        public FakeSaleService Sales { get; init; } = null!;
         public Guid TenantId { get; init; }
         public Guid WarehouseId { get; init; }
         public Guid MemberIdentityId { get; init; }
@@ -177,17 +232,20 @@ public class MemberStoreServiceTests
             tenantContext,
             NullLogger<AuditService>.Instance);
 
+        var sales = new FakeSaleService();
         var store = new MemberStoreService(
             ctx,
             ledger,
             audit,
-            new NoOpMemberOrderNotifier());
+            new NoOpMemberOrderNotifier(),
+            sales);
 
         return new Fixture
         {
             Ctx = ctx,
             Store = store,
             Ledger = ledger,
+            Sales = sales,
             TenantId = tenantId,
             WarehouseId = warehouse.Id,
             MemberIdentityId = memberIdentityId,
@@ -329,10 +387,88 @@ public class MemberStoreServiceTests
         var completed = await f.Store.CompleteAsync(f.TenantId, id, f.StaffIdentityId);
         Assert.True(completed.IsSuccess, completed.Error);
         Assert.Equal(MemberOrderStatuses.Completed, completed.Data!.Status);
+        Assert.NotNull(completed.Data.SaleId);
+        Assert.Equal(f.Sales.LastSaleId, completed.Data.SaleId);
+        Assert.Equal(f.Sales.LastInvoiceId, completed.Data.InvoiceId);
+        Assert.Equal(1, f.Sales.CreateCallCount);
+        Assert.Equal($"member-order:{id}:sale", f.Sales.LastRequest!.IdempotencyKey);
+        Assert.Contains(f.Sales.LastRequest.Payments, p => p.Method == "cash");
 
+        // Fake sale does not post stock; production SaleService does.
         Assert.Equal(movementsBefore, await f.Ctx.StockMovements.CountAsync());
         var avail = await f.Ledger.GetAvailableAsync(f.TenantId, f.VisibleProductId, f.WarehouseId);
         Assert.Equal(10m, avail.Data);
+    }
+
+    [Fact]
+    public async Task Complete_Idempotent_SecondCall_ReusesSale()
+    {
+        var f = await CreateAsync();
+        var created = await f.Store.CreateOrderAsync(f.TenantId, f.MemberIdentityId, new CreateMemberOrderRequest
+        {
+            Lines = { new CreateMemberOrderLineRequest { ProductId = f.VisibleProductId, Qty = 1 } }
+        });
+        var id = created.Data!.Id;
+        Assert.True((await f.Store.AcceptAsync(f.TenantId, id, f.StaffIdentityId)).IsSuccess);
+        Assert.True((await f.Store.MarkReadyAsync(f.TenantId, id, f.StaffIdentityId)).IsSuccess);
+
+        var first = await f.Store.CompleteAsync(f.TenantId, id, f.StaffIdentityId);
+        Assert.True(first.IsSuccess, first.Error);
+        var saleId = first.Data!.SaleId;
+
+        var second = await f.Store.CompleteAsync(f.TenantId, id, f.StaffIdentityId);
+        Assert.True(second.IsSuccess, second.Error);
+        Assert.Equal(saleId, second.Data!.SaleId);
+        // Second complete must not call CreateSale again (SaleId already linked).
+        Assert.Equal(1, f.Sales.CreateCallCount);
+    }
+
+    [Fact]
+    public async Task Complete_OpenShiftRequired_LeavesReady()
+    {
+        var f = await CreateAsync();
+        f.Sales.FailWithCode = SaleFailureReasons.OpenShiftRequired;
+        var created = await f.Store.CreateOrderAsync(f.TenantId, f.MemberIdentityId, new CreateMemberOrderRequest
+        {
+            Lines = { new CreateMemberOrderLineRequest { ProductId = f.VisibleProductId, Qty = 1 } }
+        });
+        var id = created.Data!.Id;
+        Assert.True((await f.Store.AcceptAsync(f.TenantId, id, f.StaffIdentityId)).IsSuccess);
+        Assert.True((await f.Store.MarkReadyAsync(f.TenantId, id, f.StaffIdentityId)).IsSuccess);
+
+        var completed = await f.Store.CompleteAsync(f.TenantId, id, f.StaffIdentityId);
+        Assert.False(completed.IsSuccess);
+        Assert.Contains(SaleFailureReasons.OpenShiftRequired, completed.Error!);
+
+        var order = await f.Ctx.MemberOrders.AsNoTracking().SingleAsync(o => o.Id == id);
+        Assert.Equal(MemberOrderStatuses.Ready, order.Status);
+        Assert.Null(order.SaleId);
+    }
+
+    [Fact]
+    public async Task Complete_FractionalQty_Rejects_LeavesReady()
+    {
+        var f = await CreateAsync();
+        var created = await f.Store.CreateOrderAsync(f.TenantId, f.MemberIdentityId, new CreateMemberOrderRequest
+        {
+            Lines = { new CreateMemberOrderLineRequest { ProductId = f.VisibleProductId, Qty = 1 } }
+        });
+        var id = created.Data!.Id;
+        Assert.True((await f.Store.AcceptAsync(f.TenantId, id, f.StaffIdentityId)).IsSuccess);
+        Assert.True((await f.Store.MarkReadyAsync(f.TenantId, id, f.StaffIdentityId)).IsSuccess);
+
+        var line = await f.Ctx.MemberOrderLines.SingleAsync(l => l.MemberOrderId == id);
+        line.Qty = 1.5m;
+        await f.Ctx.SaveChangesAsync();
+
+        var completed = await f.Store.CompleteAsync(f.TenantId, id, f.StaffIdentityId);
+        Assert.False(completed.IsSuccess);
+        Assert.Contains("Fractional", completed.Error!, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, f.Sales.CreateCallCount);
+
+        var order = await f.Ctx.MemberOrders.AsNoTracking().SingleAsync(o => o.Id == id);
+        Assert.Equal(MemberOrderStatuses.Ready, order.Status);
+        Assert.Null(order.SaleId);
     }
 
     [Fact]

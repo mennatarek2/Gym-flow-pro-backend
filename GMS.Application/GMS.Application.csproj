@@ -24,4 +24,15 @@
     <Folder Include="DTOs\Notifications\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Localization\AppMessages.en.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Localization\AppMessages.ar.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <EmbeddedResource Include="Localization\AppMessages.en.json" />
+    <EmbeddedResource Include="Localization\AppMessages.ar.json" />
+  </ItemGroup>
+
 </Project>

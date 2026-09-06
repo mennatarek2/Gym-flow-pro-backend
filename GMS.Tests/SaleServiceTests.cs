@@ -611,6 +611,52 @@ public class SaleServiceTests
     }
 
     [Fact]
+    public async Task RecordPaymentAsync_AmountExceedsOutstanding_Rejected()
+    {
+        var (ctx, svc, tenantId) = CreateSut();
+        SeedTenant(ctx, tenantId);
+        var (staff, identityUserId) = SeedStaff(ctx, tenantId);
+        SeedOpenShift(ctx, tenantId, staff.Id);
+        var member = SeedMember(ctx, tenantId);
+        var plan = new MembershipPlan
+        {
+            TenantId = tenantId,
+            Name = "Monthly",
+            NameAr = "شهرية",
+            PlanType = "duration",
+            DurationDays = 30,
+            Price = 500m,
+            IsActive = true
+        };
+        ctx.MembershipPlans.Add(plan);
+        await ctx.SaveChangesAsync();
+
+        var saleResult = await svc.CreateSaleAsync(new CreateSaleRequest
+        {
+            MemberId = member.Id,
+            Lines = new List<CreateSaleLineRequest>
+            {
+                new() { LineType = "membership", PlanId = plan.Id }
+            },
+            Payments = new List<SalePaymentRequest> { new() { Method = "cash", Amount = 200m } },
+            PartialPayment = new PartialPaymentRequest { DueDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)) }
+        }, identityUserId, tenantId, new HashSet<string>());
+        Assert.True(saleResult.IsSuccess, saleResult.Error);
+        Assert.Equal(300m, saleResult.Data!.Totals.AmountDue);
+
+        var overpay = await svc.RecordPaymentAsync(
+            saleResult.Data.SaleId,
+            tenantId,
+            identityUserId,
+            new RecordPaymentRequest { Method = "cash", Amount = 301m });
+        Assert.False(overpay.IsSuccess);
+        Assert.StartsWith(SaleFailureReasons.PaymentExceedsAmountDue + "|", overpay.Error);
+
+        var sale = await ctx.Sales.SingleAsync(s => s.Id == saleResult.Data.SaleId);
+        Assert.Equal(300m, sale.AmountDue);
+    }
+
+    [Fact]
     public async Task RetailOnly_WalkInCash_DeductsStock_NullMembershipId()
     {
         var (ctx, svc, tenantId) = CreateSut();
@@ -636,6 +682,10 @@ public class SaleServiceTests
         Assert.Equal("retail", line.LineType);
         Assert.Equal(product.Id, line.ReferenceId);
         Assert.Equal(2, line.Qty);
+        Assert.NotNull(line.CogsAmount);
+        Assert.NotNull(line.UnitCost);
+        Assert.True(line.CogsAmount > 0m);
+        Assert.Equal(line.UnitCost * line.Qty, line.CogsAmount);
 
         var movements = await ctx.StockMovements.Where(m => m.ReferenceId == line.Id).ToListAsync();
         Assert.Single(movements);

@@ -72,6 +72,8 @@ public sealed class SaleAdjustmentService : ISaleAdjustmentService
         sale.Status = sale.AmountDue == 0m
             ? (type == "cancellation" ? "cancelled" : "written_off")
             : "partially_paid";
+        if (sale.AmountDue == 0m)
+            sale.DueDate = null;
         sale.UpdatedAtUtc = DateTime.UtcNow;
 
         var adjustment = new SaleAdjustment
@@ -121,11 +123,15 @@ public sealed class SaleAdjustmentService : ISaleAdjustmentService
                 && payment.Status == "success"
                 && payment.Amount > 0m)
             .SumAsync(payment => (decimal?)payment.Amount, ct) ?? 0m;
-        var adjustments = await _db.SaleAdjustments
+        var postedAdjustments = await _db.SaleAdjustments
             .Where(adjustment => adjustment.TenantId == tenantId
                 && adjustment.SaleId == saleId
                 && adjustment.Status == "posted")
-            .SumAsync(adjustment => (decimal?)adjustment.Amount, ct) ?? 0m;
+            .Select(adjustment => new { adjustment.Amount, adjustment.Type })
+            .ToListAsync(ct);
+        var adjustments = postedAdjustments.Sum(adjustment => adjustment.Amount);
+        var hasCancellation = postedAdjustments.Any(adjustment =>
+            string.Equals(adjustment.Type, "cancellation", StringComparison.OrdinalIgnoreCase));
         var canonicalDue = Math.Max(0m, decimal.Round(
             sale.Total - allocated - adjustments, 2, MidpointRounding.AwayFromZero));
         var previousDue = sale.AmountDue;
@@ -135,7 +141,7 @@ public sealed class SaleAdjustmentService : ISaleAdjustmentService
         {
             sale.AmountDue = canonicalDue;
             sale.Status = canonicalDue == 0m
-                ? (adjustments > 0m ? "written_off" : "completed")
+                ? (hasCancellation ? "cancelled" : adjustments > 0m ? "written_off" : "completed")
                 : "partially_paid";
             sale.UpdatedAtUtc = DateTime.UtcNow;
             await _db.SaveChangesAsync(ct);

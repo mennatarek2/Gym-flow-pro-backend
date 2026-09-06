@@ -82,7 +82,8 @@ public class SessionBookingEngineTests
         var member = new GymMember
         {
             Id = Guid.NewGuid(), TenantId = tenantId, FullName = "Test Member",
-            PhoneNumber = "+201000000000"
+            PhoneNumber = $"+2010{Guid.NewGuid():N}"[..14],
+            IsActive = true
         };
         var membership = new Membership
         {
@@ -408,27 +409,31 @@ public class SessionBookingEngineTests
     public async Task Capacity_Full_Rejects_Additional_Bookings()
     {
         var (db, _) = NewContext(_tenantA);
-        var (_, _, activity) = await SeedAsync(db, _tenantA, accessMode: null); // entitlement-free activity
-        activity.DropInPrice = null; // force pure eligibility rejection after full
-        await db.SaveChangesAsync();
-
-        var session = await SeedSessionViaSchedule(db, _tenantA, activity.Id, DateTime.UtcNow.AddHours(4), capacity: 2);
-
-        // Two entitled members fill capacity=2.
-        var members = new List<GymMember>();
-        foreach (var _ in Enumerable.Range(0, 2))
-        {
-            var (m, _) = await SeedMemberAsync(db, _tenantA, Guid.Empty);
-            // Give them an included entitlement via a fresh plan each? Simpler: use drop-in sale route.
-            members.Add(m);
-        }
-
+        var (_, plan, activity) = await SeedAsync(db, _tenantA, accessMode: "unlimited");
+        var session = await SeedSessionViaSchedule(
+            db, _tenantA, activity.Id, DateTime.UtcNow.AddHours(4), capacity: 2);
         var svc = BookingService(db);
 
-        // Members have no entitlement and activity has no drop-in price → not eligible.
-        var ineligible = await svc.CreateBookingAsync(_tenantA, new CreateBookingRequest
-        { SessionId = session.Id, MemberId = members[0].Id }, null);
-        Assert.False(ineligible.IsSuccess);
+        var (m1, _) = await SeedMemberAsync(db, _tenantA, plan.Id);
+        var (m2, _) = await SeedMemberAsync(db, _tenantA, plan.Id);
+        var (m3, _) = await SeedMemberAsync(db, _tenantA, plan.Id);
+
+        var first = await svc.CreateBookingAsync(_tenantA, new CreateBookingRequest
+        { SessionId = session.Id, MemberId = m1.Id }, null);
+        var second = await svc.CreateBookingAsync(_tenantA, new CreateBookingRequest
+        { SessionId = session.Id, MemberId = m2.Id }, null);
+        Assert.True(first.IsSuccess, first.Error);
+        Assert.True(second.IsSuccess, second.Error);
+
+        var third = await svc.CreateBookingAsync(_tenantA, new CreateBookingRequest
+        { SessionId = session.Id, MemberId = m3.Id }, null);
+        Assert.False(third.IsSuccess);
+        Assert.Contains("full", third.Error, StringComparison.OrdinalIgnoreCase);
+
+        var active = await db.ActivityBookings.CountAsync(b =>
+            b.SessionId == session.Id && !b.IsDeleted
+            && (b.Status == ActivityBookingStatuses.Booked || b.Status == ActivityBookingStatuses.CheckedIn));
+        Assert.Equal(2, active);
     }
 
     // ---------- Drop-in ----------

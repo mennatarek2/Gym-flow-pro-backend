@@ -14,6 +14,10 @@ public static class MembershipOperational
     public static DateOnly TodayCairo() =>
         DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, CairoTimeZone));
 
+    /// <summary>Current wall-clock time in Cairo (for morning-pass / time-restricted plans).</summary>
+    public static TimeOnly NowTimeCairo() =>
+        TimeOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, CairoTimeZone));
+
     public static DateOnly ToCairoDate(DateTime utc)
     {
         var instant = utc.Kind == DateTimeKind.Utc

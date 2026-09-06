@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using GMS.Application.Common;
 using GMS.Application.DTOs.Memberships;
+using GMS.Application.DTOs.Sales;
 using GMS.Application.Interfaces;
 using GMS.Core.Constants;
 using GMS.Core.Entities;
@@ -27,6 +28,7 @@ public class MembershipService : IMembershipService
     private readonly IAuditService _auditService;
     private readonly IReferralAttributionService _referralAttribution;
     private readonly IActivityEntitlementService _activityEntitlements;
+    private readonly ISaleAdjustmentService _saleAdjustments;
     private readonly ILogger<MembershipService> _logger;
 
     public MembershipService(
@@ -38,6 +40,7 @@ public class MembershipService : IMembershipService
         IAuditService auditService,
         IReferralAttributionService referralAttribution,
         IActivityEntitlementService activityEntitlements,
+        ISaleAdjustmentService saleAdjustments,
         ILogger<MembershipService> logger)
     {
         _dbContext = dbContext;
@@ -48,6 +51,7 @@ public class MembershipService : IMembershipService
         _auditService = auditService;
         _referralAttribution = referralAttribution;
         _activityEntitlements = activityEntitlements;
+        _saleAdjustments = saleAdjustments;
         _logger = logger;
     }
 
@@ -453,6 +457,8 @@ public class MembershipService : IMembershipService
             member.InvitationQuotaRemaining = 0;
             member.UpdatedAtUtc = DateTime.UtcNow;
 
+            // Write off remaining AmountDue via SaleAdjustment (cancellation) so reconcile
+            // cannot resurrect debt. Cash already collected is kept — this is not a refund.
             var saleId = await _dbContext.SaleLines
                 .Where(l => l.TenantId == tenantId
                     && l.LineType == "membership"
@@ -462,13 +468,29 @@ public class MembershipService : IMembershipService
             if (saleId != Guid.Empty)
             {
                 var sale = await _dbContext.Sales
+                    .AsNoTracking()
                     .FirstOrDefaultAsync(s => s.Id == saleId && s.TenantId == tenantId);
                 if (sale != null
                     && sale.Status == "partially_paid"
                     && sale.AmountDue > 0)
                 {
-                    sale.AmountDue = 0m;
-                    sale.DueDate = null;
+                    var writeOff = await _saleAdjustments.CreateAsync(
+                        tenantId,
+                        staffUserId,
+                        new CreateSaleAdjustmentRequest
+                        {
+                            SaleId = sale.Id,
+                            Amount = sale.AmountDue,
+                            Type = "cancellation",
+                            Reason = "Membership cancelled — remaining balance not collected"
+                        });
+                    if (!writeOff.IsSuccess)
+                    {
+                        return Result<MembershipDto>.Failure(
+                            "Membership cancel could not clear outstanding sale / " +
+                            "تعذر تصفية المبلغ المستحق عند إلغاء العضوية",
+                            writeOff.Error);
+                    }
                 }
             }
 
