@@ -51,6 +51,8 @@ public class MembershipPlanService : IMembershipPlanService
                     Price = p.Price,
                     Currency = p.Currency,
                     DurationDays = p.DurationDays,
+                    SessionCount = p.SessionCount,
+                    PtSessionDurationMinutes = p.PtSessionDurationMinutes,
                     IsActive = p.IsActive,
                     CreatedAtUtc = p.CreatedAtUtc
                 })
@@ -117,6 +119,7 @@ public class MembershipPlanService : IMembershipPlanService
                 Currency = "EGP",
                 DurationDays = request.DurationDays,
                 SessionCount = request.SessionCount,
+                PtSessionDurationMinutes = request.PlanType.ToLower() == "pt_credits" ? request.PtSessionDurationMinutes : null,
                 TimeRestrictionStart = request.TimeRestrictionStart,
                 TimeRestrictionEnd = request.TimeRestrictionEnd,
                 InvitationQuota = request.InvitationQuota,
@@ -170,6 +173,7 @@ public class MembershipPlanService : IMembershipPlanService
             plan.Price = request.Price;
             plan.DurationDays = request.DurationDays;
             plan.SessionCount = request.SessionCount;
+            plan.PtSessionDurationMinutes = request.PlanType.ToLower() == "pt_credits" ? request.PtSessionDurationMinutes : null;
             plan.TimeRestrictionStart = request.TimeRestrictionStart;
             plan.TimeRestrictionEnd = request.TimeRestrictionEnd;
             plan.InvitationQuota = request.InvitationQuota;
@@ -267,6 +271,7 @@ public class MembershipPlanService : IMembershipPlanService
         Currency = plan.Currency,
         DurationDays = plan.DurationDays,
         SessionCount = plan.SessionCount,
+        PtSessionDurationMinutes = plan.PtSessionDurationMinutes,
         TimeRestrictionStart = plan.TimeRestrictionStart,
         TimeRestrictionEnd = plan.TimeRestrictionEnd,
         InvitationQuota = plan.InvitationQuota,

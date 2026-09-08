@@ -122,6 +122,57 @@ public class HrEmployeeAttendanceController : BaseApiController
         return Ok(result.Data);
     }
 
+    /// <summary>
+    /// Step 1 of employee QR check-in: validates the scanned gym QR and previews today's
+    /// shift/lateness WITHOUT creating an attendance record. The app shows this as a
+    /// confirmation screen; only /me/qr-check-in actually writes the row.
+    /// POST /api/hr/employee-attendance/me/qr-validate
+    /// </summary>
+    [HttpPost("me/qr-validate")]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("checkin-policy")]
+    [ProducesResponseType(typeof(EmployeeQrCheckinPreviewDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ValidateQrCheckinMine([FromBody] EmployeeQrRequest request)
+    {
+        if (!_tenantContext.IsInitialized)
+            return Unauthorized(new { error = "Tenant context required." });
+
+        var employeeId = await ResolveOwnEmployeeIdAsync();
+        if (employeeId == null)
+            return Forbid();
+
+        var result = await _attendance.ValidateQrCheckinAsync(_tenantContext.TenantId, employeeId.Value, request.QrToken);
+        if (!result.IsSuccess)
+            return BadRequest(new { error = result.Error });
+        return Ok(result.Data);
+    }
+
+    /// <summary>
+    /// Step 2 (confirm) of employee QR check-in. Independently re-validates the QR token and the
+    /// "already checked in" guard — a stale /me/qr-validate response cannot be replayed to
+    /// manufacture an attendance record here.
+    /// POST /api/hr/employee-attendance/me/qr-check-in
+    /// </summary>
+    [HttpPost("me/qr-check-in")]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("checkin-policy")]
+    [ProducesResponseType(typeof(EmployeeAttendanceDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> QrCheckInMine([FromBody] EmployeeQrRequest request)
+    {
+        if (!_tenantContext.IsInitialized)
+            return Unauthorized(new { error = "Tenant context required." });
+
+        var employeeId = await ResolveOwnEmployeeIdAsync();
+        if (employeeId == null)
+            return Forbid();
+
+        var actorAppUserId = await ResolveActingAppUserIdAsync();
+        var result = await _attendance.QrCheckInAsync(_tenantContext.TenantId, employeeId.Value, request.QrToken, actorAppUserId);
+        if (!result.IsSuccess)
+            return BadRequest(new { error = result.Error });
+        return Ok(result.Data);
+    }
+
     [HttpPost("me/check-out")]
     [ProducesResponseType(typeof(EmployeeAttendanceDto), StatusCodes.Status200OK)]
     public async Task<IActionResult> CheckOutMine()

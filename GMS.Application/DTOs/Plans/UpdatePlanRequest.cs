@@ -17,6 +17,8 @@ public class UpdatePlanRequest
     public decimal Price { get; set; }
     public int DurationDays { get; set; }
     public int? SessionCount { get; set; }
+    /// <summary>Minutes per PT session (30/45/60/90). Only used when PlanType is pt_credits.</summary>
+    public int? PtSessionDurationMinutes { get; set; }
     public TimeOnly? TimeRestrictionStart { get; set; }
     public TimeOnly? TimeRestrictionEnd { get; set; }
     public int InvitationQuota { get; set; } = 0;

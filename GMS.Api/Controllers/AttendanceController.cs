@@ -30,6 +30,27 @@ public class AttendanceController : BaseApiController
         _tenantContext = tenantContext;
     }
 
+    /// <summary>
+    /// Mints a fresh short-lived signed QR token for the reception/staff display screen.
+    /// The frontend encodes the returned token into a QR image and re-fetches before it expires.
+    /// GET /api/attendance/qr/token
+    /// </summary>
+    [HttpGet("qr/token")]
+    [HasAnyPermission(Permissions.MembersView, Permissions.AttendanceView)]
+    [ProducesResponseType(typeof(GymQrTokenDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetQrToken()
+    {
+        if (!_tenantContext.IsInitialized)
+            return Unauthorized(new { error = "Tenant context required." });
+
+        var result = await _checkinService.GenerateQrTokenAsync(_tenantContext.TenantId);
+        if (!result.IsSuccess)
+            return BadRequest(new { error = result.Error });
+
+        return Ok(result.Data);
+    }
+
     [HttpPost("qr-checkin")]
     [Authorize(Policy = "AuthenticatedMember")]
     [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("checkin-policy")]

@@ -38,3 +38,31 @@ public class CorrectAttendanceRequest
     public DateTime? CheckOutAtUtc { get; set; }
     public string? Notes { get; set; }
 }
+
+/// <summary>Body for both /me/qr-validate and /me/qr-check-in — the raw text decoded from the gym's
+/// QR image (a short-lived signed token, see <see cref="GMS.Application.Interfaces.IGymQrTokenService"/>).</summary>
+public class EmployeeQrRequest
+{
+    public string QrToken { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Read-only preview returned by /me/qr-validate — lets the app show a confirmation screen
+/// (shift, computed on-time/late preview) before the employee taps Confirm. Never persisted;
+/// the actual attendance row is written by /me/qr-check-in, which independently recomputes
+/// everything at that moment (this preview cannot be replayed to manufacture attendance data).
+/// </summary>
+public class EmployeeQrCheckinPreviewDto
+{
+    public bool HasSchedule { get; set; }
+    public string? ShiftName { get; set; }
+    public TimeOnly? ShiftStart { get; set; }
+    public TimeOnly? ShiftEnd { get; set; }
+
+    /// <summary>Server clock at validation time — the actual check-in time will be a few seconds later.</summary>
+    public DateTime PreviewCheckInAtUtc { get; set; }
+    public int PreviewLateMinutes { get; set; }
+
+    /// <summary>Present | Late — see <see cref="GMS.Core.Constants.AttendanceStatuses"/>.</summary>
+    public string PreviewStatus { get; set; } = string.Empty;
+}

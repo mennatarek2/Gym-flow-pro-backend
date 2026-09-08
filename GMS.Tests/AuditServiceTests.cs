@@ -4,6 +4,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using GMS.Application.DTOs.Attendance;
 using GMS.Application.DTOs.Audit;
@@ -173,6 +174,13 @@ public class AuditServiceTests
         };
 
         var auditService = CreateAuditService(ctx, tenantId, httpContext);
+        var qrTokenService = new GymQrTokenService(
+            new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["JwtSettings:SecretKey"] = "Test-Only-Secret-Key-Must-Be-At-Least-32-Characters-Long!"
+                })
+                .Build());
         var checkinService = new CheckinService(
             ctx,
             new MemberRepository(ctx),
@@ -180,6 +188,7 @@ public class AuditServiceTests
             new MemoryCache(new MemoryCacheOptions()),
             new NoOpCheckinNotifier(),
             auditService,
+            qrTokenService,
             NullLogger<CheckinService>.Instance);
 
         var result = await checkinService.ProcessManualCheckinAsync(

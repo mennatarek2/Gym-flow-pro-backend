@@ -23,6 +23,14 @@ public class GymAttendance : BaseEntity
     public DateTime CheckInAtUtc { get; set; }
     public DateTime? CheckOutAtUtc { get; set; }
 
+    /// <summary>
+    /// Cairo calendar date of <see cref="CheckInAtUtc"/>, auto-stamped by GymFlowProDbContext on
+    /// insert (never set by callers). Backs the unique gym-floor-check-in-per-member-per-day
+    /// constraint (see GymAttendanceConfiguration) — scoped to SessionId == null rows so a class/
+    /// session booking check-in (which legitimately repeats per session) never collides with it.
+    /// </summary>
+    public DateOnly AttendanceDateCairo { get; set; }
+
     // Entry method
     public string EntryMethod { get; set; } = "qr";
     // Valid values: 'qr', 'manual'

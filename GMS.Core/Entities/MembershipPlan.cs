@@ -18,10 +18,14 @@ public class MembershipPlan : BaseEntity
     // Plan type
     public string PlanType { get; set; } = "monthly_unlimited";
     // Valid values: 'monthly_unlimited', 'session_pack', 'time_limited', 'pt_credits', 'family', 'trial', 'day_pass'
+    // 'pt_credits' is the PRIVATE / Personal Training package type (business label "PRIVATE" / "برايفت").
 
     // Duration & Sessions
     public int DurationDays { get; set; }
-    public int? SessionCount { get; set; } // For session-pack plans
+    public int? SessionCount { get; set; } // For session_pack plans, and included PT sessions for pt_credits (PRIVATE) plans
+
+    /// <summary>Minutes per PT session (30/45/60/90) for pt_credits (PRIVATE) plans. Null for every other plan type.</summary>
+    public int? PtSessionDurationMinutes { get; set; }
 
     /// <summary>Visit cap for trial plans that expire by visit count instead of (or in addition to) date. Null = no visit cap.</summary>
     public int? TrialVisitLimit { get; set; }

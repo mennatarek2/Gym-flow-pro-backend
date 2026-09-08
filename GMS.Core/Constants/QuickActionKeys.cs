@@ -13,7 +13,6 @@ public static class QuickActionKeys
     public const string Checkin = "checkin";
     public const string NewSale = "new_sale";
     public const string CollectPayment = "collect_payment";
-    public const string NewTrial = "new_trial";
     public const string SendDebtorReminder = "send_debtor_reminder";
     public const string OpenShift = "open_shift";
     public const string CloseShift = "close_shift";
@@ -41,7 +40,6 @@ public static class QuickActionKeys
         Checkin,
         NewSale,
         CollectPayment,
-        NewTrial,
         SendDebtorReminder,
         OpenShift,
         CloseShift,

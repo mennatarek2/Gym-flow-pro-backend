@@ -387,7 +387,7 @@ public class SaleService : ISaleService
                     StartDate = today,
                     EndDate = primaryPlan.PlanType == "day_pass" ? today : today.AddDays(primaryPlan.DurationDays),
                     Status = "active",
-                    SessionsRemaining = primaryPlan.PlanType == "session_pack" ? primaryPlan.SessionCount : null,
+                    SessionsRemaining = primaryPlan.PlanType is "session_pack" or "pt_credits" ? primaryPlan.SessionCount : null,
                     PaymentMethod = request.Payments.Count == 1 ? request.Payments[0].Method : "mixed",
                     AmountPaid = paidAmount,
                     PaymentDate = DateTime.UtcNow

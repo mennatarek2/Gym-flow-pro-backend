@@ -12,6 +12,8 @@ public class PlanListItemDto
     public decimal Price { get; set; }
     public string Currency { get; set; } = "EGP";
     public int DurationDays { get; set; }
+    public int? SessionCount { get; set; }
+    public int? PtSessionDurationMinutes { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAtUtc { get; set; }
 }

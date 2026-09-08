@@ -9,6 +9,7 @@ using GMS.Application.DTOs.Notifications;
 using GMS.Application.Interfaces;
 using GMS.Core.Constants;
 using GMS.Core.Entities;
+using GMS.Core.Exceptions;
 using GMS.Core.Interfaces;
 using GMS.Core.Utilities;
 using GMS.Infrastructure.Persistence;
@@ -20,7 +21,7 @@ using GMS.Infrastructure.Persistence;
 /// Target: QR check-in completes in under 300ms with warm cache.
 /// 
 /// VALIDATION ORDER (exact sequence — do NOT reorder):
-///   1. Gym code → tenant exists
+///   1. QR token (signature + expiry) → gym code → tenant exists
 ///   2. Member JWT → belongs to this tenant
 ///   3. Active membership exists
 ///   4. Membership not frozen
@@ -38,6 +39,7 @@ public class CheckinService : ICheckinService
     private readonly ICheckinNotifier _notifier;
     private readonly IAuditService _auditService;
     private readonly IStaffNotificationPublisher? _staffNotifications;
+    private readonly IGymQrTokenService _qrTokenService;
     private readonly ILogger<CheckinService> _logger;
 
     private static readonly TimeSpan MembershipCacheTtl = TimeSpan.FromMinutes(5);
@@ -49,6 +51,7 @@ public class CheckinService : ICheckinService
         IMemoryCache cache,
         ICheckinNotifier notifier,
         IAuditService auditService,
+        IGymQrTokenService qrTokenService,
         ILogger<CheckinService> logger,
         IStaffNotificationPublisher? staffNotifications = null)
     {
@@ -58,6 +61,7 @@ public class CheckinService : ICheckinService
         _cache = cache;
         _notifier = notifier;
         _auditService = auditService;
+        _qrTokenService = qrTokenService;
         _logger = logger;
         _staffNotifications = staffNotifications;
     }
@@ -65,15 +69,30 @@ public class CheckinService : ICheckinService
     public async Task<Result<QrCheckinResponse>> ProcessQrCheckinAsync(
         QrCheckinRequest request, Guid userId, Guid tenantId)
     {
-        // === STEP 1: Gym code → tenant exists ===
-        var tenant = await GetTenantByGymCodeAsync(request.GymCode);
+        // === STEP 1: Signed QR token → valid, not expired, resolves to a gym code → tenant exists ===
+        // The scanned QR's content is the opaque short-lived token minted by GenerateQrTokenAsync —
+        // NOT a raw gym code. QrCheckinRequest.GymCode is kept as the wire field name for backward
+        // compatibility with already-shipped Flutter clients that just forward whatever the camera
+        // decoded; only the QR image's *content* changed from a permanent gym code to this token.
+        var tokenResult = _qrTokenService.Validate(request.GymCode);
+        if (!tokenResult.IsValid)
+        {
+            _logger.LogWarning("QR check-in rejected: invalid/expired token for tenant {TenantId}", tenantId);
+            return Fail<QrCheckinResponse>(tokenResult.Error ?? "Invalid or expired QR / رمز QR غير صالح أو منتهي");
+        }
+
+        var tenant = await GetTenantByGymCodeAsync(tokenResult.GymCode!);
         if (tenant == null)
             return Fail<QrCheckinResponse>(
                 "Invalid gym QR code / رمز QR غير صالح");
 
         if (tenant.Id != tenantId)
+        {
+            _logger.LogWarning("QR check-in rejected: token gym {TokenGymCode} does not match caller tenant {TenantId}",
+                tokenResult.GymCode, tenantId);
             return Fail<QrCheckinResponse>(
                 "This QR code belongs to a different gym / رمز QR هذا يخص صالة رياضية أخرى");
+        }
 
         // === STEP 2: Member belongs to this tenant ===
         // JWT "sub" is AspNetUsers.Id; gym_members.AppUserId FK points to app_users.Id, and app_users.UserId stores the Identity id string.
@@ -97,7 +116,14 @@ public class CheckinService : ICheckinService
             EntryMethod = "qr"
         };
 
-        await _attendanceRepo.CreateCheckinAsync(attendance);
+        try
+        {
+            await _attendanceRepo.CreateCheckinAsync(attendance);
+        }
+        catch (DuplicateCheckinException ex)
+        {
+            return Fail<QrCheckinResponse>(ex.Message);
+        }
 
         // === STEP 8: Decrement sessions for session-pack plans ===
         int? sessionsRemaining = await DecrementSessionsIfNeededAsync(membership);
@@ -116,7 +142,7 @@ public class CheckinService : ICheckinService
 
         _logger.LogInformation(
             "QR check-in: Member {MemberNumber} at tenant {GymCode}",
-            member.MemberNumber, request.GymCode);
+            member.MemberNumber, tokenResult.GymCode);
 
         // Push real-time event to dashboard (non-blocking)
         _ = _notifier.NotifyCheckinAsync(
@@ -184,7 +210,14 @@ public class CheckinService : ICheckinService
             ManualReason = reasonText
         };
 
-        await _attendanceRepo.CreateCheckinAsync(attendance);
+        try
+        {
+            await _attendanceRepo.CreateCheckinAsync(attendance);
+        }
+        catch (DuplicateCheckinException ex)
+        {
+            return Fail<ManualCheckinResponse>(ex.Message);
+        }
 
         await _auditService.LogAsync("checkin.manual", "GymAttendance", attendance.Id);
 
@@ -268,7 +301,14 @@ public class CheckinService : ICheckinService
             ManualReason = null
         };
 
-        await _attendanceRepo.CreateCheckinAsync(attendance);
+        try
+        {
+            await _attendanceRepo.CreateCheckinAsync(attendance);
+        }
+        catch (DuplicateCheckinException ex)
+        {
+            return Fail<ManualCheckinResponse>(ex.Message);
+        }
         await _auditService.LogAsync("checkin.barcode", "GymAttendance", attendance.Id);
 
         int? sessionsRemaining = await DecrementSessionsIfNeededAsync(membership);
@@ -472,10 +512,14 @@ public class CheckinService : ICheckinService
         }
 
         // === Duplicate check-in prevention (Cairo business day, not UTC midnight) ===
+        // Gym-floor check-ins only (SessionId == null) — a class/session booking check-in
+        // (SessionBookingService) is a separate, legitimately-repeatable attendance record and must
+        // not block (or be blocked by) a same-day gym-floor QR/manual/barcode check-in.
         var cairoTodayRange = MembershipOperational.CairoInclusiveRangeUtc(today, today);
         var alreadyCheckedIn = await _dbContext.GymAttendances
             .AnyAsync(a => a.MemberId == member.Id
                         && a.TenantId == tenantId
+                        && a.SessionId == null
                         && a.CheckInAtUtc >= cairoTodayRange.UtcStart
                         && a.CheckInAtUtc < cairoTodayRange.UtcEndExclusive);
 
@@ -619,6 +663,26 @@ public class CheckinService : ICheckinService
     private void InvalidateMembershipCache(Guid tenantId, Guid memberId)
     {
         _cache.Remove($"membership:{tenantId}:{memberId}");
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<GymQrTokenDto>> GenerateQrTokenAsync(Guid tenantId)
+    {
+        var tenant = await _dbContext.Tenants
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == tenantId && !t.IsDeleted);
+
+        if (tenant == null || string.IsNullOrWhiteSpace(tenant.GymCode))
+            return Fail<GymQrTokenDto>("Gym code is not configured / رمز الصالة غير مُعد");
+
+        var (token, expiresAtUtc) = _qrTokenService.GenerateToken(tenant.GymCode);
+
+        return Result<GymQrTokenDto>.Success(new GymQrTokenDto
+        {
+            Token = token,
+            ExpiresAtUtc = expiresAtUtc,
+            ExpiresInSeconds = Math.Max(0, (int)Math.Round((expiresAtUtc - DateTime.UtcNow).TotalSeconds))
+        });
     }
 
     private async Task<Tenant?> GetTenantByGymCodeAsync(string gymCode)

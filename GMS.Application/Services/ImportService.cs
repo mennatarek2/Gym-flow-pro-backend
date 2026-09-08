@@ -608,7 +608,7 @@ public class ImportService : IImportService
                     var endDate = ParseDate(mapped.GetValueOrDefault("endDate")) ?? startDate.AddDays(plan.DurationDays);
 
                     int? sessionsRemaining = null;
-                    if (plan.PlanType == "session_pack" && int.TryParse(mapped.GetValueOrDefault("sessionsRemaining"), out var sessions))
+                    if (plan.PlanType is "session_pack" or "pt_credits" && int.TryParse(mapped.GetValueOrDefault("sessionsRemaining"), out var sessions))
                         sessionsRemaining = sessions;
 
                     var membership = new Membership

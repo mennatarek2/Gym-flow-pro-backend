@@ -4,6 +4,7 @@ using GMS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GMS.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(GymFlowProDbContext))]
-    partial class GymFlowProDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260907114724_AddQrAttendanceHardening")]
+    partial class AddQrAttendanceHardening
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

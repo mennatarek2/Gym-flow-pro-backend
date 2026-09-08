@@ -4,6 +4,7 @@ using GMS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GMS.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(GymFlowProDbContext))]
-    partial class GymFlowProDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260906133517_AddPtSessionDurationMinutes")]
+    partial class AddPtSessionDurationMinutes
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1465,9 +1468,6 @@ namespace GMS.Infrastructure.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
-                    b.Property<DateOnly>("AttendanceDateCairo")
-                        .HasColumnType("DATE");
-
                     b.Property<Guid?>("BookingId")
                         .HasColumnType("UNIQUEIDENTIFIER");
 
@@ -1554,11 +1554,6 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.HasIndex("TenantId", "CheckInAtUtc");
 
                     b.HasIndex("TenantId", "MemberId");
-
-                    b.HasIndex("TenantId", "MemberId", "AttendanceDateCairo")
-                        .IsUnique()
-                        .HasDatabaseName("IX_gym_attendance_TenantId_MemberId_AttendanceDateCairo_Unique")
-                        .HasFilter("[MemberId] IS NOT NULL AND [SessionId] IS NULL AND [IsDeleted] = 0");
 
                     b.ToTable("gym_attendance", (string)null);
                 });

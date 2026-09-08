@@ -70,5 +70,16 @@ public class CreatePlanValidator : AbstractValidator<CreatePlanRequest>
         RuleFor(x => x.ReferralInviteQuota)
             .GreaterThanOrEqualTo(0)
             .WithMessage("Invitation quota cannot be negative / حصة الدعوات لا يمكن أن تكون سالبة");
+
+        // PRIVATE (pt_credits): included PT session count is the core of the package.
+        RuleFor(x => x.SessionCount)
+            .NotNull().GreaterThan(0)
+            .When(x => x.PlanType?.ToLower() == "pt_credits")
+            .WithMessage("Included sessions must be a positive number for PRIVATE plans / عدد الجلسات المضمنة يجب أن يكون رقمًا موجبًا لخطط البرايفت");
+
+        RuleFor(x => x.PtSessionDurationMinutes)
+            .Must(v => v is 30 or 45 or 60 or 90)
+            .When(x => x.PlanType?.ToLower() == "pt_credits" && x.PtSessionDurationMinutes.HasValue)
+            .WithMessage("Session duration must be 30, 45, 60, or 90 minutes / مدة الجلسة يجب أن تكون 30 أو 45 أو 60 أو 90 دقيقة");
     }
 }

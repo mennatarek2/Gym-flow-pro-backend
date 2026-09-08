@@ -443,6 +443,8 @@ public class GymFlowProDbContext : IdentityDbContext<ApplicationUser, IdentityRo
             {
                 case EntityState.Added:
                     entry.Entity.CreatedAtUtc = DateTime.UtcNow;
+                    if (entry.Entity is GymAttendance attendance)
+                        attendance.AttendanceDateCairo = GMS.Core.Utilities.MembershipOperational.ToCairoDate(attendance.CheckInAtUtc);
                     break;
 
                 case EntityState.Modified:

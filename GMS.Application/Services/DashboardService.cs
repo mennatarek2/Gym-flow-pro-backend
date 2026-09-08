@@ -529,7 +529,6 @@ public sealed class DashboardService : IDashboardService
             QuickActionKeys.Checkin => access.Has(Permissions.CheckinManual),
             QuickActionKeys.NewSale or QuickActionKeys.CollectPayment =>
                 access.Has(Permissions.SalesSell),
-            QuickActionKeys.NewTrial => access.Has(Permissions.MembersCreate),
             QuickActionKeys.SendDebtorReminder => access.Has(Permissions.MembersView),
             QuickActionKeys.NewRefund => access.Has(Permissions.PaymentsRefundRequest),
             QuickActionKeys.FreezeMembership => access.Has(Permissions.MembershipsFreeze),

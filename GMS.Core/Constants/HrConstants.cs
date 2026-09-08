@@ -69,9 +69,14 @@ public static class AttendanceSources
     public const string Device = "Device";
     public const string System = "System";
 
+    /// <summary>Self check-in via the gym's short-lived QR display, confirmed by the employee (see
+    /// EmployeeAttendanceController's qr-validate/qr-check-in). Distinct from <see cref="Employee"/>
+    /// (a plain no-QR self check-in tap) purely for observability/reporting.</summary>
+    public const string Qr = "Qr";
+
     public static readonly HashSet<string> All = new(StringComparer.OrdinalIgnoreCase)
     {
-        Manual, Reception, Employee, Device, System
+        Manual, Reception, Employee, Device, System, Qr
     };
 }
 

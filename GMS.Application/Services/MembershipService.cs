@@ -216,7 +216,7 @@ public class MembershipService : IMembershipService
                 StartDate = today,
                 EndDate = endDate,
                 Status = isCash ? "active" : "pending",
-                SessionsRemaining = plan.PlanType == "session_pack" ? plan.SessionCount : null,
+                SessionsRemaining = plan.PlanType is "session_pack" or "pt_credits" ? plan.SessionCount : null,
                 PaymentMethod = request.PaymentMethod,
                 AmountPaid = isCash ? cashTaken : 0m,
                 PaymentDate = isCash ? DateTime.UtcNow : null,
@@ -333,7 +333,7 @@ public class MembershipService : IMembershipService
                 StartDate = newStartDate,
                 EndDate = newEndDate,
                 Status = isCash ? "active" : "pending",
-                SessionsRemaining = renewalPlan.PlanType == "session_pack" ? renewalPlan.SessionCount : null,
+                SessionsRemaining = renewalPlan.PlanType is "session_pack" or "pt_credits" ? renewalPlan.SessionCount : null,
                 PaymentMethod = request.PaymentMethod,
                 AmountPaid = request.AmountPaid,
                 PaymentDate = isCash ? DateTime.UtcNow : null,
@@ -521,6 +521,109 @@ public class MembershipService : IMembershipService
             _logger.LogError(ex, "Error cancelling membership for member {MemberId}", memberId);
             return Result<MembershipDto>.Failure(
                 "Failed to cancel membership / فشل في إلغاء العضوية",
+                ex.Message);
+        }
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// PRIVATE (pt_credits) plans only. Explicit staff action for a completed PT session —
+    /// never triggered by gym check-in (that stays session_pack-only in <c>CheckinService</c>).
+    /// Reuses the same SessionsRemaining column/guarded-decrement pattern as session_pack
+    /// check-in consumption; no second session balance.
+    /// </remarks>
+    public async Task<Result<MembershipDto>> ConsumePrivateSessionAsync(
+        Guid tenantId, Guid memberId, Guid staffUserId)
+    {
+        try
+        {
+            var member = await _dbContext.GymMembers
+                .FirstOrDefaultAsync(m => m.Id == memberId && m.TenantId == tenantId);
+            if (member == null)
+                return Result<MembershipDto>.Failure(
+                    "Member not found / العضو غير موجود");
+
+            var memberships = await _dbContext.Memberships
+                .Include(m => m.Plan)
+                .Where(m => m.MemberId == memberId && m.TenantId == tenantId)
+                .ToListAsync();
+
+            var today = MembershipOperational.TodayCairo();
+            var membership = MembershipOperational.SelectCoveringToday(memberships, today);
+
+            if (membership == null)
+                return Result<MembershipDto>.Failure(
+                    "No active membership found / لا توجد عضوية نشطة");
+
+            if (membership.Status == "frozen")
+                return Result<MembershipDto>.Failure(
+                    "Membership is currently frozen / العضوية مجمدة حالياً");
+
+            if (membership.Plan?.PlanType != "pt_credits")
+                return Result<MembershipDto>.Failure(
+                    "This membership is not a PRIVATE (Personal Training) plan / هذه العضوية ليست خطة برايفت");
+
+            if (!membership.SessionsRemaining.HasValue || membership.SessionsRemaining.Value <= 0)
+                return Result<MembershipDto>.Failure(
+                    "No PT sessions remaining / لا توجد جلسات تدريب شخصي متبقية");
+
+            int affected;
+            if (_dbContext.Database.IsRelational())
+            {
+                // Atomic guarded decrement — same pattern as CheckinService's session_pack consumption.
+                affected = await _dbContext.Database.ExecuteSqlInterpolatedAsync(
+                    $"UPDATE memberships SET SessionsRemaining = SessionsRemaining - 1 WHERE Id = {membership.Id} AND SessionsRemaining > 0");
+            }
+            else
+            {
+                var fresh = await _dbContext.Memberships.FirstAsync(m => m.Id == membership.Id);
+                if (!fresh.SessionsRemaining.HasValue || fresh.SessionsRemaining.Value <= 0)
+                {
+                    affected = 0;
+                }
+                else
+                {
+                    fresh.SessionsRemaining -= 1;
+                    await _dbContext.SaveChangesAsync();
+                    affected = 1;
+                }
+            }
+
+            if (affected == 0)
+            {
+                return Result<MembershipDto>.Failure(
+                    "No PT sessions remaining / لا توجد جلسات تدريب شخصي متبقية",
+                    "Session was already consumed concurrently.");
+            }
+
+            if (_dbContext.Database.IsRelational())
+                await _dbContext.Entry(membership).ReloadAsync();
+
+            try
+            {
+                await _auditService.LogAsync(
+                    "membership.consume_pt_session",
+                    "Membership",
+                    membership.Id,
+                    before: new { sessionsRemaining = membership.SessionsRemaining!.Value + 1 },
+                    after: new { sessionsRemaining = membership.SessionsRemaining });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Audit failed for PT session consumption {MembershipId}", membership.Id);
+            }
+
+            _logger.LogInformation(
+                "PT session consumed: MemberId={MemberId}, MembershipId={MembershipId}, Remaining={Remaining}, StaffUserId={StaffUserId}",
+                memberId, membership.Id, membership.SessionsRemaining, staffUserId);
+
+            return await GetCurrentMembershipAsync(memberId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error consuming PT session for member {MemberId}", memberId);
+            return Result<MembershipDto>.Failure(
+                "Failed to consume PT session / فشل في خصم جلسة التدريب الشخصي",
                 ex.Message);
         }
     }

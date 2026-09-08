@@ -2,8 +2,10 @@ namespace GMS.Tests;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using GMS.Application.DTOs.Attendance;
+using GMS.Application.Interfaces;
 using GMS.Application.Services;
 using GMS.Core.Entities;
 using GMS.Core.Enums;
@@ -21,7 +23,15 @@ public class CheckinServiceTests
             string memberNumber, DateTime checkInTime, string entryMethod) => Task.CompletedTask;
     }
 
-    private static (GymFlowProDbContext ctx, CheckinService svc, Guid tenantId, IMemoryCache cache) CreateSut()
+    private static IGymQrTokenService BuildQrTokenService() => new GymQrTokenService(
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["JwtSettings:SecretKey"] = "Test-Only-Secret-Key-Must-Be-At-Least-32-Characters-Long!"
+            })
+            .Build());
+
+    private static (GymFlowProDbContext ctx, CheckinService svc, Guid tenantId, IMemoryCache cache, IGymQrTokenService qrTokens) CreateSut()
     {
         var tenantId = Guid.NewGuid();
 
@@ -35,14 +45,17 @@ public class CheckinServiceTests
         var ctx = new GymFlowProDbContext(options, tenantContext);
         var auditService = new AuditService(ctx, new Microsoft.AspNetCore.Http.HttpContextAccessor(), tenantContext, NullLogger<AuditService>.Instance);
         var cache = new MemoryCache(new MemoryCacheOptions());
+        var qrTokens = BuildQrTokenService();
 
         var svc = new CheckinService(
             ctx, new MemberRepository(ctx), new AttendanceRepository(ctx),
             cache, new NoOpCheckinNotifier(),
-            auditService, NullLogger<CheckinService>.Instance);
+            auditService, qrTokens, NullLogger<CheckinService>.Instance);
 
-        return (ctx, svc, tenantId, cache);
+        return (ctx, svc, tenantId, cache, qrTokens);
     }
+
+    private static string GymCodeFor(Guid tenantId) => $"GYM-{tenantId:N}".Substring(0, 13);
 
     private static void SeedTenant(GymFlowProDbContext ctx, Guid tenantId)
     {
@@ -51,7 +64,7 @@ public class CheckinServiceTests
             Id = tenantId,
             Name = "Test Gym",
             NameAr = "صالة اختبار",
-            GymCode = $"GYM-{tenantId:N}".Substring(0, 13),
+            GymCode = GymCodeFor(tenantId),
             City = "Cairo",
             Address = "Test Address",
             PhoneNumber = "0100000000",
@@ -81,7 +94,7 @@ public class CheckinServiceTests
     [Fact]
     public async Task ProcessManualCheckinAsync_TrialVisitLimitReached_BlocksFourthCheckin()
     {
-        var (ctx, svc, tenantId, _) = CreateSut();
+        var (ctx, svc, tenantId, _, _) = CreateSut();
         SeedTenant(ctx, tenantId);
         var staffIdentityId = SeedStaff(ctx, tenantId);
 
@@ -152,7 +165,7 @@ public class CheckinServiceTests
     [Fact]
     public async Task ProcessManualCheckinAsync_TrialUnderVisitLimit_Succeeds()
     {
-        var (ctx, svc, tenantId, _) = CreateSut();
+        var (ctx, svc, tenantId, _, _) = CreateSut();
         SeedTenant(ctx, tenantId);
         var staffIdentityId = SeedStaff(ctx, tenantId);
 
@@ -221,7 +234,7 @@ public class CheckinServiceTests
     [Fact]
     public async Task ProcessManualCheckinAsync_SessionPack_DecrementsSessions()
     {
-        var (ctx, svc, tenantId, _) = CreateSut();
+        var (ctx, svc, tenantId, _, _) = CreateSut();
         SeedTenant(ctx, tenantId);
         var staffIdentityId = SeedStaff(ctx, tenantId);
 
@@ -274,10 +287,70 @@ public class CheckinServiceTests
         Assert.Equal(1, await ctx.GymAttendances.CountAsync());
     }
 
+    /// <summary>
+    /// PRIVATE (pt_credits) plans must never have PT sessions decremented by a gym check-in —
+    /// only session_pack is check-in-triggered. PT sessions are consumed exclusively via
+    /// MembershipService.ConsumePrivateSessionAsync (explicit staff action).
+    /// </summary>
+    [Fact]
+    public async Task ProcessManualCheckinAsync_PrivatePlan_GrantsAccessButDoesNotTouchSessionsRemaining()
+    {
+        var (ctx, svc, tenantId, _, _) = CreateSut();
+        SeedTenant(ctx, tenantId);
+        var staffIdentityId = SeedStaff(ctx, tenantId);
+
+        var plan = new MembershipPlan
+        {
+            TenantId = tenantId,
+            Name = "Private Training Package",
+            NameAr = "باقة برايفت",
+            PlanType = "pt_credits",
+            DurationDays = 30,
+            Price = 3000m,
+            SessionCount = 12
+        };
+        ctx.MembershipPlans.Add(plan);
+
+        var member = new GymMember
+        {
+            TenantId = tenantId,
+            MemberNumber = "GYM-PT-CI-01",
+            FullName = "Private Training Member",
+            FullNameAr = "عضو برايفت",
+            PhoneNumber = "+201001112244",
+            DateOfBirth = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-28)),
+            IsActive = true
+        };
+        ctx.GymMembers.Add(member);
+
+        var today = MembershipOperational.TodayCairo();
+        var membership = new Membership
+        {
+            TenantId = tenantId,
+            MemberId = member.Id,
+            PlanId = plan.Id,
+            Plan = plan,
+            StartDate = today.AddDays(-5),
+            EndDate = today.AddDays(25),
+            Status = "active",
+            SessionsRemaining = 12
+        };
+        ctx.Memberships.Add(membership);
+        await ctx.SaveChangesAsync();
+
+        var result = await svc.ProcessManualCheckinAsync(
+            new ManualCheckinRequest { MemberId = member.Id, Reason = ManualCheckinReason.NoAppYet },
+            staffIdentityId, tenantId);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(1, await ctx.GymAttendances.CountAsync());
+        Assert.Equal(12, (await ctx.Memberships.SingleAsync()).SessionsRemaining);
+    }
+
     [Fact]
     public async Task ProcessManualCheckinAsync_ZeroSessions_Rejected_DoesNotWriteAttendance()
     {
-        var (ctx, svc, tenantId, _) = CreateSut();
+        var (ctx, svc, tenantId, _, _) = CreateSut();
         SeedTenant(ctx, tenantId);
         var staffIdentityId = SeedStaff(ctx, tenantId);
 
@@ -332,7 +405,7 @@ public class CheckinServiceTests
     [Fact]
     public async Task ProcessManualCheckinAsync_BeforeStartDate_Rejected()
     {
-        var (ctx, svc, tenantId, _) = CreateSut();
+        var (ctx, svc, tenantId, _, _) = CreateSut();
         SeedTenant(ctx, tenantId);
         var staffIdentityId = SeedStaff(ctx, tenantId);
 
@@ -385,7 +458,7 @@ public class CheckinServiceTests
     [Fact]
     public async Task ProcessManualCheckinAsync_InactiveMember_Rejected()
     {
-        var (ctx, svc, tenantId, _) = CreateSut();
+        var (ctx, svc, tenantId, _, _) = CreateSut();
         SeedTenant(ctx, tenantId);
         var staffIdentityId = SeedStaff(ctx, tenantId);
 
@@ -436,7 +509,7 @@ public class CheckinServiceTests
     [Fact]
     public async Task ProcessManualCheckinAsync_FrozenMembership_Rejected()
     {
-        var (ctx, svc, tenantId, _) = CreateSut();
+        var (ctx, svc, tenantId, _, _) = CreateSut();
         SeedTenant(ctx, tenantId);
         var staffIdentityId = SeedStaff(ctx, tenantId);
 
@@ -487,7 +560,7 @@ public class CheckinServiceTests
     [Fact]
     public async Task ProcessManualCheckinAsync_AfterEndDate_Rejected()
     {
-        var (ctx, svc, tenantId, _) = CreateSut();
+        var (ctx, svc, tenantId, _, _) = CreateSut();
         SeedTenant(ctx, tenantId);
         var staffIdentityId = SeedStaff(ctx, tenantId);
 
@@ -538,7 +611,7 @@ public class CheckinServiceTests
     [Fact]
     public async Task ProcessManualCheckinAsync_DuplicateSameDay_Rejected()
     {
-        var (ctx, svc, tenantId, _) = CreateSut();
+        var (ctx, svc, tenantId, _, _) = CreateSut();
         SeedTenant(ctx, tenantId);
         var staffIdentityId = SeedStaff(ctx, tenantId);
 
@@ -594,7 +667,7 @@ public class CheckinServiceTests
     [Fact]
     public async Task ProcessManualCheckinAsync_FailedSessionDecrement_CompensatesAttendance()
     {
-        var (ctx, svc, tenantId, cache) = CreateSut();
+        var (ctx, svc, tenantId, cache, _) = CreateSut();
         SeedTenant(ctx, tenantId);
         var staffIdentityId = SeedStaff(ctx, tenantId);
 
@@ -667,5 +740,197 @@ public class CheckinServiceTests
         // Compensated soft-delete left an IsDeleted row (proves write-then-compensate, not pre-reject).
         Assert.Equal(1, await ctx.GymAttendances.IgnoreQueryFilters()
             .CountAsync(a => a.TenantId == tenantId && a.IsDeleted));
+    }
+
+    // ===================== Member QR check-in (dynamic signed token) =====================
+
+    private static async Task<GymMember> SeedActiveMonthlyMemberAsync(GymFlowProDbContext ctx, Guid tenantId, string memberNumber)
+    {
+        var plan = new MembershipPlan
+        {
+            TenantId = tenantId,
+            Name = "Monthly",
+            NameAr = "شهري",
+            PlanType = "monthly_unlimited",
+            DurationDays = 30,
+            Price = 500m
+        };
+        ctx.MembershipPlans.Add(plan);
+
+        var member = new GymMember
+        {
+            TenantId = tenantId,
+            MemberNumber = memberNumber,
+            FullName = "QR Member",
+            FullNameAr = "عضو QR",
+            PhoneNumber = "+201005556677",
+            DateOfBirth = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-25)),
+            IsActive = true
+        };
+        ctx.GymMembers.Add(member);
+
+        var today = MembershipOperational.TodayCairo();
+        ctx.Memberships.Add(new Membership
+        {
+            TenantId = tenantId,
+            MemberId = member.Id,
+            PlanId = plan.Id,
+            Plan = plan,
+            StartDate = today.AddDays(-1),
+            EndDate = today.AddDays(29),
+            Status = "active"
+        });
+
+        await ctx.SaveChangesAsync();
+        return member;
+    }
+
+    /// <summary>Member's Identity id (JWT "sub") for a member with no linked AppUser is the member's
+    /// own AppUserId; CheckinService resolves via GymMember.AppUserId -> AppUser.UserId.</summary>
+    private static async Task<Guid> LinkMemberIdentityAsync(GymFlowProDbContext ctx, Guid tenantId, GymMember member)
+    {
+        var identityUserId = Guid.NewGuid();
+        var appUser = new AppUser
+        {
+            TenantId = tenantId,
+            UserId = identityUserId.ToString(),
+            FirstName = "QR",
+            LastName = "Member",
+            Email = $"qr-{Guid.NewGuid():N}@test.local",
+            Role = "Member"
+        };
+        ctx.AppUsers.Add(appUser);
+        await ctx.SaveChangesAsync();
+
+        member.AppUserId = appUser.Id;
+        await ctx.SaveChangesAsync();
+        return identityUserId;
+    }
+
+    [Fact]
+    public async Task ProcessQrCheckinAsync_ValidToken_Succeeds()
+    {
+        var (ctx, svc, tenantId, _, qrTokens) = CreateSut();
+        SeedTenant(ctx, tenantId);
+        var member = await SeedActiveMonthlyMemberAsync(ctx, tenantId, "GYM-QR-01");
+        var identityUserId = await LinkMemberIdentityAsync(ctx, tenantId, member);
+        var (token, _) = qrTokens.GenerateToken(GymCodeFor(tenantId));
+
+        var result = await svc.ProcessQrCheckinAsync(new QrCheckinRequest { GymCode = token }, identityUserId, tenantId);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(1, await ctx.GymAttendances.CountAsync());
+    }
+
+    [Fact]
+    public async Task ProcessQrCheckinAsync_ExpiredToken_Rejected()
+    {
+        var (ctx, svc, tenantId, _, qrTokens) = CreateSut();
+        SeedTenant(ctx, tenantId);
+        var member = await SeedActiveMonthlyMemberAsync(ctx, tenantId, "GYM-QR-02");
+        var identityUserId = await LinkMemberIdentityAsync(ctx, tenantId, member);
+        var (token, _) = qrTokens.GenerateToken(GymCodeFor(tenantId), TimeSpan.FromSeconds(-10));
+
+        var result = await svc.ProcessQrCheckinAsync(new QrCheckinRequest { GymCode = token }, identityUserId, tenantId);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(0, await ctx.GymAttendances.CountAsync());
+    }
+
+    [Fact]
+    public async Task ProcessQrCheckinAsync_WrongGymToken_Rejected()
+    {
+        var (ctx, svc, tenantId, _, qrTokens) = CreateSut();
+        SeedTenant(ctx, tenantId);
+        var member = await SeedActiveMonthlyMemberAsync(ctx, tenantId, "GYM-QR-03");
+        var identityUserId = await LinkMemberIdentityAsync(ctx, tenantId, member);
+
+        // A token minted for a real (different) tenant's gym code — not just an unknown string.
+        var otherTenantId = Guid.NewGuid();
+        SeedTenant(ctx, otherTenantId);
+        await ctx.SaveChangesAsync();
+        var (token, _) = qrTokens.GenerateToken(GymCodeFor(otherTenantId));
+
+        var result = await svc.ProcessQrCheckinAsync(new QrCheckinRequest { GymCode = token }, identityUserId, tenantId);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("different gym", result.Error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ProcessQrCheckinAsync_UnknownGymCodeInToken_Rejected()
+    {
+        var (ctx, svc, tenantId, _, qrTokens) = CreateSut();
+        SeedTenant(ctx, tenantId);
+        var member = await SeedActiveMonthlyMemberAsync(ctx, tenantId, "GYM-QR-03B");
+        var identityUserId = await LinkMemberIdentityAsync(ctx, tenantId, member);
+        var (token, _) = qrTokens.GenerateToken("SOME-OTHER-GYM-CODE");
+
+        var result = await svc.ProcessQrCheckinAsync(new QrCheckinRequest { GymCode = token }, identityUserId, tenantId);
+
+        Assert.False(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task ProcessQrCheckinAsync_PlainLegacyGymCodeString_Rejected()
+    {
+        // Deliberate behavior change: the QR now must carry a signed token, not a bare gym code —
+        // even the real code, unsigned, is rejected. Prevents a screenshotted/printed static QR
+        // (this codebase's previous design) from ever working again.
+        var (ctx, svc, tenantId, _, _) = CreateSut();
+        SeedTenant(ctx, tenantId);
+        var member = await SeedActiveMonthlyMemberAsync(ctx, tenantId, "GYM-QR-04");
+        var identityUserId = await LinkMemberIdentityAsync(ctx, tenantId, member);
+
+        var result = await svc.ProcessQrCheckinAsync(
+            new QrCheckinRequest { GymCode = GymCodeFor(tenantId) }, identityUserId, tenantId);
+
+        Assert.False(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task ProcessQrCheckinAsync_AlreadyCheckedInToday_Rejected()
+    {
+        var (ctx, svc, tenantId, _, qrTokens) = CreateSut();
+        SeedTenant(ctx, tenantId);
+        var member = await SeedActiveMonthlyMemberAsync(ctx, tenantId, "GYM-QR-05");
+        var identityUserId = await LinkMemberIdentityAsync(ctx, tenantId, member);
+        var (token1, _) = qrTokens.GenerateToken(GymCodeFor(tenantId));
+        var first = await svc.ProcessQrCheckinAsync(new QrCheckinRequest { GymCode = token1 }, identityUserId, tenantId);
+        Assert.True(first.IsSuccess, first.Error);
+
+        var (token2, _) = qrTokens.GenerateToken(GymCodeFor(tenantId));
+        var second = await svc.ProcessQrCheckinAsync(new QrCheckinRequest { GymCode = token2 }, identityUserId, tenantId);
+
+        Assert.False(second.IsSuccess);
+        Assert.Equal(1, await ctx.GymAttendances.CountAsync());
+    }
+
+    [Fact]
+    public async Task ProcessQrCheckinAsync_SameDayClassSessionAttendance_DoesNotBlockGymFloorCheckin()
+    {
+        // Regression: a member who already attended a class session today (SessionId-tagged
+        // GymAttendance row from SessionBookingService) must still be able to QR check in at the
+        // gym floor — the "already checked in" guard is scoped to SessionId == null.
+        var (ctx, svc, tenantId, _, qrTokens) = CreateSut();
+        SeedTenant(ctx, tenantId);
+        var member = await SeedActiveMonthlyMemberAsync(ctx, tenantId, "GYM-QR-06");
+        var identityUserId = await LinkMemberIdentityAsync(ctx, tenantId, member);
+
+        ctx.GymAttendances.Add(new GymAttendance
+        {
+            TenantId = tenantId,
+            MemberId = member.Id,
+            SessionId = Guid.NewGuid(),
+            CheckInAtUtc = DateTime.UtcNow,
+            EntryMethod = "manual"
+        });
+        await ctx.SaveChangesAsync();
+
+        var (token, _) = qrTokens.GenerateToken(GymCodeFor(tenantId));
+        var result = await svc.ProcessQrCheckinAsync(new QrCheckinRequest { GymCode = token }, identityUserId, tenantId);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(2, await ctx.GymAttendances.CountAsync());
     }
 }

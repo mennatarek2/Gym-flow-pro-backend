@@ -53,6 +53,15 @@ public class GymAttendanceConfiguration : IEntityTypeConfiguration<GymAttendance
         builder.HasIndex(a => new { a.TenantId, a.MemberId });
         builder.HasIndex(a => new { a.TenantId, a.CheckInAtUtc });
 
+        // One gym-floor check-in per member per Cairo day. Scoped to SessionId IS NULL so a class/
+        // session booking check-in (SessionBookingService — legitimately repeats per session on the
+        // same day) never collides with this. Excludes soft-deleted rows so a compensated
+        // (REM-F7) failed check-in doesn't permanently block a retry.
+        builder.HasIndex(a => new { a.TenantId, a.MemberId, a.AttendanceDateCairo })
+            .IsUnique()
+            .HasFilter("[MemberId] IS NOT NULL AND [SessionId] IS NULL AND [IsDeleted] = 0")
+            .HasDatabaseName("IX_gym_attendance_TenantId_MemberId_AttendanceDateCairo_Unique");
+
         // Check-in/out
         builder.Property(a => a.CheckInAtUtc)
             .HasColumnType("DATETIME2")
@@ -60,6 +69,10 @@ public class GymAttendanceConfiguration : IEntityTypeConfiguration<GymAttendance
 
         builder.Property(a => a.CheckOutAtUtc)
             .HasColumnType("DATETIME2");
+
+        builder.Property(a => a.AttendanceDateCairo)
+            .HasColumnType("DATE")
+            .IsRequired();
 
         // Entry method
         builder.Property(a => a.EntryMethod)

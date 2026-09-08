@@ -37,4 +37,10 @@ public interface ICheckinService
     /// Gets today's attendance records with optional entry method filter.
     /// </summary>
     Task<Result<List<TodayAttendanceDto>>> GetTodayAttendanceAsync(Guid tenantId, string filter = "all");
+
+    /// <summary>
+    /// Mints a fresh short-lived signed QR token for this tenant, for the reception/staff display
+    /// screen to encode into the QR image members and employees scan to check in.
+    /// </summary>
+    Task<Result<GymQrTokenDto>> GenerateQrTokenAsync(Guid tenantId);
 }

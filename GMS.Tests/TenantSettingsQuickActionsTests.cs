@@ -120,7 +120,7 @@ public class TenantSettingsQuickActionsTests
         var (_, svc, _, tenantId) = CreateSut();
         var keys = new List<string>
         {
-            "new_member", "checkin", "new_sale", "collect_payment", "new_trial", "open_shift", "close_shift"
+            "new_member", "checkin", "new_sale", "collect_payment", "add_promo_code", "open_shift", "close_shift"
         };
         var put = await svc.UpdateQuickActionsAsync(tenantId, new UpdateQuickActionsRequest { Keys = keys });
         Assert.False(put.IsSuccess);

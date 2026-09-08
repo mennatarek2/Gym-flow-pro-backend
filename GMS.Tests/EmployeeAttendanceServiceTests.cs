@@ -1,6 +1,7 @@
 namespace GMS.Tests;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using GMS.Application.DTOs.Hr;
 using GMS.Application.Interfaces;
@@ -13,6 +14,14 @@ using GMS.Infrastructure.Services;
 
 public class EmployeeAttendanceServiceTests
 {
+    private static IGymQrTokenService BuildQrTokenService() => new GymQrTokenService(
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["JwtSettings:SecretKey"] = "Test-Only-Secret-Key-Must-Be-At-Least-32-Characters-Long!"
+            })
+            .Build());
+
     private sealed class NoOpAudit : IAuditService
     {
         public Task LogAsync(string action, string? entityType = null, Guid? entityId = null, object? before = null, object? after = null, Guid? tenantIdOverride = null)
@@ -23,7 +32,7 @@ public class EmployeeAttendanceServiceTests
             => Task.FromResult(GMS.Application.Common.Result<GMS.Application.Common.PagedResult<GMS.Application.DTOs.Audit.AuditEventDto>>.Failure("n/a"));
     }
 
-    private static async Task<(GymFlowProDbContext ctx, EmployeeAttendanceService svc, Guid tenantId, Guid employeeId, Guid appUserId)> SeedAsync(bool withScheduleToday = false)
+    private static async Task<(GymFlowProDbContext ctx, EmployeeAttendanceService svc, Guid tenantId, Guid employeeId, Guid appUserId, string gymCode, IGymQrTokenService qrTokens)> SeedAsync(bool withScheduleToday = false)
     {
         var tenantId = Guid.NewGuid();
         var options = new DbContextOptionsBuilder<GymFlowProDbContext>()
@@ -33,12 +42,13 @@ public class EmployeeAttendanceServiceTests
         tenantContext.SetTenant(tenantId, "Test Gym", "Africa/Cairo");
         var ctx = new GymFlowProDbContext(options, tenantContext);
 
+        var gymCode = $"T-{tenantId:N}"[..12];
         ctx.Tenants.Add(new Tenant
         {
             Id = tenantId,
             Name = "Test Gym",
             NameAr = "صالة",
-            GymCode = $"T-{tenantId:N}"[..12],
+            GymCode = gymCode,
             City = "Cairo",
             Address = "x",
             PhoneNumber = "01000000000",
@@ -97,8 +107,9 @@ public class EmployeeAttendanceServiceTests
 
         await ctx.SaveChangesAsync();
 
-        var svc = new EmployeeAttendanceService(ctx, new NoOpAudit(), NullLogger<EmployeeAttendanceService>.Instance);
-        return (ctx, svc, tenantId, employee.Id, appUser.Id);
+        var qrTokens = BuildQrTokenService();
+        var svc = new EmployeeAttendanceService(ctx, new NoOpAudit(), qrTokens, NullLogger<EmployeeAttendanceService>.Instance);
+        return (ctx, svc, tenantId, employee.Id, appUser.Id, gymCode, qrTokens);
     }
 
     [Fact]
@@ -110,7 +121,7 @@ public class EmployeeAttendanceServiceTests
         // at. An earlier version hardcoded "Present" and passed only when run before ~09:10 Cairo —
         // a real, discovered defect (not something Phase 4 introduced), now fixed by computing the
         // same expectation AttendanceCalculator itself would, independently of time of day.
-        var (_, svc, tenantId, employeeId, appUserId) = await SeedAsync(withScheduleToday: true);
+        var (_, svc, tenantId, employeeId, appUserId, _, _) = await SeedAsync(withScheduleToday: true);
 
         var result = await svc.CheckInAsync(tenantId, employeeId, "on time", AttendanceSources.Manual, appUserId);
 
@@ -126,7 +137,7 @@ public class EmployeeAttendanceServiceTests
     [Fact]
     public async Task CheckInAsync_RejectsDoubleCheckIn()
     {
-        var (_, svc, tenantId, employeeId, appUserId) = await SeedAsync();
+        var (_, svc, tenantId, employeeId, appUserId, _, _) = await SeedAsync();
         await svc.CheckInAsync(tenantId, employeeId, null, AttendanceSources.Manual, appUserId);
 
         var second = await svc.CheckInAsync(tenantId, employeeId, null, AttendanceSources.Manual, appUserId);
@@ -137,7 +148,7 @@ public class EmployeeAttendanceServiceTests
     [Fact]
     public async Task CheckOutAsync_RejectsCheckoutWithoutCheckin()
     {
-        var (_, svc, tenantId, employeeId, appUserId) = await SeedAsync();
+        var (_, svc, tenantId, employeeId, appUserId, _, _) = await SeedAsync();
 
         var result = await svc.CheckOutAsync(tenantId, employeeId, appUserId);
 
@@ -147,7 +158,7 @@ public class EmployeeAttendanceServiceTests
     [Fact]
     public async Task CheckOutAsync_ComputesWorkedMinutes()
     {
-        var (_, svc, tenantId, employeeId, appUserId) = await SeedAsync();
+        var (_, svc, tenantId, employeeId, appUserId, _, _) = await SeedAsync();
         await svc.CheckInAsync(tenantId, employeeId, null, AttendanceSources.Manual, appUserId);
 
         var result = await svc.CheckOutAsync(tenantId, employeeId, appUserId);
@@ -160,7 +171,7 @@ public class EmployeeAttendanceServiceTests
     [Fact]
     public async Task CheckOutAsync_RejectsDoubleCheckOut()
     {
-        var (_, svc, tenantId, employeeId, appUserId) = await SeedAsync();
+        var (_, svc, tenantId, employeeId, appUserId, _, _) = await SeedAsync();
         await svc.CheckInAsync(tenantId, employeeId, null, AttendanceSources.Manual, appUserId);
         await svc.CheckOutAsync(tenantId, employeeId, appUserId);
 
@@ -172,7 +183,7 @@ public class EmployeeAttendanceServiceTests
     [Fact]
     public async Task CorrectAsync_UpdatesStatusAndRecomputesWorkedMinutes()
     {
-        var (_, svc, tenantId, employeeId, appUserId) = await SeedAsync();
+        var (_, svc, tenantId, employeeId, appUserId, _, _) = await SeedAsync();
         var checkIn = await svc.CheckInAsync(tenantId, employeeId, null, AttendanceSources.Manual, appUserId);
 
         var checkInAt = checkIn.Data!.CheckInAtUtc!.Value;
@@ -190,7 +201,7 @@ public class EmployeeAttendanceServiceTests
     [Fact]
     public async Task ResolveEmployeeIdForCallerAsync_ResolvesLinkedEmployee()
     {
-        var (ctx, svc, tenantId, employeeId, appUserId) = await SeedAsync();
+        var (ctx, svc, tenantId, employeeId, appUserId, _, _) = await SeedAsync();
         var appUser = await ctx.AppUsers.FirstAsync(a => a.Id == appUserId);
         var identityUserId = Guid.Parse(appUser.UserId);
 
@@ -202,7 +213,7 @@ public class EmployeeAttendanceServiceTests
     [Fact]
     public async Task ResolveEmployeeIdForCallerAsync_ReturnsNullForUnlinkedIdentity()
     {
-        var (_, svc, tenantId, _, _) = await SeedAsync();
+        var (_, svc, tenantId, _, _, _, _) = await SeedAsync();
 
         var resolved = await svc.ResolveEmployeeIdForCallerAsync(tenantId, Guid.NewGuid());
 
@@ -212,8 +223,8 @@ public class EmployeeAttendanceServiceTests
     [Fact]
     public async Task Attendance_IsTenantIsolated()
     {
-        var (_, svcA, tenantA, employeeA, appUserA) = await SeedAsync();
-        var (_, svcB, tenantB, employeeB, appUserB) = await SeedAsync();
+        var (_, svcA, tenantA, employeeA, appUserA, _, _) = await SeedAsync();
+        var (_, svcB, tenantB, employeeB, appUserB, _, _) = await SeedAsync();
 
         await svcA.CheckInAsync(tenantA, employeeA, null, AttendanceSources.Manual, appUserA);
         await svcB.CheckInAsync(tenantB, employeeB, null, AttendanceSources.Manual, appUserB);
@@ -222,5 +233,109 @@ public class EmployeeAttendanceServiceTests
         var listA = await svcA.ListAsync(tenantA, today, today);
         Assert.Single(listA.Data!);
         Assert.Equal(employeeA, listA.Data![0].EmployeeId);
+    }
+
+    // ===================== Employee QR check-in (validate + confirm) =====================
+
+    [Fact]
+    public async Task ValidateQrCheckinAsync_ValidTokenWithSchedule_ReturnsReadyPreview()
+    {
+        var (_, svc, tenantId, employeeId, _, gymCode, qrTokens) = await SeedAsync(withScheduleToday: true);
+        var (token, _) = qrTokens.GenerateToken(gymCode);
+
+        var result = await svc.ValidateQrCheckinAsync(tenantId, employeeId, token);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.True(result.Data!.HasSchedule);
+        Assert.Equal("Morning", result.Data.ShiftName);
+        Assert.Equal(new TimeOnly(9, 0), result.Data.ShiftStart);
+    }
+
+    [Fact]
+    public async Task ValidateQrCheckinAsync_NoScheduleToday_StillReadyButFlagsUnscheduled()
+    {
+        var (_, svc, tenantId, employeeId, _, gymCode, qrTokens) = await SeedAsync();
+        var (token, _) = qrTokens.GenerateToken(gymCode);
+
+        var result = await svc.ValidateQrCheckinAsync(tenantId, employeeId, token);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.False(result.Data!.HasSchedule);
+        Assert.Equal(AttendanceStatuses.Present, result.Data.PreviewStatus);
+    }
+
+    [Fact]
+    public async Task ValidateQrCheckinAsync_ExpiredToken_Rejected()
+    {
+        var (_, svc, tenantId, employeeId, _, gymCode, qrTokens) = await SeedAsync();
+        var (token, _) = qrTokens.GenerateToken(gymCode, TimeSpan.FromSeconds(-10));
+
+        var result = await svc.ValidateQrCheckinAsync(tenantId, employeeId, token);
+
+        Assert.False(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task ValidateQrCheckinAsync_WrongGymToken_Rejected()
+    {
+        var (_, svc, tenantId, employeeId, _, _, qrTokens) = await SeedAsync();
+        var (otherGymToken, _) = qrTokens.GenerateToken("SOME-OTHER-GYM");
+
+        var result = await svc.ValidateQrCheckinAsync(tenantId, employeeId, otherGymToken);
+
+        Assert.False(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task ValidateQrCheckinAsync_AlreadyCheckedIn_Rejected()
+    {
+        var (_, svc, tenantId, employeeId, appUserId, gymCode, qrTokens) = await SeedAsync();
+        await svc.CheckInAsync(tenantId, employeeId, null, AttendanceSources.Manual, appUserId);
+        var (token, _) = qrTokens.GenerateToken(gymCode);
+
+        var result = await svc.ValidateQrCheckinAsync(tenantId, employeeId, token);
+
+        Assert.False(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task QrCheckInAsync_ValidToken_CreatesAttendanceWithQrSource()
+    {
+        var (_, svc, tenantId, employeeId, appUserId, gymCode, qrTokens) = await SeedAsync(withScheduleToday: true);
+        var (token, _) = qrTokens.GenerateToken(gymCode);
+
+        var result = await svc.QrCheckInAsync(tenantId, employeeId, token, appUserId);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(AttendanceSources.Qr, result.Data!.Source);
+        Assert.NotNull(result.Data.CheckInAtUtc);
+    }
+
+    [Fact]
+    public async Task QrCheckInAsync_ExpiredToken_DoesNotCreateAttendance()
+    {
+        var (ctx, svc, tenantId, employeeId, appUserId, gymCode, qrTokens) = await SeedAsync();
+        var (expiredToken, _) = qrTokens.GenerateToken(gymCode, TimeSpan.FromSeconds(-10));
+
+        var result = await svc.QrCheckInAsync(tenantId, employeeId, expiredToken, appUserId);
+
+        Assert.False(result.IsSuccess);
+        Assert.Empty(await ctx.EmployeeAttendances.ToListAsync());
+    }
+
+    [Fact]
+    public async Task QrCheckInAsync_ReplayedConfirmAfterFirstSucceeds_Rejected()
+    {
+        // A stale /me/qr-validate response replayed as /me/qr-check-in twice must not create two rows —
+        // the confirm step independently re-checks "already checked in", it doesn't trust the earlier preview.
+        var (ctx, svc, tenantId, employeeId, appUserId, gymCode, qrTokens) = await SeedAsync();
+        var (token, _) = qrTokens.GenerateToken(gymCode);
+
+        var first = await svc.QrCheckInAsync(tenantId, employeeId, token, appUserId);
+        var second = await svc.QrCheckInAsync(tenantId, employeeId, token, appUserId);
+
+        Assert.True(first.IsSuccess, first.Error);
+        Assert.False(second.IsSuccess);
+        Assert.Single(await ctx.EmployeeAttendances.ToListAsync());
     }
 }

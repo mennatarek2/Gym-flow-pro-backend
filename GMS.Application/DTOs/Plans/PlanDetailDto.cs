@@ -17,6 +17,7 @@ public class PlanDetailDto
     public string Currency { get; set; } = "EGP";
     public int DurationDays { get; set; }
     public int? SessionCount { get; set; }
+    public int? PtSessionDurationMinutes { get; set; }
     public TimeOnly? TimeRestrictionStart { get; set; }
     public TimeOnly? TimeRestrictionEnd { get; set; }
     public int InvitationQuota { get; set; }

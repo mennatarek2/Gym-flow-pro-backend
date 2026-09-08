@@ -9,6 +9,6 @@ public class QrCheckinRequestValidator : AbstractValidator<QrCheckinRequest>
     {
         RuleFor(x => x.GymCode)
             .NotEmpty().WithMessage("Gym code is required / رمز الصالة مطلوب")
-            .MaximumLength(50).WithMessage("Invalid gym code format / صيغة رمز الصالة غير صالحة");
+            .MaximumLength(500).WithMessage("Invalid QR format / صيغة رمز QR غير صالحة");
     }
 }

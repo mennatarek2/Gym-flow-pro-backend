@@ -16,7 +16,9 @@ public class CreatePlanRequest
 
     public decimal Price { get; set; }
     public int DurationDays { get; set; }
-    public int? SessionCount { get; set; } // For session_pack plans (10, 20, or 50)
+    public int? SessionCount { get; set; } // session_pack: 10/20/50. pt_credits (PRIVATE): included PT sessions.
+    /// <summary>Minutes per PT session (30/45/60/90). Only used when PlanType is pt_credits.</summary>
+    public int? PtSessionDurationMinutes { get; set; }
     public TimeOnly? TimeRestrictionStart { get; set; } // For time_limited plans
     public TimeOnly? TimeRestrictionEnd { get; set; } // For time_limited plans
     public int InvitationQuota { get; set; } = 0; // retired guest-pass column; unused by product

@@ -57,6 +57,9 @@ public class MembershipPlanConfiguration : IEntityTypeConfiguration<MembershipPl
         builder.Property(p => p.SessionCount)
             .HasColumnType("INT");
 
+        builder.Property(p => p.PtSessionDurationMinutes)
+            .HasColumnType("INT");
+
         builder.Property(p => p.TrialVisitLimit)
             .HasColumnType("INT");
 

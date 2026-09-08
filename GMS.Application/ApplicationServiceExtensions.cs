@@ -26,6 +26,7 @@ public static class ApplicationServiceExtensions
 
         // Domain services
         services.AddScoped<ICheckinService, CheckinService>();
+        services.AddSingleton<IGymQrTokenService, GymQrTokenService>();
         services.AddScoped<IInvitationService, InvitationService>();
         services.AddScoped<IReferralAttributionService, ReferralAttributionService>();
         services.AddScoped<IReferralRewardService, ReferralRewardService>();

@@ -39,6 +39,22 @@ public interface IEmployeeAttendanceService
 {
     Task<Result<EmployeeAttendanceDto>> CheckInAsync(Guid tenantId, Guid employeeId, string? notes, string source, Guid? actorAppUserId);
     Task<Result<EmployeeAttendanceDto>> CheckOutAsync(Guid tenantId, Guid employeeId, Guid? actorAppUserId);
+
+    /// <summary>
+    /// Read-only step 1 of the QR check-in flow: validates the scanned QR token (signature,
+    /// expiry, tenant match), then previews today's shift/lateness WITHOUT writing anything.
+    /// Fails (does not return a "state") for invalid/expired/wrong-gym QR and for "already
+    /// checked in today" — same convention as every other check-in failure in this codebase.
+    /// </summary>
+    Task<Result<EmployeeQrCheckinPreviewDto>> ValidateQrCheckinAsync(Guid tenantId, Guid employeeId, string qrToken);
+
+    /// <summary>
+    /// Step 2 (confirm) of the QR check-in flow. Independently re-validates the QR token and
+    /// re-runs the same "already checked in" guard as <see cref="CheckInAsync"/> (a stale/replayed
+    /// confirm cannot manufacture attendance from an old validate response) before delegating to
+    /// the shared CheckInAsync with Source = AttendanceSources.Qr.
+    /// </summary>
+    Task<Result<EmployeeAttendanceDto>> QrCheckInAsync(Guid tenantId, Guid employeeId, string qrToken, Guid? actorAppUserId);
     Task<Result<List<EmployeeAttendanceDto>>> ListAsync(Guid tenantId, DateOnly from, DateOnly to, Guid? employeeId = null, string? status = null);
     Task<Result<EmployeeAttendanceDto>> CorrectAsync(Guid tenantId, Guid attendanceId, CorrectAttendanceRequest request, Guid? actorAppUserId);
 

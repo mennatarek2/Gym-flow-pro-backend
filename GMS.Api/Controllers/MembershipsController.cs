@@ -169,6 +169,31 @@ public class MembershipsController : BaseApiController
         return Ok(result.Data);
     }
 
+    /// <summary>
+    /// Record one completed Personal Training session against a PRIVATE (pt_credits) membership.
+    /// Staff-triggered only — separate from gym check-in, which never touches PT session balance.
+    /// POST /api/memberships/{memberId}/consume-pt-session
+    /// </summary>
+    [HttpPost("{memberId:guid}/consume-pt-session")]
+    [Authorize(Policy = "ManagerOrAbove")]
+    [ProducesResponseType(typeof(MembershipDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ConsumePrivateSession(Guid memberId)
+    {
+        var tenantId = _tenantContext.TenantId;
+        var result = await _membershipService.ConsumePrivateSessionAsync(
+            tenantId, memberId, GetUserId());
+
+        if (!result.IsSuccess)
+        {
+            _logger.LogWarning("Failed to consume PT session: {Error}", result.Error);
+            return BadRequest(new { error = result.Error, message = result.Message });
+        }
+
+        _logger.LogInformation("PT session consumed: MemberId={MemberId}", memberId);
+        return Ok(result.Data);
+    }
+
     private Guid GetUserId()
     {
         var sub = User.FindFirst(ClaimTypes.NameIdentifier)?.Value

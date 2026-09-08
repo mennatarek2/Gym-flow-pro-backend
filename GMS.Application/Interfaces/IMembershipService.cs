@@ -46,4 +46,12 @@ public interface IMembershipService
     /// </summary>
     Task<Result<MembershipDto>> CancelMembershipAsync(
         Guid tenantId, Guid memberId, Guid staffUserId);
+
+    /// <summary>
+    /// Record one completed Personal Training session against a PRIVATE (pt_credits) membership.
+    /// Explicit staff action only — never triggered by gym check-in. Fails when the covering
+    /// membership is not a pt_credits plan, is frozen, or has no sessions remaining.
+    /// </summary>
+    Task<Result<MembershipDto>> ConsumePrivateSessionAsync(
+        Guid tenantId, Guid memberId, Guid staffUserId);
 }

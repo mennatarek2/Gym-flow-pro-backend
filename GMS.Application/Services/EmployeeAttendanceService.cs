@@ -7,6 +7,7 @@ using GMS.Application.DTOs.Hr;
 using GMS.Application.Interfaces;
 using GMS.Core.Constants;
 using GMS.Core.Entities;
+using GMS.Core.Exceptions;
 using GMS.Core.Utilities;
 using GMS.Infrastructure.Persistence;
 
@@ -14,12 +15,15 @@ public class EmployeeAttendanceService : IEmployeeAttendanceService
 {
     private readonly GymFlowProDbContext _db;
     private readonly IAuditService _audit;
+    private readonly IGymQrTokenService _qrTokenService;
     private readonly ILogger<EmployeeAttendanceService> _logger;
 
-    public EmployeeAttendanceService(GymFlowProDbContext db, IAuditService audit, ILogger<EmployeeAttendanceService> logger)
+    public EmployeeAttendanceService(
+        GymFlowProDbContext db, IAuditService audit, IGymQrTokenService qrTokenService, ILogger<EmployeeAttendanceService> logger)
     {
         _db = db;
         _audit = audit;
+        _qrTokenService = qrTokenService;
         _logger = logger;
     }
 
@@ -67,11 +71,107 @@ public class EmployeeAttendanceService : IEmployeeAttendanceService
         row.CreatedByAppUserId = actorAppUserId;
         row.UpdatedAtUtc = DateTime.UtcNow;
 
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (IsDuplicateAttendanceViolation(ex))
+        {
+            // Concurrent duplicate confirmation raced past the row== null check above — the unique
+            // (TenantId, EmployeeId, AttendanceDate) index is the real backstop. Surface the same
+            // friendly failure as the ordinary sequential case instead of a raw 500.
+            return Result<EmployeeAttendanceDto>.Failure("Already checked in today / تم تسجيل الحضور بالفعل اليوم");
+        }
+
         await _audit.LogAsync("employee_attendance.check_in", "EmployeeAttendance", row.Id, null,
             new { row.EmployeeId, row.AttendanceDate, row.CheckInAtUtc, row.LateMinutes, row.Status, row.Source });
 
         return Result<EmployeeAttendanceDto>.Success(await MapAsync(row));
+    }
+
+    public async Task<Result<EmployeeQrCheckinPreviewDto>> ValidateQrCheckinAsync(
+        Guid tenantId, Guid employeeId, string qrToken)
+    {
+        var tokenError = await ValidateGymQrTokenAsync(tenantId, qrToken);
+        if (tokenError != null)
+            return Result<EmployeeQrCheckinPreviewDto>.Failure(tokenError);
+
+        var employee = await _db.Employees.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == employeeId && e.TenantId == tenantId);
+        if (employee == null)
+            return Result<EmployeeQrCheckinPreviewDto>.Failure("Employee not found / الموظف غير موجود");
+
+        var today = MembershipOperational.TodayCairo();
+
+        var row = await _db.EmployeeAttendances.AsNoTracking()
+            .FirstOrDefaultAsync(a => a.TenantId == tenantId && a.EmployeeId == employeeId && a.AttendanceDate == today);
+        if (row?.CheckInAtUtc != null)
+            return Result<EmployeeQrCheckinPreviewDto>.Failure("Already checked in today / تم تسجيل الحضور بالفعل اليوم");
+
+        var schedule = await _db.EmployeeScheduleAssignments.AsNoTracking()
+            .Include(a => a.EmployeeShift)
+            .FirstOrDefaultAsync(a => a.TenantId == tenantId && a.EmployeeId == employeeId && a.Date == today);
+
+        var previewAtUtc = DateTime.UtcNow;
+        var (lateMinutes, status) = AttendanceCalculator.ComputeCheckIn(
+            previewAtUtc, today, schedule?.EmployeeShift?.StartTime, schedule?.EmployeeShift?.GraceMinutes ?? 0);
+
+        return Result<EmployeeQrCheckinPreviewDto>.Success(new EmployeeQrCheckinPreviewDto
+        {
+            HasSchedule = schedule != null,
+            ShiftName = schedule?.EmployeeShift?.Name,
+            ShiftStart = schedule?.EmployeeShift?.StartTime,
+            ShiftEnd = schedule?.EmployeeShift?.EndTime,
+            PreviewCheckInAtUtc = previewAtUtc,
+            PreviewLateMinutes = lateMinutes,
+            PreviewStatus = status
+        });
+    }
+
+    public async Task<Result<EmployeeAttendanceDto>> QrCheckInAsync(
+        Guid tenantId, Guid employeeId, string qrToken, Guid? actorAppUserId)
+    {
+        var tokenError = await ValidateGymQrTokenAsync(tenantId, qrToken);
+        if (tokenError != null)
+            return Result<EmployeeAttendanceDto>.Failure(tokenError);
+
+        // Delegates to the exact same write path as the plain self check-in — QR is only an entry
+        // mechanism gating access to it, not a second attendance-creation code path.
+        return await CheckInAsync(tenantId, employeeId, notes: null, AttendanceSources.Qr, actorAppUserId);
+    }
+
+    /// <summary>Signature + expiry + tenant-match check shared by both QR employee-attendance
+    /// entry points. Returns null when valid, or a user-facing error message when not.</summary>
+    private async Task<string?> ValidateGymQrTokenAsync(Guid tenantId, string qrToken)
+    {
+        var tokenResult = _qrTokenService.Validate(qrToken);
+        if (!tokenResult.IsValid)
+        {
+            _logger.LogWarning("Employee QR check-in rejected: invalid/expired token for tenant {TenantId}", tenantId);
+            return tokenResult.Error ?? "Invalid or expired QR / رمز QR غير صالح أو منتهي";
+        }
+
+        var tenant = await _db.Tenants.AsNoTracking()
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.GymCode == tokenResult.GymCode && !t.IsDeleted);
+
+        if (tenant == null)
+            return "Invalid gym QR code / رمز QR غير صالح";
+
+        if (tenant.Id != tenantId)
+        {
+            _logger.LogWarning("Employee QR check-in rejected: token gym {TokenGymCode} does not match caller tenant {TenantId}",
+                tokenResult.GymCode, tenantId);
+            return "This QR code belongs to a different gym / رمز QR هذا يخص صالة رياضية أخرى";
+        }
+
+        return null;
+    }
+
+    private static bool IsDuplicateAttendanceViolation(DbUpdateException ex)
+    {
+        var message = ex.InnerException?.Message ?? ex.Message;
+        return message.Contains("IX_employee_attendances", StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<Result<EmployeeAttendanceDto>> CheckOutAsync(Guid tenantId, Guid employeeId, Guid? actorAppUserId)
