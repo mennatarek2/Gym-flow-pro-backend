@@ -134,6 +134,37 @@ public class AuditService : IAuditService
             })
             .ToListAsync();
 
+        // Resolve actor display names for this page of results. ActorUserId is
+        // ApplicationUser.Id; AppUser.UserId (string) is the loosely-typed link to it.
+        var actorIdStrings = items
+            .Where(i => i.ActorUserId.HasValue)
+            .Select(i => i.ActorUserId!.Value.ToString())
+            .Distinct()
+            .ToList();
+
+        if (actorIdStrings.Count > 0)
+        {
+            var actorNames = await _dbContext.AppUsers
+                .IgnoreQueryFilters()
+                .Where(u => u.TenantId == tenantId && actorIdStrings.Contains(u.UserId))
+                .Select(u => new { u.UserId, u.FirstName, u.LastName })
+                .ToListAsync();
+
+            var nameByUserId = actorNames.ToDictionary(
+                u => u.UserId,
+                u => $"{u.FirstName} {u.LastName}".Trim());
+
+            foreach (var item in items)
+            {
+                if (item.ActorUserId.HasValue &&
+                    nameByUserId.TryGetValue(item.ActorUserId.Value.ToString(), out var name) &&
+                    !string.IsNullOrWhiteSpace(name))
+                {
+                    item.ActorName = name;
+                }
+            }
+        }
+
         return Result<PagedResult<AuditEventDto>>.Success(new PagedResult<AuditEventDto>
         {
             Items = items,

@@ -280,8 +280,13 @@ public class RefundServiceTests
     }
 
     [Fact]
-    public async Task ApproveAsync_NonOwnerApprovingOwnRequest_FailsSelfApprovalForbidden()
+    public async Task ApproveAsync_NonOwnerApprovingOwnRequest_Succeeds()
     {
+        // Self-approval is intentionally allowed for any staff member holding the
+        // payments.refund.approve permission (enforced by [HasPermission] at the
+        // controller level, not by this service) — a gym owner may choose to grant
+        // that permission to Receptionist/Manager roles and expects it to work
+        // without a second person needed to approve their own request.
         var (ctx, svc, tenantId) = CreateSut();
         SeedTenant(ctx, tenantId);
         var (staff, identityUserId) = SeedStaff(ctx, tenantId, role: "Receptionist");
@@ -295,8 +300,7 @@ public class RefundServiceTests
 
         var approveResult = await svc.ApproveAsync(requestResult.Data!.Id, identityUserId, tenantId);
 
-        Assert.False(approveResult.IsSuccess);
-        Assert.StartsWith(RefundFailureReasons.SelfApprovalForbidden + "|", approveResult.Error);
+        Assert.True(approveResult.IsSuccess, approveResult.Error);
     }
 
     [Fact]

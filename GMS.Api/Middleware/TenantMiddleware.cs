@@ -133,7 +133,7 @@ public class TenantMiddleware
                 await context.Response.WriteAsync(JsonSerializer.Serialize(new
                 {
                     title = "SUBSCRIPTION_SUSPENDED",
-                    detail = "This gym subscription is suspended. Please pay the outstanding GymFlow invoice / الاشتراك موقوف — يرجى سداد فاتورة GymFlow",
+                    detail = "This gym subscription is suspended. Please pay the outstanding HyMotion invoice / الاشتراك موقوف — يرجى سداد فاتورة HyMotion",
                     checkinBufferActive = bufferOk
                 }));
                 return;

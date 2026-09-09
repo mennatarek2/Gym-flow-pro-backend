@@ -112,7 +112,6 @@ public class RefundsController : BaseApiController
             var c when c == RefundFailureReasons.SaleFullyRefunded => StatusCodes.Status409Conflict,
             var c when c == RefundFailureReasons.NotAwaitingApproval => StatusCodes.Status409Conflict,
             var c when c == RefundFailureReasons.OpenShiftRequired => StatusCodes.Status409Conflict,
-            var c when c == RefundFailureReasons.SelfApprovalForbidden => StatusCodes.Status403Forbidden,
             var c when c == RefundFailureReasons.GatewayRefundUnsupported => StatusCodes.Status409Conflict,
             _ => StatusCodes.Status400BadRequest
         };

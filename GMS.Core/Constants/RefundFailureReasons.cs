@@ -11,7 +11,6 @@ public static class RefundFailureReasons
     public const string RefundExceedsRemainder = "REFUND_EXCEEDS_REMAINDER";
     public const string SaleFullyRefunded = "SALE_FULLY_REFUNDED";
     public const string NotAwaitingApproval = "NOT_AWAITING_APPROVAL";
-    public const string SelfApprovalForbidden = "SELF_APPROVAL_FORBIDDEN";
     public const string OpenShiftRequired = "OPEN_SHIFT_REQUIRED";
     public const string GatewayRefundUnsupported = "GATEWAY_REFUND_UNSUPPORTED";
     public const string InsufficientCredit = "INSUFFICIENT_CREDIT";

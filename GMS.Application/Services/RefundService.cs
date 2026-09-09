@@ -197,11 +197,6 @@ public class RefundService : IRefundService
             if (approver == null)
                 return Fail(RefundFailureReasons.StaffUserNotFound, "Staff user not found / المستخدم غير موجود");
 
-            var isOwner = string.Equals(approver.Role, "Owner", StringComparison.OrdinalIgnoreCase);
-            if (!isOwner && approver.Id == refund.RequestedByUserId)
-                return Fail(RefundFailureReasons.SelfApprovalForbidden,
-                    "You cannot approve a refund you requested yourself / لا يمكنك اعتماد طلب استرداد قدّمته بنفسك");
-
             var sale = await _dbContext.Sales
                 .Include(s => s.Member)
                 .FirstOrDefaultAsync(s => s.Id == refund.SaleId && s.TenantId == tenantId);

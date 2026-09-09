@@ -133,7 +133,7 @@ public class AuthService : IAuthService
             if (access?.IsSuspended == true)
             {
                 return Result<LoginResponse>.Failure(
-                    "SUBSCRIPTION_SUSPENDED|This gym subscription is suspended. Please pay the outstanding GymFlow invoice / الاشتراك موقوف — يرجى سداد فاتورة GymFlow");
+                    "SUBSCRIPTION_SUSPENDED|This gym subscription is suspended. Please pay the outstanding HyMotion invoice / الاشتراك موقوف — يرجى سداد فاتورة HyMotion");
             }
         }
 
@@ -231,7 +231,7 @@ public class AuthService : IAuthService
             if (access?.IsSuspended == true)
             {
                 return Result<LoginResponse>.Failure(
-                    "SUBSCRIPTION_SUSPENDED|This gym subscription is suspended. Please pay the outstanding GymFlow invoice / الاشتراك موقوف — يرجى سداد فاتورة GymFlow");
+                    "SUBSCRIPTION_SUSPENDED|This gym subscription is suspended. Please pay the outstanding HyMotion invoice / الاشتراك موقوف — يرجى سداد فاتورة HyMotion");
             }
         }
 
@@ -561,7 +561,7 @@ public class AuthService : IAuthService
 
         var email = !string.IsNullOrWhiteSpace(member.Email)
             ? member.Email.Trim()
-            : $"{member.PhoneNumber}@member.gymflowpro.local";
+            : $"{member.PhoneNumber}@member.hymotion.local";
 
         var existingIdentity = await FindMemberIdentityUserByLoginAsync(email);
         if (existingIdentity != null)
@@ -641,10 +641,10 @@ public class AuthService : IAuthService
 
         var appEmail = !string.IsNullOrWhiteSpace(member.Email)
             ? member.Email.Trim()
-            : identityUser.Email ?? $"{member.PhoneNumber}@member.gymflowpro.local";
+            : identityUser.Email ?? $"{member.PhoneNumber}@member.hymotion.local";
 
         if (string.IsNullOrWhiteSpace(appEmail))
-            appEmail = $"{member.PhoneNumber}@member.gymflowpro.local";
+            appEmail = $"{member.PhoneNumber}@member.hymotion.local";
 
         var appUser = new AppUser
         {
@@ -736,7 +736,7 @@ public class AuthService : IAuthService
             }
         }
 
-        var email = $"{employee.EmployeeNumber.ToLowerInvariant()}@employee.gymflowpro.local";
+        var email = $"{employee.EmployeeNumber.ToLowerInvariant()}@employee.hymotion.local";
 
         var existingIdentity = await FindMemberIdentityUserByLoginAsync(email);
         if (existingIdentity != null)
@@ -807,7 +807,7 @@ public class AuthService : IAuthService
             UserId = identityId,
             FirstName = employee.FirstName,
             LastName = employee.LastName,
-            Email = identityUser.Email ?? $"{employee.EmployeeNumber}@employee.gymflowpro.local",
+            Email = identityUser.Email ?? $"{employee.EmployeeNumber}@employee.hymotion.local",
             PhoneNumber = employee.Phone ?? string.Empty,
             Role = "Employee",
             IsActive = true,
