@@ -34,9 +34,17 @@ public class MembershipPlansController : BaseApiController
     /// <summary>
     /// Get all active membership plans for the current tenant.
     /// GET /api/membership-plans
+    ///
+    /// Read-only list, used to populate the plan picker everywhere a membership gets assigned or
+    /// renewed (Add Member onboarding, Member 360 renew, POS) - deliberately gated with the same
+    /// Permissions.MembershipsAssign permission as those write actions in MembershipsController,
+    /// not PlansManage (Owner-only catalog editing). A Manager/Receptionist granted
+    /// memberships.assign could already call POST /memberships/{id}/assign but PlansManage here
+    /// blocked them from ever seeing a plan to select first, so onboarding failed at step 2 with
+    /// a generic "Request failed" for anyone without the Owner-only PlansManage permission.
     /// </summary>
     [HttpGet]
-    [HasPermission(Permissions.PlansManage)]
+    [HasPermission(Permissions.MembershipsAssign)]
     [ProducesResponseType(typeof(List<PlanListItemDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetPlans()

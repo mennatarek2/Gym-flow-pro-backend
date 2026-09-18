@@ -2,7 +2,6 @@ namespace GMS.Api.Middleware;
 
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using GMS.Core.Interfaces;
 using GMS.Infrastructure.Persistence;
 
@@ -17,11 +16,10 @@ public class TenantMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<TenantMiddleware> _logger;
-    private static readonly TimeSpan TenantCacheDuration = TimeSpan.FromMinutes(10);
-
     private static readonly string[] SkipPaths =
     {
         "/api/auth/",
+        "/api/local-setup",
         "/platform-api/",
         "/health",
         "/swagger",
@@ -46,7 +44,6 @@ public class TenantMiddleware
         HttpContext context,
         ITenantContext tenantContext,
         GymFlowProDbContext dbContext,
-        IMemoryCache cache,
         ISubscriptionAccessService subscriptionAccess,
         IConfiguration configuration)
     {
@@ -78,42 +75,43 @@ public class TenantMiddleware
             return;
         }
 
-        var cacheKey = $"tenant:{gymCode}";
-        if (!cache.TryGetValue(cacheKey, out TenantCacheEntry? tenantEntry))
+        // Do not cache gym_code → tenant Id. After New Gym / retire the old code must
+        // fail immediately instead of injecting a ghost Id into member/card inserts.
+        var tenant = await dbContext.Tenants
+            .AsNoTracking()
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.GymCode == gymCode && !t.IsDeleted);
+
+        if (tenant == null)
         {
-            var tenant = await dbContext.Tenants
-                .AsNoTracking()
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(t => t.GymCode == gymCode && !t.IsDeleted);
-
-            if (tenant == null)
-            {
-                _logger.LogWarning("Tenant not found for gym_code: {GymCode}", gymCode);
-                await WriteErrorResponse(context, 401, "Invalid gym code.");
-                return;
-            }
-
-            if (!tenant.IsActive)
-            {
-                _logger.LogWarning("Inactive tenant accessed: {GymCode}", gymCode);
-                await WriteErrorResponse(context, 401, "This gym is currently inactive.");
-                return;
-            }
-
-            tenantEntry = new TenantCacheEntry(tenant.Id, tenant.Name, tenant.TimeZone);
-
-            cache.Set(cacheKey, tenantEntry, new MemoryCacheEntryOptions()
-                .SetAbsoluteExpiration(TenantCacheDuration));
-
-            _logger.LogDebug("Tenant {GymCode} resolved from DB and cached.", gymCode);
+            _logger.LogWarning("Tenant not found for gym_code: {GymCode}", gymCode);
+            await WriteErrorResponse(context, 401, "Invalid gym code. Sign out and run Local setup again.");
+            return;
         }
 
-        tenantContext.SetTenant(tenantEntry!.TenantId, tenantEntry.TenantName, tenantEntry.TimeZone);
+        if (!tenant.IsActive)
+        {
+            _logger.LogWarning("Inactive tenant accessed: {GymCode}", gymCode);
+            await WriteErrorResponse(context, 401, "This gym is currently inactive.");
+            return;
+        }
+
+        var jwtTenantId = context.User?.FindFirst("tenant_id")?.Value;
+        if (Guid.TryParse(jwtTenantId, out var claimedTenantId) && claimedTenantId != tenant.Id)
+        {
+            _logger.LogWarning(
+                "JWT tenant_id {Claimed} does not match gym_code {GymCode} tenant {Actual}",
+                claimedTenantId, gymCode, tenant.Id);
+            await WriteErrorResponse(context, 401, "Gym session is out of date. Sign in again.");
+            return;
+        }
+
+        tenantContext.SetTenant(tenant.Id, tenant.Name, tenant.TimeZone);
 
         // CP5 suspension gate (distinct from AuthService login block).
         if (context.User?.Identity?.IsAuthenticated == true)
         {
-            var access = await subscriptionAccess.GetAsync(tenantEntry.TenantId);
+            var access = await subscriptionAccess.GetAsync(tenant.Id);
             if (access?.IsSuspended == true)
             {
                 var bufferHours = configuration.GetValue("PlatformBilling:SuspensionCheckinBufferHours", 72);
@@ -150,6 +148,4 @@ public class TenantMiddleware
         var response = JsonSerializer.Serialize(new { error = message });
         await context.Response.WriteAsync(response);
     }
-
-    private record TenantCacheEntry(Guid TenantId, string TenantName, string TimeZone);
 }

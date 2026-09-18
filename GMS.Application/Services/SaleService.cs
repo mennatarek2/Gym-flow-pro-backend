@@ -14,6 +14,7 @@ using GMS.Application.Interfaces;
 using GMS.Core.Constants;
 using GMS.Core.Entities;
 using GMS.Core.Interfaces;
+using GMS.Core.Utilities;
 using GMS.Platform.Constants;
 using GMS.Infrastructure.Persistence;
 
@@ -740,8 +741,7 @@ public class SaleService : ISaleService
             if (sale == null)
                 return Fail(SaleFailureReasons.SaleNotFound, "Sale not found / عملية البيع غير موجودة");
 
-            if (!string.Equals(sale.Status, "partially_paid", StringComparison.OrdinalIgnoreCase)
-                || sale.AmountDue <= 0m)
+            if (!SaleCollectability.HasCollectableBalance(sale.AmountDue, sale.Status))
             {
                 return Fail(SaleFailureReasons.SaleNotCollectable,
                     "This sale has no outstanding balance / لا يوجد رصيد مستحق على عملية البيع");
@@ -791,8 +791,7 @@ public class SaleService : ISaleService
                 .FirstOrDefaultAsync();
 
             sale.AmountDue = Math.Max(0m, RoundHalfUp(canonicalDue - request.Amount));
-            if (sale.AmountDue == 0m)
-                sale.Status = "completed";
+            sale.Status = sale.AmountDue == 0m ? "completed" : "partially_paid";
             sale.UpdatedAtUtc = DateTime.UtcNow;
 
             var payment = new PaymentTransaction

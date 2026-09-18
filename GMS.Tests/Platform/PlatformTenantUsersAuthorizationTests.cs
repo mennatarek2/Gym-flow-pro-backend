@@ -105,6 +105,52 @@ public class PlatformTenantUsersAuthorizationTests : IClassFixture<WebApplicatio
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Fact]
+    public async Task ResetPassword_SupportRole_IsForbidden()
+    {
+        var client = ClientAs(PlatformRoles.Support);
+        var response = await client.PostAsJsonAsync(
+            $"/platform-api/tenants/{Guid.NewGuid()}/users/{Guid.NewGuid()}/reset-password",
+            new { newPassword = "NewPassw0rd1", reason = "Testing authorization only, not business logic." });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(PlatformRoles.Ops)]
+    [InlineData(PlatformRoles.Admin)]
+    public async Task ResetPassword_OpsOrAdmin_PassesAuthorization(string role)
+    {
+        var client = ClientAs(role);
+        var response = await client.PostAsJsonAsync(
+            $"/platform-api/tenants/{Guid.NewGuid()}/users/{Guid.NewGuid()}/reset-password",
+            new { newPassword = "NewPassw0rd1", reason = "Testing authorization only, not business logic." });
+
+        Assert.NotEqual(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ResetPassword_WithoutReason_Returns400_BeforeReachingTheService()
+    {
+        var client = ClientAs(PlatformRoles.Admin);
+        var response = await client.PostAsJsonAsync(
+            $"/platform-api/tenants/{Guid.NewGuid()}/users/{Guid.NewGuid()}/reset-password",
+            new { newPassword = "NewPassw0rd1", reason = "" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ResetPassword_ShortPassword_Returns400_BeforeReachingTheService()
+    {
+        var client = ClientAs(PlatformRoles.Admin);
+        var response = await client.PostAsJsonAsync(
+            $"/platform-api/tenants/{Guid.NewGuid()}/users/{Guid.NewGuid()}/reset-password",
+            new { newPassword = "short", reason = "Testing authorization only, not business logic." });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     private HttpClient ClientAs(string role)
     {
         var client = _factory.CreateClient();

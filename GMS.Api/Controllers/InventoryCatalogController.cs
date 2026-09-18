@@ -70,6 +70,20 @@ public class InventoryCatalogController : BaseApiController
         return Ok(result.Data);
     }
 
+    [HttpDelete("categories/{id:guid}")]
+    [HasPermission(Permissions.InventoryManage)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> DeleteCategory(Guid id)
+    {
+        if (!_tenantContext.IsInitialized)
+            return Unauthorized(new { error = "Tenant context required." });
+
+        var result = await _catalog.DeleteCategoryAsync(_tenantContext.TenantId, id);
+        if (!result.IsSuccess)
+            return BadRequest(new { error = result.Error });
+        return NoContent();
+    }
+
     [HttpGet("products")]
     [HasPermission(Permissions.InventoryView)]
     [ProducesResponseType(typeof(List<ProductDto>), StatusCodes.Status200OK)]

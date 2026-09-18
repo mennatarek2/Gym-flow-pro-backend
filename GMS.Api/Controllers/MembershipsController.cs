@@ -3,8 +3,10 @@ namespace GMS.Api.Controllers;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using GMS.Api.Authorization;
 using GMS.Application.DTOs.Memberships;
 using GMS.Application.Interfaces;
+using GMS.Core.Constants;
 using GMS.Core.Interfaces;
 
 /// <summary>
@@ -75,7 +77,7 @@ public class MembershipsController : BaseApiController
     /// POST /api/memberships/{memberId}/assign
     /// </summary>
     [HttpPost("{memberId:guid}/assign")]
-    [Authorize(Policy = "ManagerOrAbove")]
+    [HasPermission(Permissions.MembershipsAssign)]
     [ProducesResponseType(typeof(MembershipDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -115,7 +117,7 @@ public class MembershipsController : BaseApiController
     /// POST /api/memberships/{memberId}/renew
     /// </summary>
     [HttpPost("{memberId:guid}/renew")]
-    [Authorize(Policy = "ManagerOrAbove")]
+    [HasPermission(Permissions.MembershipsAssign)]
     [ProducesResponseType(typeof(MembershipDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

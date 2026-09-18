@@ -14,9 +14,11 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
     {
         // Primary key
         builder.HasKey(t => t.Id);
+        // Always persist the application-assigned Id. ValueGeneratedOnAdd + NEWSEQUENTIALID()
+        // can omit Id from INSERT so SQL stores a different PK than Identity.TenantId.
         builder.Property(t => t.Id)
             .HasDefaultValueSql("NEWSEQUENTIALID()")
-            .ValueGeneratedOnAdd();
+            .ValueGeneratedNever();
 
         // Properties
         builder.Property(t => t.Name)

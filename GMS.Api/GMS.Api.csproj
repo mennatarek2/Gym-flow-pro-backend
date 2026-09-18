@@ -5,6 +5,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>2f010edc-33cf-4d35-81ec-2eb93e03ce95</UserSecretsId>
+    <!-- GMS.Api.exe is the actual apphost Local Edition's Windows Service runs - gives it a real
+         icon in Explorer/Task Manager instead of the default .NET icon. No effect on SaaS, which
+         is hosted in-process by MonsterASP rather than run as a standalone .exe. -->
+    <ApplicationIcon>hymotion.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,6 +20,14 @@
     <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <!-- Local Edition Windows Service hosting (Phase 3). UseWindowsService() is a documented
+         no-op unless the process was actually launched by the Service Control Manager, so this
+         has zero effect on SaaS (IIS/MonsterASP) or normal `dotnet run` hosting. -->
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.0" />
+    <!-- Local Edition production file logging with rotation (Phase 3) — only wired up for Local
+         edition in Program.cs; SaaS keeps its existing Microsoft.Extensions.Logging setup untouched. -->
+    <PackageReference Include="Serilog.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -33,6 +45,20 @@
     <Content Update="wwwroot\uploads\**\*" CopyToPublishDirectory="Never" CopyToOutputDirectory="Never" />
   </ItemGroup>
 
+  <!--
+    IMPORTANT (discovered in Phase 3): wwwroot's Content items are globbed at project EVALUATION
+    time, which happens before this Exec ever runs. On a genuinely clean checkout (wwwroot doesn't
+    exist yet, or a subfolder like wwwroot/shared/vendor was only just added), the files this Exec
+    writes are therefore silently absent from the publish output — MSBuild already computed its
+    file list before they existed on disk. This has always been true; it went unnoticed because
+    the documented SaaS publish path (scripts/publish-monsterasp.ps1) runs
+    `node prepare-wwwroot.mjs` SEPARATELY, before invoking `dotnet publish` at all — by the time
+    MSBuild evaluates, wwwroot is already fully populated, so this target's own Exec below is
+    redundant-but-harmless there. Anyone running `dotnet publish` directly (bypassing that script)
+    gets an incomplete wwwroot. Local Edition's publish script
+    (scripts/local-install/publish-local.ps1) follows the same safe order. Do not rely on this
+    target alone to populate a fresh wwwroot for publish — always run prepare-wwwroot.mjs first.
+  -->
   <Target Name="PrepareWebDashboardBeforePublish" BeforeTargets="Publish">
     <Exec Command="node &quot;$(MSBuildProjectDirectory)\..\Frontend\apps\web\scripts\prepare-wwwroot.mjs&quot;" IgnoreExitCode="false" Condition="Exists('$(MSBuildProjectDirectory)\..\Frontend\apps\web\scripts\prepare-wwwroot.mjs')" />
   </Target>

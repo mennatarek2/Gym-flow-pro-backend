@@ -2,37 +2,23 @@ namespace GMS.Platform.Persistence;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
-using Microsoft.Extensions.Configuration;
+using GMS.Platform;
 
-/// <summary>Design-time factory for <c>dotnet ef</c> against PlatformDbContext.</summary>
+/// <summary>
+/// Design-time factory so platform migrations can be generated without compiling GMS.Api.
+/// Connection string is unused at generation time (the model is enough).
+/// </summary>
 public class PlatformDbContextFactory : IDesignTimeDbContextFactory<PlatformDbContext>
 {
     public PlatformDbContext CreateDbContext(string[] args)
     {
-        var basePath = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "GMS.Api"));
-        if (!Directory.Exists(basePath))
-            basePath = Directory.GetCurrentDirectory();
-
-        var config = new ConfigurationBuilder()
-            .SetBasePath(basePath)
-            .AddJsonFile("appsettings.json", optional: true)
-            .AddJsonFile("appsettings.Development.json", optional: true)
-            .AddEnvironmentVariables()
-            .Build();
-
-        var cs = config.GetConnectionString("DefaultConnection")
-            ?? "Server=(localdb)\\mssqllocaldb;Database=GymFlowProDb;Trusted_Connection=true;Encrypt=false;";
-
         var options = new DbContextOptionsBuilder<PlatformDbContext>()
-            .UseSqlServer(cs, sql =>
-            {
-                sql.MigrationsAssembly(typeof(PlatformDbContext).Assembly.FullName);
-                sql.MigrationsHistoryTable(
+            .UseSqlServer(
+                "Server=(localdb)\\mssqllocaldb;Database=HyMotionPlatformDesign;Trusted_Connection=True;TrustServerCertificate=True",
+                sql => sql.MigrationsHistoryTable(
                     PlatformServiceExtensions.MigrationsHistoryTable,
-                    PlatformServiceExtensions.Schema);
-            })
+                    PlatformServiceExtensions.Schema))
             .Options;
-
         return new PlatformDbContext(options);
     }
 }

@@ -17,6 +17,9 @@ obj/
 !.env.*.example
 *.local.json
 appsettings.*.local.json
+# NOT a personal secrets override (those are lowercase "*.local.json" above) — this is the
+# committed, Development/Production-style environment config for the Local Edition deployment.
+!appsettings.Local.json
 
 # Logs
 *.log
@@ -42,6 +45,11 @@ Frontend*.rar
 publish/
 publish-test/
 publish-verify/
+publish-local/
+publish-local-phase3/
+scripts/local-install/publish-output/
+scripts/local-install/launcher-output/
+scripts/local-install/Output/
 
 # Tooling / local agent state
 .claude/
@@ -50,3 +58,8 @@ publish-verify/
 # OS
 .DS_Store
 Thumbs.db
+
+publish-local-recovery/
+publish-local-verify/
+publish-usb-latest/
+

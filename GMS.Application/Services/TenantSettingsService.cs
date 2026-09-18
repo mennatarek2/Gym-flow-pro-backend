@@ -396,6 +396,10 @@ public class TenantSettingsService : ITenantSettingsService
             settingsNode[TenantSettingsKeys.TaxRegistrationNumber] = request.TaxRegistrationNumber;
             settingsNode[TenantSettingsKeys.InvoiceFooterText] = request.InvoiceFooterText;
             settingsNode[TenantSettingsKeys.InvoiceFooterTextAr] = request.InvoiceFooterTextAr;
+            if (request.MembershipContractTerms != null)
+                settingsNode[TenantSettingsKeys.MembershipContractTerms] = request.MembershipContractTerms;
+            if (request.MembershipContractTermsAr != null)
+                settingsNode[TenantSettingsKeys.MembershipContractTermsAr] = request.MembershipContractTermsAr;
 
             tenant.Settings = settingsNode.ToJsonString();
             tenant.UpdatedAtUtc = DateTime.UtcNow;
@@ -583,7 +587,9 @@ public class TenantSettingsService : ITenantSettingsService
         VatRate = GetSettingDecimal(settingsJson, TenantSettingsKeys.VatRate, 0.14m),
         TaxRegistrationNumber = GetSettingString(settingsJson, TenantSettingsKeys.TaxRegistrationNumber),
         InvoiceFooterText = GetSettingString(settingsJson, TenantSettingsKeys.InvoiceFooterText),
-        InvoiceFooterTextAr = GetSettingString(settingsJson, TenantSettingsKeys.InvoiceFooterTextAr)
+        InvoiceFooterTextAr = GetSettingString(settingsJson, TenantSettingsKeys.InvoiceFooterTextAr),
+        MembershipContractTerms = GetSettingString(settingsJson, TenantSettingsKeys.MembershipContractTerms),
+        MembershipContractTermsAr = GetSettingString(settingsJson, TenantSettingsKeys.MembershipContractTermsAr)
     };
 
     private static bool GetSettingBool(string? settingsJson, string key, bool defaultValue)

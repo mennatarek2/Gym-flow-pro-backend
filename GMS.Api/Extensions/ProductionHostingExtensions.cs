@@ -1,4 +1,5 @@
 using GMS.Api.Hosting;
+using GMS.Core.Configuration;
 using GMS.Infrastructure.Persistence;
 using GMS.Platform.Persistence;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -101,12 +102,13 @@ public static class ProductionHostingExtensions
                 options.RoutePrefix = string.Empty;
             });
         }
-        else
+        else if (ShouldForceHttps(app))
         {
             app.UseHsts();
         }
 
-        app.UseHttpsRedirection();
+        if (ShouldForceHttps(app))
+            app.UseHttpsRedirection();
 
         if (app.Configuration.GetValue("Hosting:ServeWebDashboard", true)
             && Directory.Exists(Path.Combine(app.Environment.WebRootPath ?? "", "dashboard")))
@@ -120,5 +122,20 @@ public static class ProductionHostingExtensions
         app.UseCors(corsPolicy);
 
         return app;
+    }
+
+    /// <summary>
+    /// Local gym desk is HTTP-only on loopback :7140. HSTS/HTTPS redirection would send
+    /// /health into a port that is not listening, so the desktop icon times out.
+    /// </summary>
+    public static bool ShouldForceHttps(DeploymentEdition edition) =>
+        edition != DeploymentEdition.Local;
+
+    static bool ShouldForceHttps(WebApplication app)
+    {
+        var edition = app.Services.GetService(typeof(DeploymentEdition)) is DeploymentEdition resolved
+            ? resolved
+            : DeploymentEdition.SaaS;
+        return ShouldForceHttps(edition);
     }
 }

@@ -78,4 +78,18 @@ public class HrDepartmentsController : BaseApiController
             return BadRequest(new { error = result.Error });
         return Ok(result.Data);
     }
+
+    [HttpDelete("{id:guid}")]
+    [HasPermission(Permissions.HrManage)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        if (!_tenantContext.IsInitialized)
+            return Unauthorized(new { error = "Tenant context required." });
+
+        var result = await _departments.DeleteAsync(_tenantContext.TenantId, id);
+        if (!result.IsSuccess)
+            return BadRequest(new { error = result.Error });
+        return NoContent();
+    }
 }

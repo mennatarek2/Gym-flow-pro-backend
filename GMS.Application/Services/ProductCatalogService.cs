@@ -74,6 +74,29 @@ public class ProductCatalogService : IProductCatalogService
         return Result<ProductCategoryDto>.Success(MapCategory(entity));
     }
 
+    public async Task<Result> DeleteCategoryAsync(Guid tenantId, Guid id)
+    {
+        var entity = await _db.ProductCategories
+            .FirstOrDefaultAsync(c => c.Id == id && c.TenantId == tenantId);
+        if (entity == null)
+            return Result.Failure("Category not found / التصنيف غير موجود");
+
+        // Hard delete: clear product links (CategoryId is nullable; FK is Restrict).
+        var linked = await _db.Products
+            .Where(p => p.TenantId == tenantId && p.CategoryId == id)
+            .ToListAsync();
+        foreach (var product in linked)
+        {
+            product.CategoryId = null;
+            product.UpdatedAtUtc = DateTime.UtcNow;
+        }
+
+        _db.ProductCategories.Remove(entity);
+        await _db.SaveChangesAsync();
+        await _audit.LogAsync("product_category.delete", "ProductCategory", entity.Id, entity, null);
+        return Result.Success();
+    }
+
     public async Task<Result<List<ProductDto>>> ListProductsAsync(
         Guid tenantId, string? q, Guid? categoryId, bool includeArchived)
     {

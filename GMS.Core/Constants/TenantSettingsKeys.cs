@@ -136,4 +136,13 @@ public static class TenantSettingsKeys
 
     /// <summary>int, default 30 — no-check-in window used by dashboard inactive-member counts.</summary>
     public const string DashboardInactivityDays = "dashboard_inactivity_days";
+
+    /// <summary>
+    /// string, default null — gym membership-contract clauses (newline-separated). Blank uses product defaults.
+    /// Snapshotted onto each issued contract. Have a qualified Egyptian legal professional review before use.
+    /// </summary>
+    public const string MembershipContractTerms = "membership_contract_terms";
+
+    /// <summary>string, default null — Arabic membership-contract clauses (newline-separated).</summary>
+    public const string MembershipContractTermsAr = "membership_contract_terms_ar";
 }

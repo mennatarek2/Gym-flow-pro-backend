@@ -194,6 +194,36 @@ public class PlatformLifecycleAuthorizationTests : IClassFixture<WebApplicationF
     }
 
     [Fact]
+    public async Task Support_CannotImpersonate()
+    {
+        var response = await ClientAs(PlatformRoles.Support).PostAsJsonAsync(
+            $"/platform-api/tenants/{_tenantId}/impersonate",
+            new { reason = "support impersonation auth test" });
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Sales_CannotImpersonate()
+    {
+        var response = await ClientAs(PlatformRoles.Sales).PostAsJsonAsync(
+            $"/platform-api/tenants/{_tenantId}/impersonate",
+            new { reason = "sales impersonation auth test" });
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(PlatformRoles.Ops)]
+    [InlineData(PlatformRoles.Admin)]
+    public async Task OpsOrAdmin_Impersonate_IsNotForbidden(string role)
+    {
+        var response = await ClientAs(role).PostAsJsonAsync(
+            $"/platform-api/tenants/{_tenantId}/impersonate",
+            new { reason = "ops impersonation auth test" });
+        Assert.NotEqual(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.NotEqual(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
     public async Task TenantJwt_CannotAccessPlatformTenants()
     {
         var client = _factory.CreateClient();

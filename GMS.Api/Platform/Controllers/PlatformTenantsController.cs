@@ -298,8 +298,10 @@ public class PlatformTenantsController : ControllerBase
     }
 
     [HttpPost("{tenantId:guid}/impersonate")]
+    [Authorize(Policy = "PlatformOpsOrAbove")]
     [ProducesResponseType(typeof(ImpersonationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Impersonate(
         Guid tenantId,

@@ -180,7 +180,8 @@ public class MembersController : BaseApiController
             tenant?.NameAr ?? branding.Data?.GymNameAr ?? string.Empty,
             logo,
             primary,
-            showGymLogo: branding.IsSuccess ? branding.Data!.ShowGymLogoOnCard : true);
+            showGymLogo: branding.IsSuccess ? branding.Data!.ShowGymLogoOnCard : true,
+            barcodePayload: result.Data.AccessCard?.Code ?? result.Data.MemberNumber);
 
         return Content(html, "text/html");
     }

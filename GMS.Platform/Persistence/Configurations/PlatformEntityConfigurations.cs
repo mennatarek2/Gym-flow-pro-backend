@@ -12,7 +12,7 @@ public class PlatformAdminUserConfiguration : IEntityTypeConfiguration<PlatformA
         {
             t.HasCheckConstraint(
                 "CK_platform_admin_users_role",
-                "[Role] IN ('platform_support','platform_ops','platform_admin')");
+                "[Role] IN ('platform_support','platform_ops','platform_admin','platform_sales')");
         });
         builder.HasKey(x => x.Id);
 

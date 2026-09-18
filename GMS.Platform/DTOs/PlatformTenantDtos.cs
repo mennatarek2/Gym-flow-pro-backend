@@ -58,6 +58,12 @@ public class PlatformTenantDetailDto
     /// <summary>Staff (non-Member) login accounts for this tenant — who a platform admin would see
     /// when checking who has access, independent of the active_members usage counter.</summary>
     public List<PlatformTenantUserDto> Users { get; set; } = new();
+    /// <summary>
+    /// Optional Local customer that already points at this tenant via PlatformCustomer.TenantId.
+    /// Set only when exactly one customer has that link. Null when none or more than one —
+    /// the API does not guess from names.
+    /// </summary>
+    public Guid? CustomerId { get; set; }
 }
 
 public class PlatformTenantUserDto

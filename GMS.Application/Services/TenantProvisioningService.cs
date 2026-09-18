@@ -17,7 +17,8 @@ using GMS.Platform.Interfaces;
 
 /// <summary>
 /// Production tenant provisioning for Platform Ops+.
-/// Creates Tenant, Owner Identity user + domain AppUser, default settings/plans, starts Growth trial.
+/// Creates Tenant, Owner Identity user + domain AppUser, default settings/plans.
+/// Starts a Growth trial unless <see cref="ProvisionTenantRequest.StartTrial"/> is false.
 /// </summary>
 public class TenantProvisioningService : ITenantProvisioningService
 {
@@ -75,6 +76,15 @@ public class TenantProvisioningService : ITenantProvisioningService
                 "Owner email is already registered / البريد الإلكتروني للمالك مسجل بالفعل");
         }
 
+        var liveEmailTaken = await _db.Tenants.AnyAsync(t => t.Email == gymEmail, cancellationToken);
+        if (liveEmailTaken)
+        {
+            return Result<ProvisionTenantResponse>.Failure(
+                "A gym with this email already exists / يوجد صالة بهذا البريد");
+        }
+
+        await ReleaseDeletedTenantEmailAsync(gymEmail, cancellationToken);
+
         var gymCode = await ResolveUniqueGymCodeAsync(request.GymCode, request.City, cancellationToken);
         if (gymCode == null)
         {
@@ -106,6 +116,7 @@ public class TenantProvisioningService : ITenantProvisioningService
                 CreatedAtUtc = DateTime.UtcNow
             };
             _db.Tenants.Add(tenant);
+            _db.Entry(tenant).Property(t => t.Id).IsTemporary = false;
 
             SeedDefaultPlans(tenantId);
 
@@ -175,25 +186,59 @@ public class TenantProvisioningService : ITenantProvisioningService
         }
         catch (Exception ex)
         {
-            await tx.RollbackAsync(cancellationToken);
+            try
+            {
+                await tx.RollbackAsync(cancellationToken);
+            }
+            catch (Exception rollbackEx)
+            {
+                _logger.LogWarning(rollbackEx, "Provisioning rollback failed for {OwnerEmail}", ownerEmail);
+            }
+
+            _db.ChangeTracker.Clear();
             _logger.LogError(ex, "Tenant provisioning failed for {OwnerEmail}", ownerEmail);
             return Result<ProvisionTenantResponse>.Failure(
                 "Provisioning failed / فشل إنشاء الصالة", ex.Message);
         }
 
-        var trial = await _subscriptions.StartTrialAsync(
-            tenantId,
-            tier,
-            SubscriptionInitiators.PlatformAdmin,
-            actorPlatformUserId,
-            request.TrialDays,
-            cancellationToken);
-
-        if (!trial.Success)
+        _db.ChangeTracker.Clear();
+        var persisted = await _db.Tenants.IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == tenantId && !t.IsDeleted, cancellationToken);
+        if (persisted == null)
         {
-            _logger.LogWarning(
-                "Tenant {TenantId} provisioned but StartTrial failed: {Code} {Message}",
-                tenantId, trial.ErrorCode, trial.ErrorMessage);
+            _logger.LogError(
+                "Provision committed but no live tenants row for {TenantId} gym {GymCode}",
+                tenantId, gymCode);
+            return Result<ProvisionTenantResponse>.Failure(
+                "The gym was not saved. Try setup again. / لم يتم حفظ الصالة. أعد الإعداد.");
+        }
+
+        var trialStarted = false;
+        string? trialError = null;
+        if (request.StartTrial)
+        {
+            var trial = await _subscriptions.StartTrialAsync(
+                tenantId,
+                tier,
+                SubscriptionInitiators.PlatformAdmin,
+                actorPlatformUserId,
+                request.TrialDays,
+                cancellationToken);
+            trialStarted = trial.Success;
+            if (!trial.Success)
+            {
+                trialError = $"{trial.ErrorCode}: {trial.ErrorMessage}";
+                _logger.LogWarning(
+                    "Tenant {TenantId} provisioned but StartTrial failed: {Code} {Message}",
+                    tenantId, trial.ErrorCode, trial.ErrorMessage);
+            }
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Tenant {TenantId} provisioned without a SaaS trial (Lifetime/local setup).",
+                tenantId);
         }
 
         await _platformAudit.LogAsync(
@@ -207,8 +252,9 @@ public class TenantProvisioningService : ITenantProvisioningService
                 gymCode,
                 ownerEmail,
                 tier,
-                trialStarted = trial.Success,
-                trialError = trial.Success ? null : $"{trial.ErrorCode}:{trial.ErrorMessage}"
+                trialStarted,
+                trialSkipped = !request.StartTrial,
+                trialError
             },
             ipAddress: ipAddress);
 
@@ -218,9 +264,24 @@ public class TenantProvisioningService : ITenantProvisioningService
             GymCode = gymCode!,
             OwnerUserId = ownerId,
             OwnerEmail = ownerEmail,
-            TrialStarted = trial.Success,
-            TrialError = trial.Success ? null : $"{trial.ErrorCode}: {trial.ErrorMessage}"
+            TrialStarted = trialStarted,
+            TrialError = trialError
         });
+    }
+
+    private async Task ReleaseDeletedTenantEmailAsync(string gymEmail, CancellationToken cancellationToken)
+    {
+        var ghosts = await _db.Tenants.IgnoreQueryFilters()
+            .Where(t => t.Email == gymEmail && t.IsDeleted)
+            .ToListAsync(cancellationToken);
+        foreach (var ghost in ghosts)
+        {
+            ghost.Email = $"retired.{ghost.Id:N}@retired.local";
+            ghost.UpdatedAtUtc = DateTime.UtcNow;
+        }
+
+        if (ghosts.Count > 0)
+            await _db.SaveChangesAsync(cancellationToken);
     }
 
     private async Task EnsureIdentityRolesAsync(CancellationToken ct)

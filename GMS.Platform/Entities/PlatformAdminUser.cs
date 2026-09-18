@@ -10,7 +10,7 @@ public class PlatformAdminUser
     public string PasswordHash { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
 
-    /// <summary>platform_support | platform_ops | platform_admin</summary>
+    /// <summary>platform_support | platform_ops | platform_admin | platform_sales</summary>
     public string Role { get; set; } = "platform_support";
 
     public bool MfaEnabled { get; set; }

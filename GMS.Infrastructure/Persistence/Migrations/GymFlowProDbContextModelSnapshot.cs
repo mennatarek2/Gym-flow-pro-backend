@@ -22,6 +22,80 @@ namespace GMS.Infrastructure.Persistence.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("GMS.Core.Entities.AccessCard", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime?>("AssignedAtUtc")
+                        .HasColumnType("DATETIME2");
+
+                    b.Property<string>("BatchId")
+                        .HasMaxLength(40)
+                        .HasColumnType("VARCHAR(40)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("VARCHAR(40)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("DATETIME2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTime?>("LostAtUtc")
+                        .HasColumnType("DATETIME2");
+
+                    b.Property<Guid?>("MemberId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(240)
+                        .HasColumnType("NVARCHAR(240)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("VARCHAR(20)")
+                        .HasDefaultValue("Available");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("DATETIME2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MemberId");
+
+                    b.HasIndex("TenantId", "BatchId");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("TenantId", "MemberId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0 AND [Status] = 'Assigned' AND [MemberId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "Status");
+
+                    b.ToTable("access_cards", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_access_cards_Status", "Status IN ('Available','Assigned','Lost','Damaged','Blocked')");
+                        });
+                });
+
             modelBuilder.Entity("GMS.Core.Entities.Activity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5697,6 +5771,24 @@ namespace GMS.Infrastructure.Persistence.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("AspNetUserTokens", (string)null);
+                });
+
+            modelBuilder.Entity("GMS.Core.Entities.AccessCard", b =>
+                {
+                    b.HasOne("GMS.Core.Entities.GymMember", "Member")
+                        .WithMany()
+                        .HasForeignKey("MemberId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("GMS.Core.Entities.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Member");
+
+                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("GMS.Core.Entities.Activity", b =>

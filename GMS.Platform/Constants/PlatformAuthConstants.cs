@@ -19,9 +19,14 @@ public static class PlatformRoles
     public const string Ops = "platform_ops";
     public const string Admin = "platform_admin";
 
+    /// <summary>NOT part of the Support/Ops/Admin hierarchy — a sales rep must never inherit
+    /// broader platform access by virtue of some future "OrAbove" chain. Deliberately its own,
+    /// narrow policy (PlatformSalesOrAbove) rather than being slotted below Support.</summary>
+    public const string Sales = "platform_sales";
+
     public static readonly HashSet<string> All = new(StringComparer.OrdinalIgnoreCase)
     {
-        Support, Ops, Admin
+        Support, Ops, Admin, Sales
     };
 
     public static bool IsValid(string? role) =>

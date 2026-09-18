@@ -29,6 +29,18 @@ public class MemberDetailDto
 
     // Recent attendance (last 5)
     public List<AttendanceSummaryDto> RecentAttendance { get; set; } = new();
+
+    /// <summary>Currently Assigned physical PVC card, if any (null when none).</summary>
+    public MemberAccessCardDto? AccessCard { get; set; }
+}
+
+/// <summary>Assigned access-card summary on member detail (does not change MemberNumber).</summary>
+public class MemberAccessCardDto
+{
+    public Guid Id { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public DateTime? AssignedAtUtc { get; set; }
 }
 
 public class MembershipSummaryDto

@@ -241,6 +241,10 @@ public class PlatformTenantReadService : IPlatformTenantReadService
         lastLogins.TryGetValue(tenantId, out var lastLogin);
 
         var users = await LoadTenantUsersAsync(tenantId, cancellationToken);
+        var linkedCustomerIds = await _db.Customers.AsNoTracking()
+            .Where(c => c.TenantId == tenantId)
+            .Select(c => c.Id)
+            .ToListAsync(cancellationToken);
 
         return new PlatformTenantDetailDto
         {
@@ -261,7 +265,8 @@ public class PlatformTenantReadService : IPlatformTenantReadService
             PriceOverrides = coupons,
             RecentAudit = audit,
             LastLoginAtUtc = lastLogin,
-            Users = users
+            Users = users,
+            CustomerId = linkedCustomerIds.Count == 1 ? linkedCustomerIds[0] : null
         };
     }
 

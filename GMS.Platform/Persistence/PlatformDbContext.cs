@@ -30,6 +30,26 @@ public class PlatformDbContext : DbContext
     public DbSet<TenantHealthScore> TenantHealthScores => Set<TenantHealthScore>();
     public DbSet<RiskQueueOutcome> RiskQueueOutcomes => Set<RiskQueueOutcome>();
 
+    // HyMotion Local Lifetime licensing — separate concept from Subscriptions above, see
+    // LocalLicense's class remarks for why these are not merged with SaaS billing.
+    public DbSet<LocalLicense> LocalLicenses => Set<LocalLicense>();
+    public DbSet<LocalLicenseChange> LocalLicenseChanges => Set<LocalLicenseChange>();
+    public DbSet<LocalInstallation> LocalInstallations => Set<LocalInstallation>();
+    public DbSet<LocalActivationAttempt> LocalActivationAttempts => Set<LocalActivationAttempt>();
+    public DbSet<LocalLifecycleEvent> LocalLifecycleEvents => Set<LocalLifecycleEvent>();
+    public DbSet<LocalOwnerRecoveryRequest> LocalOwnerRecoveries => Set<LocalOwnerRecoveryRequest>();
+
+    public DbSet<PlatformCustomer> Customers => Set<PlatformCustomer>();
+    public DbSet<PlatformCatalogProduct> CatalogProducts => Set<PlatformCatalogProduct>();
+    public DbSet<PlatformContract> Contracts => Set<PlatformContract>();
+    public DbSet<PlatformContractItem> ContractItems => Set<PlatformContractItem>();
+    public DbSet<PlatformCustomerPayment> CustomerPayments => Set<PlatformCustomerPayment>();
+    public DbSet<PlatformSupportTicket> SupportTickets => Set<PlatformSupportTicket>();
+    public DbSet<DeskFeedback> DeskFeedback => Set<DeskFeedback>();
+    public DbSet<PlatformNumberSequence> NumberSequences => Set<PlatformNumberSequence>();
+    public DbSet<LocalSalesContractTerms> LocalSalesContractTerms => Set<LocalSalesContractTerms>();
+    public DbSet<LocalSalesContractDocument> LocalSalesContractDocuments => Set<LocalSalesContractDocument>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("platform");

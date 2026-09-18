@@ -485,6 +485,45 @@ public class AdminServiceStaffManagementTests
     }
 
     [Fact]
+    public async Task ResetPassword_Owner_IsProtected()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var db = CreateDb(tenantId);
+        var (sut, users, _, _) = CreateSut(db);
+        var owner = SeedStaff(db, tenantId, users, "Owner");
+        await db.SaveChangesAsync();
+
+        var result = await sut.ResetStaffPasswordAsync(tenantId, owner.Id, "NewPass1");
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("OWNER_PROTECTED", result.Error);
+    }
+
+    [Fact]
+    public async Task ResetPassword_Owner_AllowedWhenAllowOwner_DoesNotLogSecret()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var db = CreateDb(tenantId);
+        var (sut, users, audit, _) = CreateSut(db);
+        var owner = SeedStaff(db, tenantId, users, "Owner");
+        db.Set<RefreshToken>().Add(new RefreshToken
+        {
+            UserId = owner.Id,
+            TenantId = tenantId,
+            TokenHash = "live-owner",
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(20)
+        });
+        await db.SaveChangesAsync();
+
+        var result = await sut.ResetStaffPasswordAsync(tenantId, owner.Id, "NewPass1", allowOwner: true);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull((await db.Set<RefreshToken>().SingleAsync()).RevokedAtUtc);
+        var ev = audit.Events.Single(e => e.Action == "staff.password_reset");
+        Assert.DoesNotContain("NewPass1", ev.After?.ToString() ?? "");
+    }
+
+    [Fact]
     public async Task AuditActor_IsAppUserId_NotIdentityId()
     {
         var tenantId = Guid.NewGuid();

@@ -19,7 +19,11 @@ public interface IAdminService
 
     Task<Result> DeleteStaffUserAsync(Guid tenantId, Guid id);
 
-    Task<Result> ResetStaffPasswordAsync(Guid tenantId, Guid id, string newPassword);
+    /// <param name="allowOwner">
+    /// Gym-side staff APIs must leave this false (Owner stays OWNER_PROTECTED).
+    /// Platform Ops may pass true so a locked-out gym Owner can sign in again.
+    /// </param>
+    Task<Result> ResetStaffPasswordAsync(Guid tenantId, Guid id, string newPassword, bool allowOwner = false);
 
     Task<Result<StaffDetailDto>> SetStaffPhotoAsync(Guid tenantId, Guid id, Stream image, string fileName, string contentType);
 

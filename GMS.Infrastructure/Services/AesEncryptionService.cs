@@ -28,7 +28,8 @@ public class AesEncryptionService : IEncryptionService
                       ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
 
             if (string.Equals(env, "Production", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(env, "Staging", StringComparison.OrdinalIgnoreCase))
+                || string.Equals(env, "Staging", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(env, "Local", StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException(
                     "EncryptionKey is not configured. National ID encryption requires a 32+ character key " +

@@ -146,15 +146,46 @@ public sealed class DashboardService : IDashboardService
             .Distinct()
             .CountAsync(ct);
 
-        var inactivityDays = await GetInactivityDaysAsync(tenantId, ct);
+        var inactivityDays = 14; // Match Call Sheet SyncInactive (needs-attention / follow-up queue).
         var attendanceCutoff = MembershipOperational.CairoInclusiveRangeUtc(
-            today.AddDays(-inactivityDays + 1), today).UtcStart;
-        var inactive = await _db.GymMembers.AsNoTracking()
-            .Where(m => m.TenantId == tenantId && m.IsActive)
-            .CountAsync(m => !_db.GymAttendances.Any(a =>
-                a.TenantId == tenantId
-                && a.MemberId == m.Id
-                && a.CheckInAtUtc >= attendanceCutoff), ct);
+            today.AddDays(-inactivityDays), today.AddDays(-inactivityDays)).UtcStart;
+
+        // Same population as Call Sheet inactive: covering non-trial membership, no visit in N days,
+        // membership started at least N days ago (new joiners are not flagged yet).
+        var covering = await _db.Memberships.AsNoTracking()
+            .Include(m => m.Plan)
+            .Where(m => m.TenantId == tenantId
+                        && (m.Status == "active" || m.Status == "frozen")
+                        && m.StartDate <= today
+                        && m.EndDate >= today)
+            .ToListAsync(ct);
+
+        covering = covering
+            .Where(m => MembershipOperational.IsCoveringToday(m, today)
+                && !string.Equals(m.Plan?.PlanType, "trial", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var coveringMemberIds = covering
+            .GroupBy(m => m.MemberId)
+            .Select(g => MembershipOperational.SelectCoveringToday(g, today))
+            .Where(m => m != null && m.StartDate <= today.AddDays(-inactivityDays))
+            .Select(m => m!.MemberId)
+            .Distinct()
+            .ToList();
+
+        var recentlyVisited = coveringMemberIds.Count == 0
+            ? new HashSet<Guid>()
+            : (await _db.GymAttendances.AsNoTracking()
+                .Where(a => a.TenantId == tenantId
+                    && a.MemberId.HasValue
+                    && coveringMemberIds.Contains(a.MemberId.Value)
+                    && a.CheckInAtUtc >= attendanceCutoff)
+                .Select(a => a.MemberId!.Value)
+                .Distinct()
+                .ToListAsync(ct))
+                .ToHashSet();
+
+        var inactive = coveringMemberIds.Count(id => !recentlyVisited.Contains(id));
 
         var memberships = await _db.Memberships.AsNoTracking()
             .Where(m => m.TenantId == tenantId
@@ -418,8 +449,52 @@ public sealed class DashboardService : IDashboardService
         bool canFinance,
         CancellationToken ct)
     {
-        if (canMembers)
+        CallSheetAttentionCountsDto? attentionCounts = null;
+        if (canMembers || canFinance)
         {
+            try
+            {
+                var countsResult = await _callSheet.GetAttentionCountsAsync(tenantId);
+                if (countsResult.IsSuccess)
+                    attentionCounts = countsResult.Data;
+                else
+                    AddIssue(dto.DataIssues, "attention", "call_sheet_unavailable");
+            }
+            catch
+            {
+                AddIssue(dto.DataIssues, "attention", "call_sheet_unavailable");
+            }
+        }
+
+        if (canMembers && attentionCounts != null)
+        {
+            if (attentionCounts.Renewals > 0)
+            {
+                dto.Today.RenewalsDueSoon = attentionCounts.Renewals;
+                dto.Attention.Items.Add(new DashboardAttentionItemDto
+                {
+                    Key = "renewals_due",
+                    Count = attentionCounts.Renewals
+                });
+            }
+
+            if (attentionCounts.Inactive > 0)
+                dto.Attention.Items.Add(new DashboardAttentionItemDto
+                {
+                    Key = "inactive_members",
+                    Count = attentionCounts.Inactive
+                });
+
+            if (attentionCounts.Trials > 0)
+                dto.Attention.Items.Add(new DashboardAttentionItemDto
+                {
+                    Key = "trials_ending_soon",
+                    Count = attentionCounts.Trials
+                });
+        }
+        else if (canMembers)
+        {
+            // Fallback when Call Sheet sync is unavailable — keep previous membership-window logic.
             Result<List<CallSheetEntryDto>>? expiring = null;
             try
             {
@@ -432,12 +507,15 @@ public sealed class DashboardService : IDashboardService
 
             if (expiring?.IsSuccess == true && expiring.Data != null)
             {
-                dto.Today.RenewalsDueSoon = expiring.Data.Count;
-                dto.Attention.Items.Add(new DashboardAttentionItemDto
-                {
-                    Key = "renewals_due",
-                    Count = expiring.Data.Count
-                });
+                // Forward-looking only (matches card label: ending within 7 days).
+                var forward = expiring.Data.Count(e => e.EndDate >= today);
+                dto.Today.RenewalsDueSoon = forward;
+                if (forward > 0)
+                    dto.Attention.Items.Add(new DashboardAttentionItemDto
+                    {
+                        Key = "renewals_due",
+                        Count = forward
+                    });
             }
             else if (expiring != null)
                 AddIssue(dto.DataIssues, "attention", "renewals_unavailable");
@@ -458,13 +536,25 @@ public sealed class DashboardService : IDashboardService
                 });
         }
 
-        if (canFinance && dto.Financial?.AccountsReceivableCount > 0)
+        if (canFinance && attentionCounts != null)
+        {
+            if (attentionCounts.Payments > 0)
+                dto.Attention.Items.Add(new DashboardAttentionItemDto
+                {
+                    Key = "outstanding_payments",
+                    Count = attentionCounts.Payments,
+                    Amount = attentionCounts.PaymentsAmount
+                });
+        }
+        else if (canFinance && dto.Financial?.AccountsReceivableCount > 0)
+        {
             dto.Attention.Items.Add(new DashboardAttentionItemDto
             {
                 Key = "outstanding_payments",
                 Count = dto.Financial.AccountsReceivableCount,
                 Amount = dto.Financial.AccountsReceivable
             });
+        }
 
         var nearFull = dto.Operations.Sessions.Count(session => session.IsNearlyFull);
         if (nearFull > 0)
@@ -555,8 +645,16 @@ public sealed class DashboardService : IDashboardService
             "year" => ("year", new DateOnly(today.Year, 1, 1), today),
             "last_year" => ("last_year", new DateOnly(today.Year - 1, 1, 1),
                 new DateOnly(today.Year - 1, 12, 31)),
-            _ => ("month", new DateOnly(today.Year, today.Month, 1), today)
+            // Full calendar month so Closed/Approved payroll can be COMPLETE
+            // (MTD ranges intentionally exclude payroll — never prorated).
+            _ => FullMonth(today)
         };
+    }
+
+    private static (string Key, DateOnly From, DateOnly To) FullMonth(DateOnly today)
+    {
+        var first = new DateOnly(today.Year, today.Month, 1);
+        return ("month", first, first.AddMonths(1).AddDays(-1));
     }
 
     private static (string Key, DateOnly From, DateOnly To) LastMonth(DateOnly today)

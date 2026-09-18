@@ -129,6 +129,30 @@ public class PlatformTenantUsersController : ControllerBase
         return result.Success ? Ok(result.Staff) : MapError(result);
     }
 
+    [HttpPost("{staffId:guid}/reset-password")]
+    [Authorize(Policy = "PlatformOpsOrAbove")]
+    [ProducesResponseType(typeof(StaffDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ResetPassword(
+        Guid tenantId, Guid staffId, [FromBody] ResetTenantStaffPasswordRequest request, CancellationToken ct)
+    {
+        var reasonError = ValidateReason(request.Reason);
+        if (reasonError != null)
+            return BadRequest(reasonError);
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 10)
+            return BadRequest(new { errorCode = "PASSWORD_REQUIRED", errorMessage = "newPassword is required (min 10 characters)." });
+
+        var actor = RequireActorId();
+        if (actor == null)
+            return Unauthorized();
+
+        var result = await _staff.ResetPasswordAsync(
+            tenantId, staffId, request.NewPassword, actor.Value, request.Reason.Trim(), ClientIp(), ct);
+        return result.Success ? Ok(result.Staff) : MapError(result);
+    }
+
     private static object? ValidateReason(string? reason) =>
         string.IsNullOrWhiteSpace(reason) || reason.Trim().Length < MinReasonLength
             ? new { errorCode = "REASON_REQUIRED", errorMessage = $"reason is required (min {MinReasonLength} characters) for the audit log." }

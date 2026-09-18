@@ -48,7 +48,7 @@ public class SessionBookingService : ISessionBookingService
             _logger.LogWarning(ex, "Lazy session generation failed for tenant {TenantId}; continuing with existing rows", tenantId);
         }
 
-        // Schedules/sessions use Cairo local times stored as UTC — query the Cairo calendar day.
+        // Sessions store real UTC (Cairo wall clock converted at generation). Query the Cairo calendar day.
         var startUtc = CairoDayStartUtc(date);
         var endUtc = CairoDayStartUtc(date.AddDays(1));
 
@@ -60,8 +60,9 @@ public class SessionBookingService : ISessionBookingService
                         && s.StartsAtUtc >= startUtc
                         && s.StartsAtUtc < endUtc
                         && s.Activity != null
-                        && s.Activity.Kind == ActivityKinds.Class
-                        && !s.Activity.IsDeleted)
+                        && !s.Activity.IsDeleted
+                        && (s.Activity.Kind == ActivityKinds.Class
+                            || (s.Activity.Kind == ActivityKinds.Facility && s.Activity.BookingRequired)))
             .OrderBy(s => s.StartsAtUtc)
             .ToListAsync(ct);
 

@@ -433,7 +433,7 @@ public class AdminService : IAdminService
     }
 
     /// <inheritdoc/>
-    public async Task<Result> ResetStaffPasswordAsync(Guid tenantId, Guid id, string newPassword)
+    public async Task<Result> ResetStaffPasswordAsync(Guid tenantId, Guid id, string newPassword, bool allowOwner = false)
     {
         try
         {
@@ -442,7 +442,7 @@ public class AdminService : IAdminService
                 return Result.Failure(NotFoundMessage);
 
             var currentRoles = await _userManager.GetRolesAsync(user);
-            if (currentRoles.Contains("Owner", StringComparer.OrdinalIgnoreCase))
+            if (!allowOwner && currentRoles.Contains("Owner", StringComparer.OrdinalIgnoreCase))
                 return Result.Failure(OwnerProtectedMessage);
 
             var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);

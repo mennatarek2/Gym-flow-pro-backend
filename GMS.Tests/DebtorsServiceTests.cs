@@ -238,6 +238,71 @@ public class DebtorsServiceTests
     }
 
     [Fact]
+    public async Task GetOutstandingSalesAsync_CompletedWithDue_IsIncluded()
+    {
+        var (ctx, svc, _, _, tenantId) = CreateSut();
+        var member = SeedMember(ctx, tenantId);
+        var completedDue = new Sale
+        {
+            TenantId = tenantId,
+            MemberId = member.Id,
+            SoldByUserId = Guid.NewGuid(),
+            Subtotal = 800m,
+            Total = 800m,
+            AmountDue = 600m,
+            DueDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-4)),
+            Status = "completed"
+        };
+        ctx.Sales.Add(completedDue);
+        ctx.SaleLines.Add(new SaleLine
+        {
+            TenantId = tenantId,
+            SaleId = completedDue.Id,
+            LineType = "membership",
+            Description = "Gold 12 months",
+            Qty = 1,
+            UnitPrice = 800m,
+            LineTotal = 800m
+        });
+        ctx.Sales.Add(new Sale
+        {
+            TenantId = tenantId,
+            MemberId = member.Id,
+            SoldByUserId = Guid.NewGuid(),
+            Subtotal = 300m,
+            Total = 300m,
+            AmountDue = 300m,
+            Status = "cancelled"
+        });
+        ctx.Sales.Add(new Sale
+        {
+            TenantId = tenantId,
+            MemberId = member.Id,
+            SoldByUserId = Guid.NewGuid(),
+            Subtotal = 90m,
+            Total = 90m,
+            AmountDue = 90m,
+            Status = "written_off"
+        });
+        await ctx.SaveChangesAsync();
+
+        var result = await svc.GetOutstandingSalesAsync(tenantId, member.Id);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(600m, result.Data!.TotalDue);
+        var row = Assert.Single(result.Data.Sales);
+        Assert.Equal(completedDue.Id, row.SaleId);
+        Assert.Equal("completed", row.Status);
+        Assert.Equal(600m, row.AmountDue);
+        Assert.Equal(200m, row.Paid);
+
+        var paged = await svc.GetDebtorsPagedAsync(tenantId, page: 1, pageSize: 20, member.Id);
+        Assert.True(paged.IsSuccess, paged.Error);
+        var debtor = Assert.Single(paged.Data!.Items);
+        Assert.Equal(600m, debtor.TotalDue);
+    }
+
+    [Fact]
     public async Task GetOutstandingSalesAsync_NothingDue_ReturnsEmpty200Shape()
     {
         var (ctx, svc, _, _, tenantId) = CreateSut();

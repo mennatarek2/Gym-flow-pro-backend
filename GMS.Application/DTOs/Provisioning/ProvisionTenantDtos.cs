@@ -46,6 +46,12 @@ public class ProvisionTenantRequest
     /// <summary>Optional trial length in days (1–90). Omitted → global PlatformSubscription:TrialDays default (14).</summary>
     [Range(1, 90)]
     public int? TrialDays { get; set; }
+
+    /// <summary>
+    /// Cloud provision starts a SaaS trial. Local Lifetime Setup must set this false so a sold
+    /// lifetime gym is not also listed as a Cloud trial.
+    /// </summary>
+    public bool StartTrial { get; set; } = true;
 }
 
 public class ProvisionTenantResponse

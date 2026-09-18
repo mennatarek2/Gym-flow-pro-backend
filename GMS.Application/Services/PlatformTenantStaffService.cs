@@ -153,6 +153,41 @@ public class PlatformTenantStaffService : IPlatformTenantStaffService
         return PlatformStaffMutationResult.Ok(result.Data!);
     }
 
+    public async Task<PlatformStaffMutationResult> ResetPasswordAsync(
+        Guid tenantId,
+        Guid staffId,
+        string newPassword,
+        Guid platformActorId,
+        string reason,
+        string? ipAddress,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 10)
+            return PlatformStaffMutationResult.Fail("PASSWORD_REQUIRED", "Password must be at least 10 characters.");
+
+        var current = await _admin.GetStaffUserByIdAsync(tenantId, staffId);
+        if (!current.IsSuccess)
+            return PlatformStaffMutationResult.Fail("NOT_FOUND", current.Error ?? "Staff user not found.");
+
+        var staff = current.Data!;
+        var result = await _admin.ResetStaffPasswordAsync(tenantId, staffId, newPassword, allowOwner: true);
+        if (!result.IsSuccess)
+        {
+            var (code, message) = ParseError(result.Error);
+            return PlatformStaffMutationResult.Fail(code, message);
+        }
+
+        await _platformAudit.LogAsync(
+            platformActorId,
+            "platform.tenant.staff_password_reset",
+            tenantId,
+            before: new { staffId, role = staff.Role },
+            after: new { staffId, role = staff.Role, reason },
+            ipAddress);
+
+        return PlatformStaffMutationResult.Ok(staff);
+    }
+
     /// <summary>
     /// AdminService.UpdateStaffUserAsync takes a full replacement request (FullName/IsActive are
     /// always applied, never null-guarded) — so every call here re-sends the staff member's current

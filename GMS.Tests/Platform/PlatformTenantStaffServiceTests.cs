@@ -141,6 +141,12 @@ public class PlatformTenantStaffServiceTests
             return Task.FromResult(IdentityResult.Success);
         }
 
+        public override Task<string> GeneratePasswordResetTokenAsync(ApplicationUser user) =>
+            Task.FromResult("token");
+
+        public override Task<IdentityResult> ResetPasswordAsync(ApplicationUser user, string token, string newPassword) =>
+            Task.FromResult(IdentityResult.Success);
+
         public override Task<ApplicationUser?> FindByEmailAsync(string email) =>
             Task.FromResult<ApplicationUser?>(null);
     }
@@ -236,6 +242,68 @@ public class PlatformTenantStaffServiceTests
         Assert.False(result.Success);
         Assert.Equal("OWNER_PROTECTED", result.ErrorCode);
         Assert.Contains("Owner", await users.GetRolesAsync(owner));
+        Assert.Empty(platformAudit.Events);
+    }
+
+    [Fact]
+    public async Task ResetPassword_Owner_SucceedsFromPlatform_RevokesRefresh_AndDoesNotAuditSecret()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var db = CreateDb(tenantId);
+        var (sut, users, tenantAudit, platformAudit) = CreateSut(db);
+        var actorId = Guid.NewGuid();
+        var owner = SeedStaff(db, tenantId, users, "Owner");
+        db.Set<RefreshToken>().Add(new RefreshToken
+        {
+            UserId = owner.Id,
+            TenantId = tenantId,
+            TokenHash = "live-owner",
+            ExpiresAtUtc = DateTime.UtcNow.AddDays(10)
+        });
+        await db.SaveChangesAsync();
+
+        var result = await sut.ResetPasswordAsync(tenantId, owner.Id, "NewPassw0rd1", actorId, "Owner locked out after staff change.", "10.0.0.1");
+
+        Assert.True(result.Success);
+        Assert.NotNull((await db.Set<RefreshToken>().SingleAsync()).RevokedAtUtc);
+        Assert.Contains(tenantAudit.Actions, a => a == "staff.password_reset");
+        var ev = Assert.Single(platformAudit.Events);
+        Assert.Equal("platform.tenant.staff_password_reset", ev.Action);
+        Assert.Equal(actorId, ev.ActorId);
+        Assert.DoesNotContain("NewPassw0rd1", ev.After?.ToString() ?? "");
+        Assert.DoesNotContain("NewPassw0rd1", ev.Before?.ToString() ?? "");
+    }
+
+    [Fact]
+    public async Task ResetPassword_ShortPassword_IsRejected_NotAudited()
+    {
+        var tenantId = Guid.NewGuid();
+        await using var db = CreateDb(tenantId);
+        var (sut, users, _, platformAudit) = CreateSut(db);
+        var owner = SeedStaff(db, tenantId, users, "Owner");
+        await db.SaveChangesAsync();
+
+        var result = await sut.ResetPasswordAsync(tenantId, owner.Id, "short", Guid.NewGuid(), "Owner locked out after staff change.", null);
+
+        Assert.False(result.Success);
+        Assert.Equal("PASSWORD_REQUIRED", result.ErrorCode);
+        Assert.Empty(platformAudit.Events);
+    }
+
+    [Fact]
+    public async Task ResetPassword_TenantAStaffId_AgainstTenantB_IsRejectedAsNotFound()
+    {
+        var tenantA = Guid.NewGuid();
+        var tenantB = Guid.NewGuid();
+        await using var db = CreateDb(tenantA);
+        var (sut, users, _, platformAudit) = CreateSut(db);
+        var ownerInA = SeedStaff(db, tenantA, users, "Owner");
+        await db.SaveChangesAsync();
+
+        var result = await sut.ResetPasswordAsync(tenantB, ownerInA.Id, "NewPassw0rd1", Guid.NewGuid(), "Cross-tenant probe should fail.", null);
+
+        Assert.False(result.Success);
+        Assert.Equal("NOT_FOUND", result.ErrorCode);
         Assert.Empty(platformAudit.Events);
     }
 

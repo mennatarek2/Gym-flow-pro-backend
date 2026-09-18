@@ -4,8 +4,8 @@ using GMS.Application.Common;
 using GMS.Application.DTOs.Debtors;
 
 /// <summary>
-/// Front-desk debtors list: members with an outstanding balance across their partially_paid sales,
-/// plus a throttled WhatsApp payment-reminder action.
+/// Front-desk debtors list: members with an outstanding balance across collectable sales
+/// (AmountDue &gt; 0, not refunded/cancelled/written off), plus a throttled WhatsApp reminder.
 /// </summary>
 public interface IDebtorsService
 {

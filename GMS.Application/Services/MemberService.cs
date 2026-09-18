@@ -48,14 +48,36 @@ public class MemberService : IMemberService
         _logger = logger;
     }
 
+    private const string MissingGymMessage =
+        "This gym is not available on this PC. Sign out and run Local setup again. / هذه الصالة غير متاحة على هذا الجهاز. سجّل الخروج وأعد الإعداد المحلي.";
+
     public async Task<Result<PagedResult<MemberListItemDto>>> GetMembersAsync(
         Guid tenantId, string? search, string? status, int page, int pageSize)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        var (items, totalCount) = await _memberRepo.GetPagedAsync(
-            tenantId, search, status, page, pageSize);
+        var gymExists = await _dbContext.Tenants.IgnoreQueryFilters()
+            .AnyAsync(t => t.Id == tenantId && !t.IsDeleted);
+        if (!gymExists)
+        {
+            _logger.LogWarning("List members blocked: tenant {TenantId} is missing from dbo.tenants", tenantId);
+            return Result<PagedResult<MemberListItemDto>>.Failure(MissingGymMessage);
+        }
+
+        List<GymMember> items;
+        int totalCount;
+        try
+        {
+            (items, totalCount) = await _memberRepo.GetPagedAsync(
+                tenantId, search, status, page, pageSize);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to list members for tenant {TenantId}", tenantId);
+            return Result<PagedResult<MemberListItemDto>>.Failure(
+                $"Failed to load members / فشل تحميل الأعضاء: {ex.Message}");
+        }
 
         var dtoItems = items.Select(m =>
         {
@@ -102,6 +124,23 @@ public class MemberService : IMemberService
         dto.InvitationQuotaRemaining = await ComputeInvitationQuotaRemainingAsync(member);
         dto.MemberApp = await _memberAppActivation.GetStatusAsync(
             member.Id, member.TenantId, member.AppUserId);
+
+        var assignedCard = await _dbContext.AccessCards.AsNoTracking()
+            .FirstOrDefaultAsync(c =>
+                c.TenantId == member.TenantId
+                && c.MemberId == member.Id
+                && c.Status == AccessCardStatuses.Assigned);
+        if (assignedCard != null)
+        {
+            dto.AccessCard = new MemberAccessCardDto
+            {
+                Id = assignedCard.Id,
+                Code = assignedCard.Code,
+                Status = assignedCard.Status,
+                AssignedAtUtc = assignedCard.AssignedAtUtc
+            };
+        }
+
         if (dto.CurrentMembership != null)
         {
             dto.CurrentMembership.SessionCount = MembershipOperational
@@ -127,15 +166,41 @@ public class MemberService : IMemberService
             return Result<MemberDetailDto>.Failure(
                 "Phone must be a valid Egyptian mobile / الرقم لازم يكون موبايل مصري صحيح");
 
-        // Check duplicate phone within tenant
-        var existing = await _memberRepo.GetByPhoneAsync(normalizedPhone, tenantId);
+        GymMember? existing;
+        try
+        {
+            existing = await _memberRepo.GetByPhoneAsync(normalizedPhone, tenantId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to look up member phone in tenant {TenantId}", tenantId);
+            return Result<MemberDetailDto>.Failure(
+                $"Failed to create member / فشل إنشاء العضو: {ex.Message}");
+        }
         if (existing != null)
             return Result<MemberDetailDto>.Failure(
                 "Phone number already registered / رقم الهاتف مسجل بالفعل");
 
+        var gymExists = await _dbContext.Tenants.IgnoreQueryFilters()
+            .AnyAsync(t => t.Id == tenantId && !t.IsDeleted);
+        if (!gymExists)
+        {
+            _logger.LogWarning("Create member blocked: tenant {TenantId} is missing from dbo.tenants", tenantId);
+            return Result<MemberDetailDto>.Failure(MissingGymMessage);
+        }
+
         // Soft cap only — never block create; surface PLAN_SOFT_CAP via Result.Message + controller header.
-        var capCheck = await _tierEnforcement.CheckCapAsync(tenantId, "active_members");
-        var softCapMessage = capCheck.SoftWarning ? "PLAN_SOFT_CAP:active_members" : null;
+        string? softCapMessage = null;
+        try
+        {
+            var capCheck = await _tierEnforcement.CheckCapAsync(tenantId, "active_members");
+            if (capCheck.SoftWarning)
+                softCapMessage = "PLAN_SOFT_CAP:active_members";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Member cap check failed for tenant {TenantId}; continuing create.", tenantId);
+        }
 
         var hasReferral = !string.IsNullOrWhiteSpace(request.ReferralCode) || request.ReferringMemberId.HasValue;
         if (hasReferral)
@@ -169,7 +234,18 @@ public class MemberService : IMemberService
             ReferralCode = await AllocateReferralCodeAsync(tenantId)
         };
 
-        await _memberRepo.AddAsync(member);
+        try
+        {
+            await _memberRepo.AddAsync(member);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create member {Phone} in tenant {TenantId}", normalizedPhone, tenantId);
+            if (IsMissingTenantForeignKey(ex))
+                return Result<MemberDetailDto>.Failure(MissingGymMessage);
+            return Result<MemberDetailDto>.Failure(
+                $"Failed to create member / فشل إنشاء العضو: {ex.Message}");
+        }
 
         if (hasReferral)
         {
@@ -522,4 +598,15 @@ public class MemberService : IMemberService
         AmountPaid = ms.AmountPaid,
         PaymentMethod = ms.PaymentMethod
     };
+
+    static bool IsMissingTenantForeignKey(Exception ex)
+    {
+        for (var inner = ex; inner != null; inner = inner.InnerException)
+        {
+            if (inner.Message.Contains("FK_gym_members_tenants", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
 }

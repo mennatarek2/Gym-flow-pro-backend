@@ -48,9 +48,9 @@ public class RolePermissionMatrixTests
     [Fact]
     public void Matrix_CoversEveryJobAndEveryTask()
     {
-        Assert.Equal(41, Permissions.All.Count);
-        Assert.Equal(5 * 41, EveryRoleAndPermission().Count());
-        Assert.Equal(3 * 41, EveryEditableRoleAndPermission().Count());
+        Assert.Equal(42, Permissions.All.Count);
+        Assert.Equal(5 * 42, EveryRoleAndPermission().Count());
+        Assert.Equal(3 * 42, EveryEditableRoleAndPermission().Count());
     }
 
     [Theory]

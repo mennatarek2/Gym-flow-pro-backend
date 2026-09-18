@@ -14,6 +14,11 @@ public interface ICallSheetService
 
     Task<Result<FollowUpSummaryDto>> GetSummaryAsync(Guid tenantId);
 
+    /// <summary>
+    /// Syncs system follow-ups, then returns open counts by reason (matches Call Sheet filters).
+    /// </summary>
+    Task<Result<CallSheetAttentionCountsDto>> GetAttentionCountsAsync(Guid tenantId);
+
     Task<Result<FollowUpDetailDto>> GetByIdAsync(Guid followUpId, Guid tenantId);
 
     Task<Result<FollowUpDto>> CreateAsync(Guid tenantId, Guid staffUserId, CreateFollowUpRequest request);

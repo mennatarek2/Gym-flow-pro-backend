@@ -40,6 +40,7 @@ public class PlatformDataSeeder
 
         await EnsureTierFeatureMapSeededAsync(ct);
         await EnsureCommercialPlansSeededAsync(ct);
+        await EnsureCatalogProductsSeededAsync(ct);
 
         var email = (_configuration["PlatformSeed:Email"] ?? string.Empty).Trim().ToLowerInvariant();
         var password = _configuration["PlatformSeed:Password"];
@@ -136,5 +137,27 @@ public class PlatformDataSeeder
         _db.CommercialPlans.AddRange(missing);
         await _db.SaveChangesAsync(ct);
         _logger.LogInformation("Seeded {Count} commercial_plans row(s).", missing.Count);
+    }
+
+    private async Task EnsureCatalogProductsSeededAsync(CancellationToken ct)
+    {
+        var expected = new[]
+        {
+            new PlatformCatalogProduct { Sku = "HY-SW-LOCAL-LT", Name = "HyMotion Local Lifetime", Description = "One-time HyMotion Local Lifetime license", ProductType = PlatformCatalogProductTypes.Software, DefaultPrice = 25000m },
+            new PlatformCatalogProduct { Sku = "HY-SVC-INSTALL", Name = "Installation", Description = "On-site installation", ProductType = PlatformCatalogProductTypes.Service, DefaultPrice = 1500m },
+            new PlatformCatalogProduct { Sku = "HY-SVC-TRAINING", Name = "Training", Description = "Staff training session", ProductType = PlatformCatalogProductTypes.Service, DefaultPrice = 1000m },
+            new PlatformCatalogProduct { Sku = "HY-HW-PVC", Name = "PVC Cards", Description = "Printed access cards (per 100)", ProductType = PlatformCatalogProductTypes.Consumable, DefaultPrice = 800m },
+            new PlatformCatalogProduct { Sku = "HY-HW-PRINTER", Name = "Receipt Printer", Description = "Thermal receipt printer", ProductType = PlatformCatalogProductTypes.Hardware, DefaultPrice = 2200m },
+            new PlatformCatalogProduct { Sku = "HY-HW-SCANNER", Name = "Barcode Scanner", Description = "USB barcode scanner", ProductType = PlatformCatalogProductTypes.Hardware, DefaultPrice = 900m },
+            new PlatformCatalogProduct { Sku = "HY-HW-DRAWER", Name = "Cash Drawer", Description = "POS cash drawer", ProductType = PlatformCatalogProductTypes.Hardware, DefaultPrice = 1500m },
+            new PlatformCatalogProduct { Sku = "HY-SVC-SUPPORT", Name = "Support Package", Description = "Annual support package", ProductType = PlatformCatalogProductTypes.Support, DefaultPrice = 3000m },
+        };
+        var existing = await _db.CatalogProducts.Select(p => p.Sku).ToListAsync(ct);
+        var set = existing.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var missing = expected.Where(p => !set.Contains(p.Sku)).ToList();
+        if (missing.Count == 0) return;
+        _db.CatalogProducts.AddRange(missing);
+        await _db.SaveChangesAsync(ct);
+        _logger.LogInformation("Seeded {Count} catalog_products row(s).", missing.Count);
     }
 }

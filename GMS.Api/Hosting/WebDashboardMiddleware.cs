@@ -108,7 +108,13 @@ public class WebDashboardMiddleware
     /// <summary>Shared static/HTML resolution for both the staff dashboard root and the member root.</summary>
     private async Task<bool> TryServeRootedAsync(HttpContext context, string url, string prefix, string root, bool memberScope)
     {
-        var sub = url.Replace(prefix, "", StringComparison.OrdinalIgnoreCase).Trim('/');
+        // Strip ONLY the leading prefix (callers already verified url.StartsWith(prefix)) - a
+        // global Replace() here previously stripped every occurrence of the prefix text anywhere
+        // in the URL, so any page whose own path repeats the prefix word (e.g. "/dashboard/hr/
+        // dashboard/" - a real page) lost both instead of just the leading one and 404'd. Found
+        // via Local Edition browser testing; this middleware is shared with SaaS, so this was a
+        // live bug there too for any such path, not something introduced by Local.
+        var sub = (url.Length > prefix.Length ? url[prefix.Length..] : string.Empty).Trim('/');
 
         if (string.IsNullOrEmpty(sub))
         {
@@ -209,6 +215,7 @@ public class WebDashboardMiddleware
             ".png" => "image/png",
             ".jpg" or ".jpeg" => "image/jpeg",
             ".svg" => "image/svg+xml",
+            ".ico" => "image/x-icon",
             ".woff2" => "font/woff2",
             _ => "application/octet-stream"
         };

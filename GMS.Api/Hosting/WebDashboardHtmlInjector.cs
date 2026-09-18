@@ -2,24 +2,46 @@ using System.Text.RegularExpressions;
 
 namespace GMS.Api.Hosting;
 
-/// <summary>Injects shared shell assets into dashboard/auth HTML (mirrors apps/web/server.js sendHtml).</summary>
+/// <summary>
+/// Injects shared shell assets into dashboard/auth HTML (mirrors apps/web/server.js sendHtml).
+/// IMPORTANT: this list drifted out of sync with server.js's SHARED_SCRIPTS/SHARED_STYLES at some
+/// point - it was missing toast.js, analytics.js, staff-notifications.js, network-status.js,
+/// error-handler.js, session-guard.js, app-version.js, and i18n-catalog.js entirely, plus most of
+/// the layout stylesheets. Since every page-level *-app.js calls globalThis.toastShared(...) after
+/// nearly every action, the missing toast.js meant that call threw a TypeError the instant any
+/// action tried to show a toast - silently swallowed by callers' generic catch blocks and
+/// re-labeled "Network error", which is what made this look like a network problem across
+/// (almost) every button in the app. Restored to exact parity with server.js below - keep these
+/// two lists in sync going forward; nothing here is Local-specific, this was a live gap in SaaS's
+/// own MonsterASP/production deployment too (both are served by this same middleware).
+/// </summary>
 internal static partial class WebDashboardHtmlInjector
 {
     private static readonly string[] SharedScripts =
     [
         "/shared/api-config.js",
-        "/shared/api-client.js",
+        "/shared/api-client.js?v=session1",
         "/shared/authz.js",
-        "/shared/features.js?v=5",
-        "/shared/i18n.js",
+        "/shared/features.js?v=8",
+        "/shared/i18n-catalog.js",
+        "/shared/i18n.js?v=loc2",
         "/shared/theme.js?v=1",
-        "/shared/nav.js?v=4",
+        "/shared/feedback.js?v=1",
+        "/shared/nav.js?v=5",
         "/shared/inventory-api.js",
         "/shared/member-orders-api.js",
         "/shared/gfp-branding.js?v=5",
-        "/shared/shell.js?v=theme1",
-        "/shared/quick-actions.js?v=5",
-        "/shared/refund-action.js?v=1"
+        "/shared/analytics.js?v=1",
+        "/shared/shell.js?v=feedback1",
+        "/shared/staff-notifications.js?v=2",
+        "/shared/quick-actions.js?v=6",
+        "/shared/refund-action.js?v=3",
+        "/shared/toast.js?v=1",
+        "/shared/network-status.js?v=1",
+        "/shared/error-handler.js?v=1",
+        "/shared/session-guard.js?v=session1",
+        "/shared/app-version.js?v=1",
+        "/shared/local-nav-gate.js?v=session1"
     ];
 
     private static readonly string[] SharedStyles =
@@ -27,7 +49,16 @@ internal static partial class WebDashboardHtmlInjector
         "/shared/rtl.css",
         "/shared/typography.css?v=1",
         "/shared/refund-action.css",
-        "/shared/theme.css?v=2"
+        "/shared/theme.css?v=4",
+        "/shared/feedback.css?v=1",
+        "/shared/responsive.css?v=1",
+        "/shared/shell-layout.css?v=session1",
+        "/shared/shell-header.css?v=1",
+        "/shared/dashboard-layout.css?v=1",
+        "/shared/table-layout.css?v=1",
+        "/shared/form-layout.css?v=1",
+        "/shared/modal-layout.css?v=2",
+        "/shared/sweep-layout.css?v=2"
     ];
 
     // Member App pages have no staff nav/shell/quick-actions/inventory context — only the
@@ -37,7 +68,8 @@ internal static partial class WebDashboardHtmlInjector
         "/shared/api-config.js",
         "/shared/api-client.js",
         "/shared/authz.js",
-        "/shared/i18n.js",
+        "/shared/i18n-catalog.js",
+        "/shared/i18n.js?v=loc2",
         "/shared/theme.js?v=1"
     ];
 
@@ -45,8 +77,13 @@ internal static partial class WebDashboardHtmlInjector
     [
         "/shared/rtl.css",
         "/shared/typography.css?v=1",
-        "/shared/theme.css?v=2"
+        "/shared/theme.css?v=4",
+        "/shared/responsive.css?v=1",
+        "/shared/form-layout.css?v=1",
+        "/shared/sweep-layout.css?v=2"
     ];
+
+    private const string FaviconLink = "<link rel=\"icon\" href=\"/shared/favicon.ico\">";
 
     private const string ThemeBootStyle =
         "<style data-gfp-theme-boot>html[data-theme=\"dark\"]{color-scheme:dark;background:#151716;--lbg:#151716;--ls1:#1C201D;--ls2:#222722;--ls3:#2E342F;--ltp:#E8EBE6;--lts:#B5BBB4;--ltt:#8C948A;--suc100:#16351F;--dng100:#3A1C1C;--wrn100:#3A2E12;--inf100:#1A2A44;--l100:rgba(122,204,0,.16);--sh1:0 1px 2px rgba(0,0,0,.28)}html[data-theme=\"dark\"] body{background:#151716;color:#E8EBE6}</style>";
@@ -59,6 +96,7 @@ internal static partial class WebDashboardHtmlInjector
         var missingJs = scripts.Where(s => !HasScriptSrc(html, s)).ToList();
         var needEarly = !html.Contains("data-gfp-early-locale", StringComparison.Ordinal);
         var needThemeBoot = !html.Contains("data-gfp-theme-boot", StringComparison.Ordinal);
+        var needFavicon = !html.Contains("rel=\"icon\"", StringComparison.OrdinalIgnoreCase);
 
         var headStart = new List<string>();
         if (needThemeBoot)
@@ -67,6 +105,8 @@ internal static partial class WebDashboardHtmlInjector
             headStart.Add(EarlyLocaleScript);
 
         var headEnd = new List<string>();
+        if (needFavicon)
+            headEnd.Add(FaviconLink);
         headEnd.AddRange(missingCss.Select(h => $"<link rel=\"stylesheet\" href=\"{h}\">"));
         headEnd.AddRange(missingJs.Select(s => $"<script src=\"{s}\"></script>"));
 

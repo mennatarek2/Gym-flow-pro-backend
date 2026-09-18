@@ -105,6 +105,44 @@ public class ActivityService : IActivityService
             entity.IsActive = request.IsActive.Value;
         entity.UpdatedAtUtc = DateTime.UtcNow;
 
+        // Class board reads denormalized session/schedule capacity — push DefaultCapacity
+        // so editing/saving the activity Capacity field updates Classes cards.
+        if (entity.Kind == ActivityKinds.Class
+            && request.DefaultCapacity.HasValue
+            && request.DefaultCapacity.Value > 0)
+        {
+            var newCap = request.DefaultCapacity.Value;
+            var now = DateTime.UtcNow;
+
+            // Activity Capacity is the desk source of truth; keep schedules + upcoming sessions in sync.
+            var schedules = await _db.ActivitySchedules
+                .Where(s => s.TenantId == tenantId && s.ActivityId == id && !s.IsDeleted)
+                .ToListAsync(ct);
+            foreach (var schedule in schedules)
+            {
+                if (schedule.Capacity != newCap)
+                {
+                    schedule.Capacity = newCap;
+                    schedule.UpdatedAtUtc = now;
+                }
+            }
+
+            var upcoming = await _db.ActivitySessions
+                .Where(s => s.TenantId == tenantId
+                            && s.ActivityId == id
+                            && s.StartsAtUtc >= now
+                            && s.Status == ActivitySessionStatuses.Upcoming)
+                .ToListAsync(ct);
+            foreach (var session in upcoming)
+            {
+                if (session.Capacity != newCap)
+                {
+                    session.Capacity = newCap;
+                    session.UpdatedAtUtc = now;
+                }
+            }
+        }
+
         await _db.SaveChangesAsync(ct);
         return Result<ActivityDto>.Success(ToDto(entity));
     }
@@ -145,8 +183,11 @@ public class ActivityService : IActivityService
         var activity = await _db.Activities.FirstOrDefaultAsync(a => a.Id == activityId && a.TenantId == tenantId, ct);
         if (activity == null)
             return Result<ActivityScheduleDto>.Failure("Activity not found / النشاط غير موجود");
-        if (activity.Kind != ActivityKinds.Class)
-            return Result<ActivityScheduleDto>.Failure("Schedules apply to classes only / الجداول للحصص فقط");
+        if (activity.Kind != ActivityKinds.Class && activity.Kind != ActivityKinds.Facility)
+            return Result<ActivityScheduleDto>.Failure("Schedules apply to classes and facilities only / الجداول للحصص والمرافق فقط");
+        if (activity.Kind == ActivityKinds.Facility && !activity.BookingRequired)
+            return Result<ActivityScheduleDto>.Failure(
+                "Schedules only apply to facilities that require booking / الجداول للمرافق التي تتطلب حجز فقط");
 
         if (request.DaysOfWeek == null || request.DaysOfWeek.Count == 0)
             return Result<ActivityScheduleDto>.Failure("Select at least one day / اختر يوماً واحداً على الأقل");

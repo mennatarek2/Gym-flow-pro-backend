@@ -32,6 +32,7 @@ public static class ApplicationServiceExtensions
         services.AddScoped<IReferralRewardService, ReferralRewardService>();
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<IMemberService, MemberService>();
+        services.AddScoped<IAccessCardService, AccessCardService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IStaffNotificationPublisher, StaffNotificationPublisher>();
         services.AddSingleton<GMS.Core.Interfaces.IStaffNotificationRealtimeNotifier, NullStaffNotificationRealtimeNotifier>();
@@ -51,6 +52,9 @@ public static class ApplicationServiceExtensions
         services.AddScoped<IAdminService, AdminService>();
         services.AddScoped<IRolePermissionService, RolePermissionService>();
         services.AddScoped<ITenantProvisioningService, TenantProvisioningService>();
+        services.AddScoped<ILocalFirstRunService, LocalFirstRunService>();
+        services.AddScoped<ILocalOwnerRecoveryService, LocalOwnerRecoveryService>();
+        services.AddScoped<IBackupHealthService, BackupHealthService>();
         services.AddScoped<ITenantSettingsService, TenantSettingsService>();
         services.AddScoped<IGymOccupancyService, GymOccupancyService>();
         services.AddScoped<IAuditService, AuditService>();

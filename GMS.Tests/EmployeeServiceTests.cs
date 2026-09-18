@@ -63,7 +63,7 @@ public class EmployeeServiceTests
             => throw new NotImplementedException();
         public Task<GMS.Application.Common.Result> DeleteStaffUserAsync(Guid tenantId, Guid id)
             => throw new NotImplementedException();
-        public Task<GMS.Application.Common.Result> ResetStaffPasswordAsync(Guid tenantId, Guid id, string newPassword)
+        public Task<GMS.Application.Common.Result> ResetStaffPasswordAsync(Guid tenantId, Guid id, string newPassword, bool allowOwner = false)
             => throw new NotImplementedException();
         public Task<GMS.Application.Common.Result<StaffDetailDto>> SetStaffPhotoAsync(Guid tenantId, Guid id, Stream image, string fileName, string contentType)
             => throw new NotImplementedException();

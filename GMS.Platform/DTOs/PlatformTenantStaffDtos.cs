@@ -19,3 +19,9 @@ public class ChangeTenantStaffRoleRequest
     public string Role { get; set; } = string.Empty;
     public string Reason { get; set; } = string.Empty;
 }
+
+public class ResetTenantStaffPasswordRequest
+{
+    public string NewPassword { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
+}

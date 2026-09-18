@@ -67,4 +67,29 @@ public class AccessCardBrandingPhaseATests
         Assert.Equal("#7ACC00", AccessCardHtmlBuilder.NormalizeHex("7acc00"));
         Assert.Equal(BrandingDefaults.PrimaryColor, AccessCardHtmlBuilder.NormalizeHex("#7acc00"));
     }
+
+    [Fact]
+    public void BuildBlankStockBatch_IsGymPrimary_NotHyMotionBrand()
+    {
+        var html = AccessCardHtmlBuilder.BuildBlankStockBatch(
+            new[] { "CARD-0001", "CARD-0002" },
+            "Pulse Fitness",
+            "نبض للياقة",
+            primaryColor: "#7ACC00");
+
+        Assert.Contains("Pulse Fitness", html);
+        Assert.Contains("نبض للياقة", html);
+        Assert.Contains("ACCESS CARD", html);
+        Assert.Contains("CARD-0001", html);
+        Assert.Contains("CARD-0002", html);
+        Assert.Contains("class=\"gym-en\"", html);
+        Assert.Contains("class=\"mark-lg\"", html);
+        Assert.Contains("class=\"mark-back\"", html);
+        Assert.Contains("class=\"card stock back\"", html);
+        Assert.Contains("Powered by HyMotion", html);
+        // No dominant product wordmark as card brand
+        Assert.DoesNotContain("class=\"product\">HyMotion", html);
+        Assert.DoesNotContain("Ahmed", html);
+        Assert.DoesNotContain("GYM-", html);
+    }
 }

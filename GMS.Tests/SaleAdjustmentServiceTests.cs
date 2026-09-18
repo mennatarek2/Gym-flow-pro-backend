@@ -80,6 +80,72 @@ public sealed class SaleAdjustmentServiceTests
     }
 
     [Fact]
+    public async Task ReconcileBalanceAsync_CompletedWithMatchingDue_FlipsToPartiallyPaid()
+    {
+        var tenantId = Guid.NewGuid();
+        var identityId = Guid.NewGuid();
+        var tenantContext = new TenantContext();
+        tenantContext.SetTenant(tenantId, "Test", "Africa/Cairo");
+        var options = new DbContextOptionsBuilder<GymFlowProDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new GymFlowProDbContext(options, tenantContext);
+        db.Tenants.Add(new Tenant
+        {
+            Id = tenantId,
+            Name = "Test",
+            GymCode = "RECON-STATUS",
+            City = "Cairo",
+            SubscriptionStartDate = DateTime.UtcNow
+        });
+        var staff = new AppUser
+        {
+            TenantId = tenantId,
+            UserId = identityId.ToString(),
+            FirstName = "Test",
+            LastName = "Owner",
+            Email = $"{identityId}@test.local",
+            Role = "Owner"
+        };
+        var sale = new Sale
+        {
+            TenantId = tenantId,
+            SoldByUserId = staff.Id,
+            Total = 800m,
+            AmountDue = 600m,
+            Status = "completed"
+        };
+        db.AppUsers.Add(staff);
+        db.Sales.Add(sale);
+        db.PaymentTransactions.Add(new PaymentTransaction
+        {
+            TenantId = tenantId,
+            SaleId = sale.Id,
+            Gateway = "cash",
+            Method = "cash",
+            ExternalRef = "status-repair",
+            Amount = 200m,
+            Status = "success",
+            SettlementStatus = "settled",
+            PaidAtUtc = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var audit = new AuditService(
+            db, new HttpContextAccessor(), tenantContext, NullLogger<AuditService>.Instance);
+        var service = new SaleAdjustmentService(db, audit);
+
+        var result = await service.ReconcileBalanceAsync(tenantId, identityId, sale.Id);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal("reconciled", result.Data!.Status);
+        Assert.Equal(600m, result.Data.CanonicalAmountDue);
+        Assert.Equal("partially_paid", (await db.Sales.SingleAsync()).Status);
+        Assert.Equal(600m, (await db.Sales.SingleAsync()).AmountDue);
+    }
+
+    [Fact]
     public async Task CreateAsync_WriteOffIsCappedAndVisibleInHistory()
     {
         var tenantId = Guid.NewGuid();

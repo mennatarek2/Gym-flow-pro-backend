@@ -555,6 +555,78 @@ public class PlatformTenantReadServiceTests
         }
     }
 
+    [Fact]
+    public async Task GetDetailAsync_CustomerId_OnlyWhenExactlyOneCustomerPointsAtTenant()
+    {
+        await EnsureSchemasAsync();
+        var tenantId = Guid.NewGuid();
+        var uniqueCustomerId = Guid.NewGuid();
+        var extraCustomerId = Guid.NewGuid();
+
+        await using (var infra = CreateInfraDb())
+        {
+            infra.Tenants.Add(new Tenant
+            {
+                Id = tenantId,
+                Name = "PF-Link Gym",
+                NameAr = "صالة",
+                GymCode = $"PFL{tenantId.ToString("N")[..6]}",
+                City = "Cairo",
+                Address = "Test",
+                PhoneNumber = "+201000000009",
+                Email = $"{tenantId:N}@pflink.test",
+                IsActive = true,
+                SubscriptionStartDate = DateTime.UtcNow,
+                Settings = "{}"
+            });
+            await infra.SaveChangesAsync();
+        }
+
+        await using var platform = CreatePlatformDb();
+        try
+        {
+            platform.Customers.Add(new PlatformCustomer
+            {
+                Id = uniqueCustomerId,
+                BusinessName = "Linked Local",
+                OwnerName = "Owner",
+                Status = PlatformCustomerStatuses.Active,
+                TenantId = tenantId,
+            });
+            await platform.SaveChangesAsync();
+
+            var readers = new PlatformTenantReadService(platform, new SubscriptionWriteRepository(platform));
+            var unique = await readers.GetDetailAsync(tenantId);
+            Assert.Equal(uniqueCustomerId, unique!.CustomerId);
+
+            platform.Customers.Add(new PlatformCustomer
+            {
+                Id = extraCustomerId,
+                BusinessName = "Second Local",
+                OwnerName = "Other",
+                Status = PlatformCustomerStatuses.Active,
+                TenantId = tenantId,
+            });
+            var duplicate = await Assert.ThrowsAnyAsync<DbUpdateException>(() => platform.SaveChangesAsync());
+            var detail = duplicate.ToString() + (duplicate.InnerException?.Message ?? string.Empty);
+            Assert.Contains("UX_customers_TenantId", detail, StringComparison.OrdinalIgnoreCase);
+
+            platform.ChangeTracker.Clear();
+            var stillUnique = await readers.GetDetailAsync(tenantId);
+            Assert.Equal(uniqueCustomerId, stillUnique!.CustomerId);
+        }
+        finally
+        {
+            await using var cleanup = CreatePlatformDb();
+            cleanup.Customers.RemoveRange(cleanup.Customers.Where(c => c.Id == uniqueCustomerId || c.Id == extraCustomerId));
+            await cleanup.SaveChangesAsync();
+
+            await using var infra = CreateInfraDb();
+            infra.Tenants.RemoveRange(infra.Tenants.Where(t => t.Id == tenantId));
+            await infra.SaveChangesAsync();
+        }
+    }
+
     private static (ISubscriptionService Svc, PlatformDbContext Db) CreateSubscriptionService(PlatformDbContext db)
     {
         var cache = new MemoryDistributedCache(Options.Create(new MemoryDistributedCacheOptions()));

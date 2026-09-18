@@ -13,11 +13,13 @@ using GMS.Core.Utilities;
 using GMS.Infrastructure.Persistence;
 
 /// <summary>
-/// Front-desk debtors list: aggregates each member's outstanding balance across their
-/// partially_paid sales, with an aging bucket and a throttled WhatsApp reminder action.
+/// Front-desk debtors list: aggregates each member's outstanding balance across sales with
+/// AmountDue &gt; 0 that are still collectable (not refunded/cancelled/written off).
 /// </summary>
 public class DebtorsService : IDebtorsService
 {
+    private static readonly string[] ClosedStatuses = SaleCollectability.ClosedStatuses;
+
     private static readonly TimeSpan ReminderThrottleTtl = TimeSpan.FromHours(48);
 
     private readonly GymFlowProDbContext _dbContext;
@@ -104,8 +106,8 @@ public class DebtorsService : IDebtorsService
                 .Include(s => s.Lines)
                 .Where(s => s.TenantId == tenantId
                             && s.MemberId == memberId
-                            && s.Status == "partially_paid"
-                            && s.AmountDue > 0)
+                            && s.AmountDue > 0
+                            && !ClosedStatuses.Contains(s.Status))
                 .OrderBy(s => s.DueDate)
                 .ThenBy(s => s.CreatedAtUtc)
                 .ToListAsync();
@@ -153,7 +155,8 @@ public class DebtorsService : IDebtorsService
                 return Fail(DebtorFailureReasons.MemberNotFound, "Member not found / العضو غير موجود");
 
             var oldestSale = await _dbContext.Sales
-                .Where(s => s.TenantId == tenantId && s.MemberId == memberId && s.Status == "partially_paid" && s.AmountDue > 0)
+                .Where(s => s.TenantId == tenantId && s.MemberId == memberId && s.AmountDue > 0
+                            && !ClosedStatuses.Contains(s.Status))
                 .OrderBy(s => s.DueDate)
                 .FirstOrDefaultAsync();
 
@@ -211,8 +214,8 @@ public class DebtorsService : IDebtorsService
     {
         var sales = await _dbContext.Sales
             .Where(s => s.TenantId == tenantId
-                && s.Status == "partially_paid"
                 && s.AmountDue > 0
+                && !ClosedStatuses.Contains(s.Status)
                 && (!memberId.HasValue || s.MemberId == memberId.Value))
             .Select(s => new
             {

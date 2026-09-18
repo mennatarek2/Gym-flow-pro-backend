@@ -72,6 +72,15 @@ public static class PlatformServiceExtensions
         services.AddScoped<IProcessAutomationEnrollmentsJob, ProcessAutomationEnrollmentsJob>();
         services.AddScoped<ISubscriptionAccessService, SubscriptionAccessService>();
         services.AddScoped<PlatformDataSeeder>();
+
+        // HyMotion Local Lifetime licensing - see LocalLicenseService's class remarks.
+        services.AddScoped<ILocalLicenseWriteRepository, LocalLicenseWriteRepository>();
+        services.AddScoped<ILocalLicenseService, LocalLicenseService>();
+        services.AddScoped<ILocalOwnerRecoveryService, LocalOwnerRecoveryService>();
+        services.AddScoped<IPlatformCustomerService, PlatformCustomerService>();
+        services.AddScoped<IDeskFeedbackService, DeskFeedbackService>();
+        services.AddScoped<ILocalSalesContractService, LocalSalesContractService>();
+        services.AddSingleton<ILicenseSigningService, LicenseSigningService>();
         services.AddHostedService<PlatformRenewalJobScheduler>();
         services.AddHostedService<PlatformUsageJobScheduler>();
         services.AddHostedService<PlatformAutomationJobScheduler>();

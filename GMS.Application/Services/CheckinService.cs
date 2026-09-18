@@ -277,12 +277,39 @@ public class CheckinService : ICheckinService
         if (string.IsNullOrEmpty(code))
             return Fail<ManualCheckinResponse>("Scan a member card / امسح كارنيه العضو");
 
-        // Exact match only (MAC-P0 / C10) — never Contains on barcode path.
-        var byNumber = await _memberRepo.GetByMemberNumberAsync(code, tenantId);
-        if (byNumber == null)
-            return Fail<ManualCheckinResponse>("Member not found / العضو غير موجود");
+        // Additive card resolution (AccessCard inventory). Prefer Assigned card by Code;
+        // if the scanned value is an inventory row that is not Assigned, reject (Lost / Damaged /
+        // Blocked / Available must not fall through to MemberNumber — that would re-auth lost cards).
+        // If no AccessCard row exists, legacy exact MemberNumber match (printed CODE128 cards).
+        Guid memberId;
+        var card = await _dbContext.AccessCards.AsNoTracking()
+            .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.Code == code);
+        if (card != null)
+        {
+            if (card.Status != AccessCardStatuses.Assigned || card.MemberId == null)
+            {
+                return Fail<ManualCheckinResponse>(
+                    card.Status switch
+                    {
+                        AccessCardStatuses.Lost => "Card reported lost / الكارنيه مُبلَّغ عنه مفقود",
+                        AccessCardStatuses.Damaged => "Card damaged / الكارنيه تالف",
+                        AccessCardStatuses.Blocked => "Card blocked / الكارنيه محظور",
+                        AccessCardStatuses.Available => "Card not assigned / الكارنيه غير مُعيَّن",
+                        _ => "Card not valid for check-in / الكارنيه غير صالح للدخول"
+                    });
+            }
+            memberId = card.MemberId.Value;
+        }
+        else
+        {
+            // Exact match only (MAC-P0 / C10) — never Contains on barcode path.
+            var byNumber = await _memberRepo.GetByMemberNumberAsync(code, tenantId);
+            if (byNumber == null)
+                return Fail<ManualCheckinResponse>("Member not found / العضو غير موجود");
+            memberId = byNumber.Id;
+        }
 
-        var member = await _memberRepo.GetByIdWithMembershipAsync(byNumber.Id);
+        var member = await _memberRepo.GetByIdWithMembershipAsync(memberId);
         if (member == null || member.TenantId != tenantId)
             return Fail<ManualCheckinResponse>("Member not found / العضو غير موجود");
 

@@ -82,6 +82,48 @@ public class CallSheetService : ICallSheetService
         }
     }
 
+    public async Task<Result<CallSheetAttentionCountsDto>> GetAttentionCountsAsync(Guid tenantId)
+    {
+        try
+        {
+            await SyncSystemFollowUpsAsync(tenantId);
+
+            var open = await _db.MemberFollowUps.AsNoTracking()
+                .Where(f => f.TenantId == tenantId && CallSheetVocab.OpenStatuses.Contains(f.Status))
+                .Select(f => new { f.Reason, f.RelatedId, f.RelatedType })
+                .ToListAsync();
+
+            var paymentSaleIds = open
+                .Where(f => f.Reason == "payment"
+                    && f.RelatedType == "sale"
+                    && f.RelatedId.HasValue)
+                .Select(f => f.RelatedId!.Value)
+                .Distinct()
+                .ToList();
+
+            var paymentsAmount = paymentSaleIds.Count == 0
+                ? 0m
+                : await _db.Sales.AsNoTracking()
+                    .Where(s => s.TenantId == tenantId && paymentSaleIds.Contains(s.Id))
+                    .SumAsync(s => (decimal?)s.AmountDue) ?? 0m;
+
+            return Result<CallSheetAttentionCountsDto>.Success(new CallSheetAttentionCountsDto
+            {
+                Renewals = open.Count(f => f.Reason == "renewal"),
+                Inactive = open.Count(f => f.Reason == "inactive"),
+                Payments = open.Count(f => f.Reason == "payment"),
+                PaymentsAmount = paymentsAmount,
+                Trials = open.Count(f => f.Reason == "trial")
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading call sheet attention counts for tenant {TenantId}", tenantId);
+            return Result<CallSheetAttentionCountsDto>.Failure(
+                "Failed to load attention counts / فشل تحميل عناصر المتابعة", ex.Message);
+        }
+    }
+
     public async Task<Result<FollowUpDetailDto>> GetByIdAsync(Guid followUpId, Guid tenantId)
     {
         try
@@ -653,12 +695,13 @@ public class CallSheetService : ICallSheetService
     {
         IEnumerable<FollowUpDto> query = items;
 
-        var dateKey = (date ?? "today").Trim().ToLowerInvariant();
+            var dateKey = (date ?? "today").Trim().ToLowerInvariant();
         query = dateKey switch
         {
             "tomorrow" => query.Where(i => CairoDate(i.DueAtUtc) == today.AddDays(1) && CallSheetVocab.IsOpen(i.Status)),
             "upcoming" => query.Where(i => CairoDate(i.DueAtUtc) > today && CallSheetVocab.IsOpen(i.Status)),
             "overdue" => query.Where(i => CairoDate(i.DueAtUtc) < today && CallSheetVocab.IsOpen(i.Status)),
+            "open" => query.Where(i => CallSheetVocab.IsOpen(i.Status)),
             "all" => query.Where(i => i.Status != "cancelled"),
             _ => query.Where(i =>
                 (CallSheetVocab.IsOpen(i.Status) && CairoDate(i.DueAtUtc) <= today)

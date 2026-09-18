@@ -4,7 +4,8 @@ using GMS.Application.Common;
 using GMS.Application.DTOs.Provisioning;
 
 /// <summary>
-/// Production gym onboarding — creates Tenant + Owner + defaults + platform trial.
+/// Creates Tenant + Owner + defaults. Cloud provision starts a platform trial;
+/// Local Lifetime Setup sets StartTrial = false.
 /// Not the Development <c>DataSeeder</c>.
 /// </summary>
 public interface ITenantProvisioningService

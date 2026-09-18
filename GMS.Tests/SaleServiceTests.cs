@@ -70,8 +70,14 @@ public class SaleServiceTests
 
         var ctx = new GymFlowProDbContext(options, tenantContext);
 
+        var encryption = new AesEncryptionService(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["EncryptionKey"] = "0123456789abcdef0123456789abcdef"
+            })
+            .Build());
         var memberService = new MemberService(
-            ctx, new MemberRepository(ctx), new AesEncryptionService(new ConfigurationBuilder().Build()), new UnlimitedTierEnforcement(), new NoOpReferralAttribution(), new NoOpMemberAppActivation(), new ActivityEntitlementService(ctx),
+            ctx, new MemberRepository(ctx), encryption, new UnlimitedTierEnforcement(), new NoOpReferralAttribution(), new NoOpMemberAppActivation(), new ActivityEntitlementService(ctx),
             NullLogger<MemberService>.Instance);
         var promoService = new PromoService(ctx, new Repository<PromoCode>(ctx), tenantContext, NullLogger<PromoService>.Instance);
         var auditService = new AuditService(ctx, new HttpContextAccessor(), tenantContext, NullLogger<AuditService>.Instance);
@@ -608,6 +614,49 @@ public class SaleServiceTests
             refunded.Id, tenantId, identityUserId, new RecordPaymentRequest { Method = "cash", Amount = 100m });
         Assert.False(refundedPay.IsSuccess);
         Assert.StartsWith(SaleFailureReasons.SaleNotCollectable + "|", refundedPay.Error);
+    }
+
+    [Fact]
+    public async Task RecordPaymentAsync_CompletedWithDue_CollectsAndFlipsToPartiallyPaid()
+    {
+        var (ctx, svc, tenantId) = CreateSut();
+        SeedTenant(ctx, tenantId);
+        var (staff, identityUserId) = SeedStaff(ctx, tenantId);
+        SeedOpenShift(ctx, tenantId, staff.Id);
+        var member = SeedMember(ctx, tenantId);
+        var sale = new Sale
+        {
+            TenantId = tenantId,
+            MemberId = member.Id,
+            SoldByUserId = staff.Id,
+            Subtotal = 800m,
+            Total = 800m,
+            AmountDue = 600m,
+            Status = "completed"
+        };
+        ctx.Sales.Add(sale);
+        ctx.PaymentTransactions.Add(new PaymentTransaction
+        {
+            TenantId = tenantId,
+            MemberId = member.Id,
+            SaleId = sale.Id,
+            Gateway = "cash",
+            Method = "cash",
+            ExternalRef = "seed-partial",
+            Amount = 200m,
+            Status = "success",
+            SettlementStatus = "settled",
+            PaidAtUtc = DateTime.UtcNow
+        });
+        await ctx.SaveChangesAsync();
+
+        var result = await svc.RecordPaymentAsync(
+            sale.Id, tenantId, identityUserId, new RecordPaymentRequest { Method = "cash", Amount = 100m });
+
+        Assert.True(result.IsSuccess, result.Error);
+        var reloaded = await ctx.Sales.SingleAsync(s => s.Id == sale.Id);
+        Assert.Equal(500m, reloaded.AmountDue);
+        Assert.Equal("partially_paid", reloaded.Status);
     }
 
     [Fact]

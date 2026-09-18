@@ -30,6 +30,8 @@ public static class Permissions
     public const string ShiftReconcileApprove = "shift.reconcile.approve";
 
     public const string MembershipsFreeze = "memberships.freeze";
+    /// <summary>Assign a new membership plan to a member, or renew their current/expired one.</summary>
+    public const string MembershipsAssign = "memberships.assign";
     public const string PlansManage = "plans.manage";
 
     public const string ReportsFinancialView = "reports.financial.view";
@@ -86,7 +88,7 @@ public static class Permissions
         SalesSell, SalesDiscountApply, SalesDiscountOverride,
         PaymentsCashAccept, PaymentsRefundRequest, PaymentsRefundApprove,
         ShiftOpen, ShiftClose, ShiftReconcileApprove,
-        MembershipsFreeze, PlansManage,
+        MembershipsFreeze, MembershipsAssign, PlansManage,
         ReportsFinancialView, ReportsExpensesView, ReportsExpensesManage, SettingsManage,
         InventoryView, InventoryManage, InventoryAdjust, InventoryPurchase, InventoryTransfer,
         MemberOrdersView, MemberOrdersManage,

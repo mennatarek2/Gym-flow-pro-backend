@@ -22,6 +22,7 @@ public class AesEncryptionServiceKeyTests
     [InlineData("Production")]
     [InlineData("Staging")]
     [InlineData("production")] // case-insensitive
+    [InlineData("Local")] // Local Edition (Phase 1): must fail closed, never fall back to the shared dev key
     public void MissingKey_InProductionLikeEnvironment_Throws(string? env)
     {
         Assert.Throws<InvalidOperationException>(() => new AesEncryptionService(Config(env)));

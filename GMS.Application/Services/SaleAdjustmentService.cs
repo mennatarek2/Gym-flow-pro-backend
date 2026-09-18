@@ -5,6 +5,7 @@ using GMS.Application.Common;
 using GMS.Application.DTOs.Sales;
 using GMS.Application.Interfaces;
 using GMS.Core.Entities;
+using GMS.Core.Utilities;
 using GMS.Infrastructure.Persistence;
 
 public sealed class SaleAdjustmentService : ISaleAdjustmentService
@@ -135,14 +136,17 @@ public sealed class SaleAdjustmentService : ISaleAdjustmentService
         var canonicalDue = Math.Max(0m, decimal.Round(
             sale.Total - allocated - adjustments, 2, MidpointRounding.AwayFromZero));
         var previousDue = sale.AmountDue;
-        var changed = Math.Abs(previousDue - canonicalDue) > 0.01m;
+        var dueChanged = Math.Abs(previousDue - canonicalDue) > 0.01m;
+        var targetStatus = canonicalDue == 0m
+            ? (hasCancellation ? "cancelled" : adjustments > 0m ? "written_off" : "completed")
+            : (SaleCollectability.IsClosedStatus(sale.Status) ? sale.Status : "partially_paid");
+        var statusChanged = !string.Equals(sale.Status, targetStatus, StringComparison.OrdinalIgnoreCase);
+        var changed = dueChanged || statusChanged;
 
         if (changed)
         {
             sale.AmountDue = canonicalDue;
-            sale.Status = canonicalDue == 0m
-                ? (hasCancellation ? "cancelled" : adjustments > 0m ? "written_off" : "completed")
-                : "partially_paid";
+            sale.Status = targetStatus;
             sale.UpdatedAtUtc = DateTime.UtcNow;
             await _db.SaveChangesAsync(ct);
         }

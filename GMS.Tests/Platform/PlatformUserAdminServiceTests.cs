@@ -146,6 +146,26 @@ public class PlatformUserAdminServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_PersistsPlatformSales_AndReadsItBack()
+    {
+        var (db, svc, adminId) = Create();
+
+        var (result, user) = await svc.CreateAsync(adminId, new CreatePlatformUserRequest
+        {
+            Email = "sales.rep@gymflow.local",
+            FullName = "Sales Rep",
+            Role = "platform_sales",
+            Password = "SuperSecret123!"
+        }, ipAddress: "127.0.0.1");
+
+        Assert.True(result.Success, result.ErrorMessage);
+        Assert.Equal("platform_sales", user!.Role);
+
+        var stored = await db.PlatformAdminUsers.AsNoTracking().SingleAsync(u => u.Id == user.Id);
+        Assert.Equal("platform_sales", stored.Role);
+    }
+
+    [Fact]
     public async Task ListAsync_NeverExposesPasswordHash()
     {
         var (_, svc, adminId) = Create();

@@ -54,6 +54,19 @@ public class FollowUpSummaryDto
     public int Overdue { get; set; }
 }
 
+/// <summary>
+/// Open Call Sheet follow-up counts by reason — used by dashboard attention cards
+/// so numbers match the filtered queue the card links to.
+/// </summary>
+public class CallSheetAttentionCountsDto
+{
+    public int Renewals { get; set; }
+    public int Inactive { get; set; }
+    public int Payments { get; set; }
+    public decimal PaymentsAmount { get; set; }
+    public int Trials { get; set; }
+}
+
 public class FollowUpListDto
 {
     public FollowUpSummaryDto Summary { get; set; } = new();

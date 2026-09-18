@@ -8,6 +8,7 @@ public interface IProductCatalogService
     Task<Result<List<ProductCategoryDto>>> ListCategoriesAsync(Guid tenantId);
     Task<Result<ProductCategoryDto>> CreateCategoryAsync(Guid tenantId, CreateProductCategoryRequest request);
     Task<Result<ProductCategoryDto>> UpdateCategoryAsync(Guid tenantId, Guid id, UpdateProductCategoryRequest request);
+    Task<Result> DeleteCategoryAsync(Guid tenantId, Guid id);
 
     Task<Result<List<ProductDto>>> ListProductsAsync(
         Guid tenantId, string? q, Guid? categoryId, bool includeArchived);

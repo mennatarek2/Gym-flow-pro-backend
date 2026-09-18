@@ -9,6 +9,7 @@ public interface IDepartmentService
     Task<Result<DepartmentDto>> GetAsync(Guid tenantId, Guid id);
     Task<Result<DepartmentDto>> CreateAsync(Guid tenantId, CreateDepartmentRequest request);
     Task<Result<DepartmentDto>> UpdateAsync(Guid tenantId, Guid id, UpdateDepartmentRequest request);
+    Task<Result> DeleteAsync(Guid tenantId, Guid id);
 }
 
 public interface IPositionService

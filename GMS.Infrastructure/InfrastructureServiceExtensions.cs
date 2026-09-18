@@ -31,6 +31,23 @@ public static class InfrastructureServiceExtensions
                     // Logged per-service, no logger access here
                 });
 
+    /// <summary>
+    /// Local kits sometimes point LicenseServer at localhost while SaaS Debug uses the ASP.NET
+    /// HTTPS development certificate. Accept that cert for loopback only — public BaseUrls
+    /// (ngrok/cloud) still require a normal trusted chain.
+    /// </summary>
+    private static HttpClientHandler CreateLicenseServerHandler()
+    {
+        var handler = new HttpClientHandler();
+        handler.ServerCertificateCustomValidationCallback = static (message, _, _, errors) =>
+        {
+            if (errors == System.Net.Security.SslPolicyErrors.None) return true;
+            var host = message.RequestUri?.Host;
+            return host is "localhost" or "127.0.0.1";
+        };
+        return handler;
+    }
+
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
         string connectionString,
@@ -157,6 +174,24 @@ public static class InfrastructureServiceExtensions
 
         // AES-256 encryption for sensitive fields (NationalId)
         services.AddSingleton<IEncryptionService, AesEncryptionService>();
+
+        // HyMotion Local licensing - client-side signature verification (public key only, see
+        // LicenseVerificationService's class remarks; the matching private-key signer lives only
+        // in GMS.Platform, never referenced from here).
+        services.AddSingleton<ILicenseVerificationService, LicenseVerificationService>();
+        services.AddSingleton<GMS.Infrastructure.Configuration.LocalLicenseStore>();
+        services.AddSingleton<GMS.Infrastructure.Configuration.LocalDeviceSessionStore>();
+        services.AddSingleton<GMS.Infrastructure.Configuration.LocalOwnerRecoveryStore>();
+        services.AddHttpClient("license-server", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(15);
+            client.DefaultRequestHeaders.TryAddWithoutValidation("ngrok-skip-browser-warning", "true");
+        }).ConfigurePrimaryHttpMessageHandler(CreateLicenseServerHandler);
+        services.AddHttpClient<ILocalLicenseClientService, LocalLicenseClientService>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(15);
+            client.DefaultRequestHeaders.TryAddWithoutValidation("ngrok-skip-browser-warning", "true");
+        }).ConfigurePrimaryHttpMessageHandler(CreateLicenseServerHandler);
 
         // In dev: also register mock WhatsApp so Hangfire jobs that resolve
         // IWhatsAppService via DI (not typed client) still work

@@ -7,4 +7,6 @@ public class TaxSettingsDto
     public string? TaxRegistrationNumber { get; set; }
     public string? InvoiceFooterText { get; set; }
     public string? InvoiceFooterTextAr { get; set; }
+    public string? MembershipContractTerms { get; set; }
+    public string? MembershipContractTermsAr { get; set; }
 }

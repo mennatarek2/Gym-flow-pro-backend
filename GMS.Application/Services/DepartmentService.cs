@@ -101,6 +101,38 @@ public class DepartmentService : IDepartmentService
         return Result<DepartmentDto>.Success(Map(entity, employeeCount));
     }
 
+    public async Task<Result> DeleteAsync(Guid tenantId, Guid id)
+    {
+        var entity = await _db.Departments.FirstOrDefaultAsync(d => d.Id == id && d.TenantId == tenantId);
+        if (entity == null)
+            return Result.Failure("Department not found / القسم غير موجود");
+
+        // FK is Restrict — clear links, then hard-delete.
+        var employees = await _db.Employees
+            .Where(e => e.TenantId == tenantId && e.DepartmentId == id)
+            .ToListAsync();
+        foreach (var employee in employees)
+        {
+            employee.DepartmentId = null;
+            employee.UpdatedAtUtc = DateTime.UtcNow;
+        }
+
+        var positions = await _db.Positions
+            .Where(p => p.TenantId == tenantId && p.DepartmentId == id)
+            .ToListAsync();
+        foreach (var position in positions)
+        {
+            position.DepartmentId = null;
+            position.UpdatedAtUtc = DateTime.UtcNow;
+        }
+
+        _db.Departments.Remove(entity);
+        await _db.SaveChangesAsync();
+        await _audit.LogAsync("department.delete", "Department", entity.Id, entity, null);
+        _logger.LogInformation("Department {Name} deleted for tenant {TenantId}", entity.Name, tenantId);
+        return Result.Success();
+    }
+
     private static DepartmentDto Map(Department d, IReadOnlyDictionary<Guid, int> counts) =>
         Map(d, counts.TryGetValue(d.Id, out var count) ? count : 0);
 

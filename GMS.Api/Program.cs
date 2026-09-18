@@ -19,13 +19,83 @@ using GMS.Api.Hubs;
 using GMS.Api.Filters;
 using GMS.Api.Authorization;
 using GMS.Infrastructure.Persistence;
+using GMS.Core.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Windows Service hosting (Phase 3). Documented no-op unless the process was actually launched
+// by the Service Control Manager — SaaS (IIS/MonsterASP) and plain `dotnet run` are unaffected.
+builder.Host.UseWindowsService(options => options.ServiceName = "HyMotion");
+
 builder.ConfigureProductionBasics();
 var configuration = builder.Configuration;
+
+// ── DEPLOYMENT EDITION (SaaS | Local) ─────────────────────────────────────────
+// Missing/unrecognized config safely resolves to SaaS — see DeploymentOptions.ResolveEdition.
+// Resolved from the base appsettings layers only (before any ProgramData override below), since
+// the override file's own location depends on already knowing the edition.
+builder.Services.Configure<DeploymentOptions>(configuration.GetSection(DeploymentOptions.SectionName));
+var deploymentEdition = new DeploymentOptions { Edition = configuration[$"{DeploymentOptions.SectionName}:Edition"] }.ResolveEdition();
+builder.Services.AddSingleton(typeof(DeploymentEdition), deploymentEdition);
+
+// ── LOCAL RUNTIME DIRECTORIES + MACHINE-SPECIFIC CONFIG OVERRIDE ──────────────
+// %ProgramData%\HyMotion\{config,uploads,secrets,logs} created upfront so every Local service
+// (file storage, secrets, logging) finds them ready rather than each lazily creating its own.
+// The optional config\appsettings.json there lets an installer/setup script hand this install a
+// discovered SQL Server connection string (or any other machine-specific value) without ever
+// committing it to source control — ConfigurationManager applies it immediately, so the
+// synchronous reads below (connection string, JWT secret, ...) see it just like any other layer.
+if (deploymentEdition == DeploymentEdition.Local)
+{
+    GMS.Core.Configuration.LocalRuntimePaths.EnsureDirectories();
+    configuration.AddJsonFile(GMS.Core.Configuration.LocalRuntimePaths.ConfigOverrideFile, optional: true, reloadOnChange: false);
+
+    // Production file logging with daily rotation + retention — a Windows Service has no
+    // attached console, so this is the only place operators can see startup/runtime problems.
+    // Serilog's own request-body/header enrichers are not used, so nothing here can log a
+    // connection string, JWT secret, or LocalSecretProvider value — those never reach ILogger
+    // as structured data in the first place (see LocalSecretProvider remarks: values are never
+    // logged, only key names). Local-only: Log.Logger stays the default no-op for SaaS.
+    Serilog.Log.Logger = new Serilog.LoggerConfiguration()
+        .MinimumLevel.Information()
+        .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
+        .MinimumLevel.Override("Microsoft.EntityFrameworkCore", Serilog.Events.LogEventLevel.Warning)
+        .WriteTo.File(
+            Path.Combine(GMS.Core.Configuration.LocalRuntimePaths.LogsDir, "hymotion-.log"),
+            rollingInterval: Serilog.RollingInterval.Day,
+            retainedFileCountLimit: 30,
+            shared: true)
+        .CreateLogger();
+    builder.Host.UseSerilog();
+}
+
 ProductionConfigurationValidator.Validate(configuration, builder.Environment);
 var connectionString = configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
+// ── LOCAL PER-INSTALL SECRET BOOTSTRAP ────────────────────────────────────────
+// SaaS is untouched: this only runs for Local, and only fills keys that have no value from
+// appsettings/user-secrets/environment variables — an explicit operator-supplied value always
+// wins. See GMS.Infrastructure/Configuration/LocalSecretProvider.cs for persistence details.
+if (deploymentEdition == DeploymentEdition.Local)
+{
+    var requiredLocalSecretKeys = new[]
+    {
+        "JwtSettings:SecretKey",
+        "EncryptionKey",
+        "MemberAppActivation:CodePepper",
+        "EmployeeAppActivation:CodePepper",
+    };
+    var existing = requiredLocalSecretKeys.ToDictionary(k => k, k => configuration[k]);
+    using var bootstrapLoggerFactory = Microsoft.Extensions.Logging.LoggerFactory.Create(b => b.AddSimpleConsole());
+    var secretProvider = new GMS.Infrastructure.Configuration.LocalSecretProvider(
+        bootstrapLoggerFactory.CreateLogger<GMS.Infrastructure.Configuration.LocalSecretProvider>());
+    var generated = secretProvider.EnsureSecrets(requiredLocalSecretKeys, existing);
+    if (generated.Count > 0)
+        builder.Configuration.AddInMemoryCollection(generated!);
+}
 
 // ── CORE API ────────────────────────────────────────────────────────────────
 builder.Services.AddControllers();
@@ -112,6 +182,27 @@ builder.Services.AddRateLimiter(options =>
     options.AddFixedWindowLimiter("employee-activate-policy", limiterOptions =>
     {
         limiterOptions.PermitLimit = 10;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = 0;
+    });
+
+    // HyMotion Local license activation/validation: anonymous + brute-force-guessable license
+    // keys make this the highest-risk anonymous endpoint in the app - same shape as the app-
+    // activation policies above, slightly tighter since a legitimate Local install only ever
+    // calls this a handful of times (once at setup, then daily validation).
+    options.AddFixedWindowLimiter("local-license-activate-policy", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 5;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = 0;
+    });
+
+    // Desk product feedback: authenticated staff, keep spam/double-click bounded.
+    options.AddFixedWindowLimiter("feedback-policy", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 8;
         limiterOptions.Window = TimeSpan.FromMinutes(1);
         limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         limiterOptions.QueueLimit = 0;
@@ -215,6 +306,18 @@ builder.Services.AddAuthentication(options =>
 // Control plane (platform schema, separate migrations history, no tenant filters)
 builder.Services.AddGymFlowPlatform(connectionString, configuration);
 
+// ── LOCAL EDITION SUBSCRIPTION/FEATURE OVERRIDE ───────────────────────────────
+// A Local install has no billing/tiers: swap the 3 Platform-backed services for always-unrestricted
+// Local implementations. GMS.Platform itself is untouched — SaaS keeps the real implementations
+// registered by AddGymFlowPlatform above. See GMS.Infrastructure/Services/Local*.cs.
+if (deploymentEdition == DeploymentEdition.Local)
+{
+    builder.Services.Replace(ServiceDescriptor.Scoped<GMS.Core.Interfaces.IFeatureAccessService, GMS.Infrastructure.Services.LocalFeatureAccessService>());
+    builder.Services.Replace(ServiceDescriptor.Scoped<GMS.Core.Interfaces.ITierEnforcementService, GMS.Infrastructure.Services.LocalTierEnforcementService>());
+    builder.Services.Replace(ServiceDescriptor.Scoped<GMS.Core.Interfaces.ISubscriptionAccessService, GMS.Infrastructure.Services.LocalSubscriptionAccessService>());
+    builder.Services.AddHostedService<GMS.Api.Hosting.LocalLicenseHeartbeatService>();
+}
+
 // ── AUTHORIZATION POLICIES ───────────────────────────────────────────────────
 builder.Services.AddAuthorization(options =>
 {
@@ -241,6 +344,22 @@ builder.Services.AddAuthorization(options =>
         policy.AddAuthenticationSchemes(PlatformAuthConstants.AuthenticationScheme);
         policy.RequireRole(PlatformRoles.Admin);
     });
+    // Deliberately NOT part of the Support/Ops/Admin "OrAbove" chain (see PlatformRoles.Sales) -
+    // Ops/Admin are added here only so they can still view sales data for oversight, not because
+    // Sales sits below them in a hierarchy. License issuance/revocation/payment-verification stay
+    // gated to PlatformOpsOrAbove/PlatformAdminOnly - never to this policy.
+    options.AddPolicy("PlatformSalesOrAbove", policy =>
+    {
+        policy.AddAuthenticationSchemes(PlatformAuthConstants.AuthenticationScheme);
+        policy.RequireRole(PlatformRoles.Sales, PlatformRoles.Ops, PlatformRoles.Admin);
+    });
+    // Sales + Support + Ops + Admin. Used for commercial customer reads/tickets.
+    // Does not grant license issuance (still PlatformOpsOrAbove / PlatformAdminOnly).
+    options.AddPolicy("PlatformCustomerAccess", policy =>
+    {
+        policy.AddAuthenticationSchemes(PlatformAuthConstants.AuthenticationScheme);
+        policy.RequireRole(PlatformRoles.Sales, PlatformRoles.Support, PlatformRoles.Ops, PlatformRoles.Admin);
+    });
 });
 
 // Permission-based policies (e.g. "Permission:checkin.manual") are built on demand — one
@@ -259,6 +378,9 @@ var app = builder.Build();
 // ── DATABASE SEEDING (tenant migrations first — platform.subscriptions FK → dbo.tenants) ──
 try
 {
+    if (deploymentEdition == DeploymentEdition.Local)
+        GMS.Infrastructure.Configuration.LocalDatabaseAccessRepair.TryReleaseSingleUser(connectionString);
+
     // 1) Tenant DB migrations first — creates dbo.tenants, AspNetRoles, etc.
     await app.ApplyProductionDatabaseMigrationsAsync();
 
@@ -311,6 +433,10 @@ catch (Exception ex)
 {
     Console.Error.WriteLine("=== HyMotion STARTUP FAILED ===");
     Console.Error.WriteLine(ex.ToString());
+    // A Windows Service has no attached console — Console.Error above is invisible when running
+    // as a service. Log.Logger is only configured (non-no-op) for Local, so this is a no-op for
+    // SaaS and the only place a Local operator can actually see why startup failed.
+    Log.Fatal(ex, "HyMotion startup failed");
     throw;
 }
 
@@ -335,7 +461,22 @@ app.MapHealthChecks("/health");
 app.MapHub<AttendanceHub>("/hubs/attendance");
 app.MapControllers();
 
-app.Run();
+try
+{
+    app.Run();
+}
+catch (Exception ex)
+{
+    // Kestrel binds its configured port lazily here (e.g. "address already in use" surfaces at
+    // this point, not at builder time) — log it for Local before the process exits so a Windows
+    // Service failure has a diagnosable trail in %ProgramData%\HyMotion\logs. No-op for SaaS.
+    Log.Fatal(ex, "HyMotion stopped unexpectedly");
+    throw;
+}
+finally
+{
+    Log.CloseAndFlush();
+}
 
 // Expose for WebApplicationFactory integration tests (CP0 platform isolation).
 public partial class Program { }

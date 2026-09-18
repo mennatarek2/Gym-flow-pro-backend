@@ -63,7 +63,8 @@ public class GymFlowProDbContext : IdentityDbContext<ApplicationUser, IdentityRo
         typeof(EmployeeShift), typeof(EmployeeScheduleAssignment), typeof(EmployeeAttendance),
         typeof(LeaveRequest), typeof(LeaveBalance),
         typeof(PayrollPeriod), typeof(PayrollLine), typeof(PayrollAdjustment),
-        typeof(PayrollPayment), typeof(EmployeeDocument)
+        typeof(PayrollPayment), typeof(EmployeeDocument),
+        typeof(AccessCard)
     };
 
     // DbSets for all domain entities
@@ -140,6 +141,7 @@ public class GymFlowProDbContext : IdentityDbContext<ApplicationUser, IdentityRo
     public DbSet<PayrollAdjustment> PayrollAdjustments { get; set; } = null!;
     public DbSet<PayrollPayment> PayrollPayments { get; set; } = null!;
     public DbSet<EmployeeDocument> EmployeeDocuments { get; set; } = null!;
+    public DbSet<AccessCard> AccessCards { get; set; } = null!;
 
     /// <summary>
     /// Constructor allowing optional ITenantContext for startup scenarios.
@@ -398,6 +400,9 @@ public class GymFlowProDbContext : IdentityDbContext<ApplicationUser, IdentityRo
 
         modelBuilder.Entity<EmployeeDocument>().HasQueryFilter(d =>
             d.TenantId == _tenantContext.TenantId && !d.IsDeleted);
+
+        modelBuilder.Entity<AccessCard>().HasQueryFilter(c =>
+            c.TenantId == _tenantContext.TenantId && !c.IsDeleted);
 
         // NOTE: SaleIdempotencyKey and InvoiceSequence have no global query filter — neither is a
         // BaseEntity (no IsDeleted) and both are always queried by an explicit TenantId, per their
