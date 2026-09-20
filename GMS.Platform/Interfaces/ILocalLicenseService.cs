@@ -10,8 +10,12 @@ public interface ILocalLicenseService
     /// with no access to the current user's role.</summary>
     Task<LocalLicense> IssueAsync(IssueLocalLicenseRequest request, Guid issuedByPlatformAdminUserId, CancellationToken cancellationToken = default);
 
-    Task<List<LocalLicenseListItemDto>> ListAsync(CancellationToken cancellationToken = default);
-    Task<LocalLicenseDetailDto?> GetDetailAsync(Guid id, CancellationToken cancellationToken = default);
+    /// <param name="includeFullKey">
+    /// When false (Sales/Support), <see cref="LocalLicenseListItemDto.LicenseKey"/> is masked.
+    /// Ops+/Admin list/detail GET pass true. Issue/Activate still return the raw key once.
+    /// </param>
+    Task<List<LocalLicenseListItemDto>> ListAsync(bool includeFullKey = false, CancellationToken cancellationToken = default);
+    Task<LocalLicenseDetailDto?> GetDetailAsync(Guid id, bool includeFullKey = false, CancellationToken cancellationToken = default);
 
     Task<bool> SuspendAsync(Guid licenseId, Guid platformAdminUserId, string reason, CancellationToken cancellationToken = default);
     Task<bool> RevokeAsync(Guid licenseId, Guid platformAdminUserId, string reason, CancellationToken cancellationToken = default);

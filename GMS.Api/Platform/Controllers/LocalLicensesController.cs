@@ -42,17 +42,18 @@ public class LocalLicensesController : ControllerBase
     }
 
     /// <summary>GET /platform-api/local-licenses — read access for Sales/Support/Ops/Admin.
+    /// Sales/Support receive a masked LicenseKey; Ops+/Admin get the full key for support workflows.
     /// Sales view is not yet Deal-owned (full list); narrowing is deferred, not silently done here.</summary>
     [HttpGet]
     public async Task<IActionResult> List(CancellationToken cancellationToken)
     {
-        return Ok(await _licenses.ListAsync(cancellationToken));
+        return Ok(await _licenses.ListAsync(CanRevealLicenseKey(), cancellationToken));
     }
 
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetDetail(Guid id, CancellationToken cancellationToken)
     {
-        var detail = await _licenses.GetDetailAsync(id, cancellationToken);
+        var detail = await _licenses.GetDetailAsync(id, CanRevealLicenseKey(), cancellationToken);
         if (detail == null) return NotFound();
         return Ok(detail);
     }
@@ -128,6 +129,17 @@ public class LocalLicensesController : ControllerBase
         var ok = await _licenses.AuthorizeTransferAsync(id, body.OldInstallationId, actor, body.Reason, cancellationToken);
         if (ok) await _audit.LogAsync(actor, "platform.license.transfer_authorized", after: new { id, body.OldInstallationId, body.Reason });
         return ok ? Ok() : BadRequest(new { error = "License not found or no matching active installation to release." });
+    }
+
+    /// <summary>Ops+/Admin may see the full license secret on list/detail; Sales/Support get a mask.</summary>
+    private bool CanRevealLicenseKey()
+    {
+        if (User.IsInRole(PlatformRoles.Ops) || User.IsInRole(PlatformRoles.Admin))
+            return true;
+        var role = User.FindFirst("role")?.Value
+            ?? User.FindFirst(ClaimTypes.Role)?.Value
+            ?? User.FindFirst(PlatformAuthConstants.RoleClaimType)?.Value;
+        return role is PlatformRoles.Ops or PlatformRoles.Admin;
     }
 }
 

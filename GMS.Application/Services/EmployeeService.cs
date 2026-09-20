@@ -18,6 +18,7 @@ public class EmployeeService : IEmployeeService
     private readonly IFileStorageService _files;
     private readonly IAdminService? _admin;
     private readonly IStaffNotificationPublisher? _staffNotifications;
+    private readonly IBiometricMappingService? _biometricMappings;
     private readonly ILogger<EmployeeService> _logger;
 
     public EmployeeService(
@@ -26,7 +27,8 @@ public class EmployeeService : IEmployeeService
         IFileStorageService files,
         ILogger<EmployeeService> logger,
         IAdminService? admin = null,
-        IStaffNotificationPublisher? staffNotifications = null)
+        IStaffNotificationPublisher? staffNotifications = null,
+        IBiometricMappingService? biometricMappings = null)
     {
         _db = db;
         _audit = audit;
@@ -34,6 +36,7 @@ public class EmployeeService : IEmployeeService
         _logger = logger;
         _admin = admin;
         _staffNotifications = staffNotifications;
+        _biometricMappings = biometricMappings;
     }
 
     public async Task<Result<List<EmployeeListItemDto>>> ListAsync(
@@ -150,6 +153,7 @@ public class EmployeeService : IEmployeeService
             return Result<EmployeeDto>.Failure(validation);
 
         var before = new EmployeeAuditSnapshot(entity);
+        var previousStatus = entity.Status;
 
         entity.FirstName = firstName;
         entity.LastName = lastName;
@@ -166,6 +170,14 @@ public class EmployeeService : IEmployeeService
 
         await _db.SaveChangesAsync();
         await _audit.LogAsync("employee.update", "Employee", entity.Id, before, new EmployeeAuditSnapshot(entity));
+
+        if (!string.Equals(previousStatus, EmployeeStatuses.Suspended, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(status, EmployeeStatuses.Suspended, StringComparison.OrdinalIgnoreCase)
+            && _biometricMappings != null)
+        {
+            await _biometricMappings.DisableMappingsForEmployeeAsync(
+                tenantId, entity.Id, "Employee suspended — local biometric mapping disabled");
+        }
 
         return Result<EmployeeDto>.Success(await MapDetailAsync(tenantId, entity));
     }
@@ -191,6 +203,12 @@ public class EmployeeService : IEmployeeService
         await _db.SaveChangesAsync();
         await _audit.LogAsync("employee.terminate", "Employee", entity.Id, before, new EmployeeAuditSnapshot(entity));
         _logger.LogInformation("Employee {Number} terminated for tenant {TenantId}", entity.EmployeeNumber, tenantId);
+
+        if (_biometricMappings != null)
+        {
+            await _biometricMappings.DisableMappingsForEmployeeAsync(
+                tenantId, entity.Id, "Employee terminated — local biometric mapping disabled");
+        }
 
         return Result<EmployeeDto>.Success(await MapDetailAsync(tenantId, entity));
     }

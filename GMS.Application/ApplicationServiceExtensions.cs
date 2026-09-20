@@ -88,6 +88,13 @@ public static class ApplicationServiceExtensions
         services.AddScoped<IEmployeeShiftService, EmployeeShiftService>();
         services.AddScoped<IEmployeeScheduleService, EmployeeScheduleService>();
         services.AddScoped<IEmployeeAttendanceService, EmployeeAttendanceService>();
+        services.AddOptions<GMS.Application.Options.BiometricAttendanceOptions>()
+            .BindConfiguration(GMS.Application.Options.BiometricAttendanceOptions.SectionName);
+        services.AddScoped<BiometricAttendanceService>();
+        services.AddScoped<IBiometricDeviceService>(sp => sp.GetRequiredService<BiometricAttendanceService>());
+        services.AddScoped<IBiometricMappingService>(sp => sp.GetRequiredService<BiometricAttendanceService>());
+        services.AddScoped<IBiometricEventService>(sp => sp.GetRequiredService<BiometricAttendanceService>());
+        services.AddSingleton<IBiometricDeviceAdapter, MockBiometricDeviceAdapter>();
         services.AddScoped<ILeaveBalanceService, LeaveBalanceService>();
         services.AddScoped<ILeaveRequestService, LeaveRequestService>();
         services.AddScoped<IPayrollPeriodService, PayrollPeriodService>();

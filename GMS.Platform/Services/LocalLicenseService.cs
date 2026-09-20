@@ -4,6 +4,7 @@ using GMS.Core.Licensing;
 using GMS.Platform.Constants;
 using GMS.Platform.DTOs;
 using GMS.Platform.Entities;
+using GMS.Platform.Helpers;
 using GMS.Platform.Interfaces;
 using GMS.Platform.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -95,7 +96,7 @@ public class LocalLicenseService : ILocalLicenseService
         return license;
     }
 
-    public async Task<List<LocalLicenseListItemDto>> ListAsync(CancellationToken cancellationToken = default)
+    public async Task<List<LocalLicenseListItemDto>> ListAsync(bool includeFullKey = false, CancellationToken cancellationToken = default)
     {
         var licenses = await _repo.ListAsync(cancellationToken);
         var activeInstalls = await _repo.ListActiveInstallationsAsync(cancellationToken);
@@ -104,11 +105,11 @@ public class LocalLicenseService : ILocalLicenseService
             .ToDictionary(g => g.Key, g => (IReadOnlyList<LocalInstallation>)g.ToList());
 
         return licenses
-            .Select(l => ToListItem(l, byLicense.GetValueOrDefault(l.Id)))
+            .Select(l => ToListItem(l, byLicense.GetValueOrDefault(l.Id), includeFullKey))
             .ToList();
     }
 
-    public async Task<LocalLicenseDetailDto?> GetDetailAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<LocalLicenseDetailDto?> GetDetailAsync(Guid id, bool includeFullKey = false, CancellationToken cancellationToken = default)
     {
         var license = await _repo.GetByIdAsync(id, includeInstallations: true, cancellationToken);
         if (license == null) return null;
@@ -117,7 +118,7 @@ public class LocalLicenseService : ILocalLicenseService
         var dto = new LocalLicenseDetailDto
         {
             Id = license.Id,
-            LicenseKey = license.LicenseKey,
+            LicenseKey = MaskedLicenseKey.RevealOrMask(license.LicenseKey, includeFullKey),
             CustomerId = license.CustomerId,
             ContractId = license.ContractId,
             CustomerName = license.CustomerName,
@@ -674,13 +675,13 @@ public class LocalLicenseService : ILocalLicenseService
             Result = result,
         };
 
-    private static LocalLicenseListItemDto ToListItem(LocalLicense l, IReadOnlyList<LocalInstallation>? installs)
+    private static LocalLicenseListItemDto ToListItem(LocalLicense l, IReadOnlyList<LocalInstallation>? installs, bool includeFullKey = false)
     {
         var summary = SummarizeInstallations(installs);
         return new()
         {
             Id = l.Id,
-            LicenseKey = l.LicenseKey,
+            LicenseKey = MaskedLicenseKey.RevealOrMask(l.LicenseKey, includeFullKey),
             CustomerId = l.CustomerId,
             ContractId = l.ContractId,
             CustomerName = l.CustomerName,

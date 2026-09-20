@@ -64,7 +64,8 @@ public class GymFlowProDbContext : IdentityDbContext<ApplicationUser, IdentityRo
         typeof(LeaveRequest), typeof(LeaveBalance),
         typeof(PayrollPeriod), typeof(PayrollLine), typeof(PayrollAdjustment),
         typeof(PayrollPayment), typeof(EmployeeDocument),
-        typeof(AccessCard)
+        typeof(AccessCard),
+        typeof(BiometricDevice), typeof(BiometricEmployeeMapping), typeof(BiometricAttendanceEvent)
     };
 
     // DbSets for all domain entities
@@ -142,6 +143,9 @@ public class GymFlowProDbContext : IdentityDbContext<ApplicationUser, IdentityRo
     public DbSet<PayrollPayment> PayrollPayments { get; set; } = null!;
     public DbSet<EmployeeDocument> EmployeeDocuments { get; set; } = null!;
     public DbSet<AccessCard> AccessCards { get; set; } = null!;
+    public DbSet<BiometricDevice> BiometricDevices { get; set; } = null!;
+    public DbSet<BiometricEmployeeMapping> BiometricEmployeeMappings { get; set; } = null!;
+    public DbSet<BiometricAttendanceEvent> BiometricAttendanceEvents { get; set; } = null!;
 
     /// <summary>
     /// Constructor allowing optional ITenantContext for startup scenarios.
@@ -403,6 +407,13 @@ public class GymFlowProDbContext : IdentityDbContext<ApplicationUser, IdentityRo
 
         modelBuilder.Entity<AccessCard>().HasQueryFilter(c =>
             c.TenantId == _tenantContext.TenantId && !c.IsDeleted);
+
+        modelBuilder.Entity<BiometricDevice>().HasQueryFilter(d =>
+            d.TenantId == _tenantContext.TenantId && !d.IsDeleted);
+        modelBuilder.Entity<BiometricEmployeeMapping>().HasQueryFilter(m =>
+            m.TenantId == _tenantContext.TenantId && !m.IsDeleted);
+        modelBuilder.Entity<BiometricAttendanceEvent>().HasQueryFilter(e =>
+            e.TenantId == _tenantContext.TenantId && !e.IsDeleted);
 
         // NOTE: SaleIdempotencyKey and InvoiceSequence have no global query filter — neither is a
         // BaseEntity (no IsDeleted) and both are always queried by an explicit TenantId, per their

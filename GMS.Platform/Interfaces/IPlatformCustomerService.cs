@@ -6,7 +6,10 @@ public interface IPlatformCustomerService
 {
     Task<List<PlatformCustomerListItemDto>> ListCustomersAsync(string? status, CancellationToken ct = default);
     Task<PlatformCustomerDetailDto?> GetCustomerAsync(Guid id, CancellationToken ct = default);
-    Task<PlatformCustomerProfileDto?> GetProfileAsync(Guid id, CancellationToken ct = default);
+    /// <param name="includeFullLicenseKey">
+    /// When false, embedded Local license keys are masked (Sales/Support). Ops+/Admin pass true.
+    /// </param>
+    Task<PlatformCustomerProfileDto?> GetProfileAsync(Guid id, bool includeFullLicenseKey = false, CancellationToken ct = default);
     Task<PlatformCustomerDetailDto> CreateCustomerAsync(UpsertPlatformCustomerRequest request, Guid actorId, CancellationToken ct = default);
     Task<PlatformCustomerDetailDto?> UpdateCustomerAsync(Guid id, UpsertPlatformCustomerRequest request, Guid actorId, CancellationToken ct = default);
     /// <summary>Ops/Admin only — link or unlink a Cloud TenantId. Ignored on ordinary customer upsert.</summary>

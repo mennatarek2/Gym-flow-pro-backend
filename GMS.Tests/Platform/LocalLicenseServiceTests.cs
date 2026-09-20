@@ -532,4 +532,30 @@ public class LocalLicenseServiceTests
         Assert.False(result.Success);
         Assert.Equal(LocalActivationResults.WrongProduct, result.Result);
     }
+
+    [Fact]
+    public async Task ListAndDetail_MaskLicenseKey_UnlessIncludeFullKey()
+    {
+        var (svc, _, _, customerId) = NewSut();
+        var license = await svc.IssueAsync(IssueReq(customerId), AdminId);
+        var raw = license.LicenseKey;
+        var masked = GMS.Platform.Helpers.MaskedLicenseKey.Mask(raw);
+
+        var salesList = Assert.Single(await svc.ListAsync(includeFullKey: false));
+        Assert.Equal(masked, salesList.LicenseKey);
+        Assert.NotEqual(raw, salesList.LicenseKey);
+
+        var salesDetail = await svc.GetDetailAsync(license.Id, includeFullKey: false);
+        Assert.Equal(masked, salesDetail!.LicenseKey);
+
+        var opsList = Assert.Single(await svc.ListAsync(includeFullKey: true));
+        Assert.Equal(raw, opsList.LicenseKey);
+
+        var opsDetail = await svc.GetDetailAsync(license.Id, includeFullKey: true);
+        Assert.Equal(raw, opsDetail!.LicenseKey);
+
+        // Issue entity still holds the full secret for the one-time Issue API response.
+        Assert.Equal(raw, license.LicenseKey);
+        Assert.StartsWith("HY-LCL-", raw);
+    }
 }

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using GMS.Platform.Constants;
 using GMS.Platform.DTOs;
 using GMS.Platform.Entities;
+using GMS.Platform.Helpers;
 using GMS.Platform.Interfaces;
 using GMS.Platform.Persistence;
 
@@ -43,7 +44,7 @@ public class PlatformCustomerService : IPlatformCustomerService
         return c == null ? null : ToDetail(c);
     }
 
-    public async Task<PlatformCustomerProfileDto?> GetProfileAsync(Guid id, CancellationToken ct = default)
+    public async Task<PlatformCustomerProfileDto?> GetProfileAsync(Guid id, bool includeFullLicenseKey = false, CancellationToken ct = default)
     {
         var customer = await _db.Customers.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
         if (customer == null) return null;
@@ -74,7 +75,7 @@ public class PlatformCustomerService : IPlatformCustomerService
             .ToListAsync(ct);
         foreach (var license in licenseRows)
         {
-            var detail = await _licenses.GetDetailAsync(license.Id, ct);
+            var detail = await _licenses.GetDetailAsync(license.Id, includeFullLicenseKey, ct);
             if (detail == null) continue;
             licenseDtos.Add(detail);
         }
@@ -87,7 +88,7 @@ public class PlatformCustomerService : IPlatformCustomerService
         }
         else if (licenseDto != null)
         {
-            var detail = await _licenses.GetDetailAsync(licenseDto.Id, ct);
+            var detail = await _licenses.GetDetailAsync(licenseDto.Id, includeFullLicenseKey, ct);
             installationDto = detail?.Installations.FirstOrDefault(i => i.Status == LocalInstallationStatuses.Active)
                 ?? detail?.Installations.FirstOrDefault();
             lastValidation = installationDto?.LastValidatedAtUtc?.ToString("o");
@@ -165,8 +166,8 @@ public class PlatformCustomerService : IPlatformCustomerService
         {
             var taken = await _db.Customers.AsNoTracking()
                 .AnyAsync(c => c.TenantId == tid && c.Id != id, ct);
-            if (taken)
-                throw new ArgumentException("That Cloud gym is already linked to another customer.");
+            var exists = await CloudGymExistsNotDeletedAsync(tid, ct);
+            CloudTenantLinkRules.EnsureCanLink(exists, taken);
         }
 
         var before = new { customer.Id, customer.TenantId };
@@ -180,6 +181,34 @@ public class PlatformCustomerService : IPlatformCustomerService
             before: before,
             after: new { customer.Id, customer.TenantId });
         return ToDetail(customer);
+    }
+
+    /// <summary>
+    /// dbo.tenants lives on the shared gym DB (not platform schema). Match PlatformTenantReadService:
+    /// existence + IsDeleted = 0. Non-relational hosts (in-memory tests) skip the SQL probe.
+    /// </summary>
+    private async Task<bool> CloudGymExistsNotDeletedAsync(Guid tenantId, CancellationToken ct)
+    {
+        if (!_db.Database.IsRelational())
+            return true;
+
+        var connection = _db.Database.GetDbConnection();
+        if (connection.State != System.Data.ConnectionState.Open)
+            await connection.OpenAsync(ct);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT TOP (1) 1
+            FROM dbo.tenants
+            WHERE Id = @tenantId AND IsDeleted = 0
+            """;
+        var param = command.CreateParameter();
+        param.ParameterName = "@tenantId";
+        param.Value = tenantId;
+        command.Parameters.Add(param);
+
+        var result = await command.ExecuteScalarAsync(ct);
+        return result != null && result != DBNull.Value;
     }
 
     public async Task<InitiateOwnerPasswordResetResult?> InitiateOwnerPasswordResetAsync(Guid id, string reason, Guid actorId, CancellationToken ct = default)

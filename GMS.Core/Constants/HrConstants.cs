@@ -57,9 +57,9 @@ public static class AttendanceStatuses
     };
 }
 
-/// <summary>Where an attendance check-in/out originated. Device is reserved for a future
-/// turnstile/biometric integration — no code path in this phase sets it. System is used only for
-/// OnLeave placeholder rows created by approved-leave/attendance integration (Phase 4) — never by a
+/// <summary>Where an attendance check-in/out originated. Device is set by the biometric
+/// reconciliation foundation when a validated push event is auto-applied. System is used only for
+/// OnLeave placeholder rows created by approved-leave/attendance integration — never by a
 /// person checking in/out.</summary>
 public static class AttendanceSources
 {
@@ -77,6 +77,73 @@ public static class AttendanceSources
     public static readonly HashSet<string> All = new(StringComparer.OrdinalIgnoreCase)
     {
         Manual, Reception, Employee, Device, System, Qr
+    };
+}
+
+/// <summary>How a biometric device (or bridge) is expected to talk to HyMotion Local.</summary>
+public static class BiometricIntegrationTypes
+{
+    /// <summary>Preferred foundation target: device/bridge POSTs attendance events to Local.</summary>
+    public const string PushToLocal = "PushToLocal";
+    public const string LanPull = "LanPull";
+    public const string VendorMiddleware = "VendorMiddleware";
+
+    public static readonly HashSet<string> All = new(StringComparer.OrdinalIgnoreCase)
+    {
+        PushToLocal, LanPull, VendorMiddleware
+    };
+}
+
+/// <summary>Honest device health — never implies an unverified hardware handshake succeeded.</summary>
+public static class BiometricDeviceHealthStatuses
+{
+    public const string AwaitingEvents = "AwaitingEvents";
+    public const string Receiving = "Receiving";
+    public const string Disabled = "Disabled";
+    public const string Error = "Error";
+
+    public static readonly HashSet<string> All = new(StringComparer.OrdinalIgnoreCase)
+    {
+        AwaitingEvents, Receiving, Disabled, Error
+    };
+}
+
+public static class BiometricRemoteDisableStatuses
+{
+    public const string NotSupported = "NotSupported";
+    public const string Pending = "Pending";
+    public const string Confirmed = "Confirmed";
+    public const string Failed = "Failed";
+
+    public static readonly HashSet<string> All = new(StringComparer.OrdinalIgnoreCase)
+    {
+        NotSupported, Pending, Confirmed, Failed
+    };
+}
+
+public static class BiometricPunchDirections
+{
+    public const string Unknown = "Unknown";
+    public const string CheckIn = "CheckIn";
+    public const string CheckOut = "CheckOut";
+
+    public static readonly HashSet<string> All = new(StringComparer.OrdinalIgnoreCase)
+    {
+        Unknown, CheckIn, CheckOut
+    };
+}
+
+public static class BiometricEventStatuses
+{
+    public const string Pending = "Pending";
+    public const string Applied = "Applied";
+    public const string Duplicate = "Duplicate";
+    public const string NeedsReview = "NeedsReview";
+    public const string Rejected = "Rejected";
+
+    public static readonly HashSet<string> All = new(StringComparer.OrdinalIgnoreCase)
+    {
+        Pending, Applied, Duplicate, NeedsReview, Rejected
     };
 }
 

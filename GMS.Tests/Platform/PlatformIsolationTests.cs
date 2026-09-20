@@ -165,6 +165,115 @@ public class PlatformMfaForcedSetupTests
         Assert.False(string.IsNullOrWhiteSpace(result.OtpAuthUri));
     }
 
+    /// <summary>
+    /// Fail-closed: BypassMfaInDevelopment must never open MFA in Production, even if the flag is true.
+    /// </summary>
+    [Fact]
+    public async Task BypassMfaInDevelopment_IsIgnored_WhenNotDevelopment()
+    {
+        var options = new DbContextOptionsBuilder<PlatformDbContext>()
+            .UseInMemoryDatabase("platform-mfa-bypass-prod-" + Guid.NewGuid())
+            .Options;
+
+        await using var db = new PlatformDbContext(options);
+        var hasher = new Microsoft.AspNetCore.Identity.PasswordHasher<GMS.Platform.Entities.PlatformAdminUser>();
+        var user = new GMS.Platform.Entities.PlatformAdminUser
+        {
+            Email = "ops-bypass-prod@gymflow.local",
+            FullName = "Ops",
+            Role = PlatformRoles.Ops,
+            MfaEnabled = false,
+            MfaSecret = null,
+            IsActive = true
+        };
+        user.PasswordHash = hasher.HashPassword(user, "Passw0rd!");
+        db.PlatformAdminUsers.Add(user);
+        await db.SaveChangesAsync();
+
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["JwtSettings:SecretKey"] = "Test-Only-Secret-Key-Must-Be-At-Least-32-Characters-Long!",
+                ["JwtSettings:Issuer"] = "GymFlowPro.Tests",
+                ["PlatformAuth:BypassMfaInDevelopment"] = "true"
+            })
+            .Build();
+
+        var tokens = new GMS.Platform.Services.PlatformTokenService(config);
+        var mfaStore = new GMS.Platform.Services.LocalEncryptedPlatformMfaSecretStore(
+            Microsoft.AspNetCore.DataProtection.DataProtectionProvider.Create("PlatformMfaBypassProd"),
+            config,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<GMS.Platform.Services.LocalEncryptedPlatformMfaSecretStore>.Instance);
+        var audit = new FakePlatformAudit();
+        var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<GMS.Platform.Services.PlatformAuthService>.Instance;
+        var env = new FakeHostEnvironment { EnvironmentName = Microsoft.Extensions.Hosting.Environments.Production };
+        var auth = new GMS.Platform.Services.PlatformAuthService(
+            db, tokens, mfaStore, audit, hasher, env, config, logger);
+
+        var result = await auth.LoginAsync(
+            new GMS.Platform.DTOs.PlatformLoginRequest { Email = user.Email, Password = "Passw0rd!" },
+            "127.0.0.1");
+
+        Assert.False(result.Success);
+        Assert.True(result.MfaSetupRequired);
+        Assert.Equal("MFA_SETUP_REQUIRED", result.ErrorCode);
+        Assert.Null(result.AccessToken);
+    }
+
+    /// <summary>
+    /// Bypass is effective only when IsDevelopment() AND PlatformAuth:BypassMfaInDevelopment.
+    /// </summary>
+    [Fact]
+    public async Task BypassMfaInDevelopment_IssuesAccessToken_OnlyInDevelopment()
+    {
+        var options = new DbContextOptionsBuilder<PlatformDbContext>()
+            .UseInMemoryDatabase("platform-mfa-bypass-dev-" + Guid.NewGuid())
+            .Options;
+
+        await using var db = new PlatformDbContext(options);
+        var hasher = new Microsoft.AspNetCore.Identity.PasswordHasher<GMS.Platform.Entities.PlatformAdminUser>();
+        var user = new GMS.Platform.Entities.PlatformAdminUser
+        {
+            Email = "ops-bypass-dev@gymflow.local",
+            FullName = "Ops",
+            Role = PlatformRoles.Ops,
+            MfaEnabled = false,
+            MfaSecret = null,
+            IsActive = true
+        };
+        user.PasswordHash = hasher.HashPassword(user, "Passw0rd!");
+        db.PlatformAdminUsers.Add(user);
+        await db.SaveChangesAsync();
+
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["JwtSettings:SecretKey"] = "Test-Only-Secret-Key-Must-Be-At-Least-32-Characters-Long!",
+                ["JwtSettings:Issuer"] = "GymFlowPro.Tests",
+                ["PlatformAuth:BypassMfaInDevelopment"] = "true"
+            })
+            .Build();
+
+        var tokens = new GMS.Platform.Services.PlatformTokenService(config);
+        var mfaStore = new GMS.Platform.Services.LocalEncryptedPlatformMfaSecretStore(
+            Microsoft.AspNetCore.DataProtection.DataProtectionProvider.Create("PlatformMfaBypassDev"),
+            config,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<GMS.Platform.Services.LocalEncryptedPlatformMfaSecretStore>.Instance);
+        var audit = new FakePlatformAudit();
+        var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<GMS.Platform.Services.PlatformAuthService>.Instance;
+        var env = new FakeHostEnvironment { EnvironmentName = Microsoft.Extensions.Hosting.Environments.Development };
+        var auth = new GMS.Platform.Services.PlatformAuthService(
+            db, tokens, mfaStore, audit, hasher, env, config, logger);
+
+        var result = await auth.LoginAsync(
+            new GMS.Platform.DTOs.PlatformLoginRequest { Email = user.Email, Password = "Passw0rd!" },
+            "127.0.0.1");
+
+        Assert.True(result.Success);
+        Assert.False(string.IsNullOrWhiteSpace(result.AccessToken));
+        Assert.False(result.MfaSetupRequired);
+    }
+
     private sealed class FakePlatformAudit : GMS.Platform.Interfaces.IPlatformAuditService
     {
         public Task LogAsync(

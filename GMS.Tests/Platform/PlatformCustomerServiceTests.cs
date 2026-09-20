@@ -495,7 +495,11 @@ public class PlatformCustomerServiceTests
         Assert.Equal("partial", profile.PaymentStatus);
         Assert.Equal(15000m, profile.PaidAmount);
         Assert.Equal(14500m, profile.OutstandingAmount);
-        Assert.Equal(license.LicenseKey, profile.License!.LicenseKey);
+        // Default profile masks the secret (Sales/Support); Ops+ pass includeFullLicenseKey.
+        Assert.Equal(GMS.Platform.Helpers.MaskedLicenseKey.Mask(license.LicenseKey), profile.License!.LicenseKey);
+        Assert.NotEqual(license.LicenseKey, profile.License.LicenseKey);
+        var opsProfile = await svc.GetProfileAsync(customer.Id, includeFullLicenseKey: true);
+        Assert.Equal(license.LicenseKey, opsProfile!.License!.LicenseKey);
         Assert.Equal("INST-GYM-1", profile.Installation!.InstallationId);
         Assert.Equal(1, profile.OpenSupportTicketCount);
         Assert.Single(profile.Licenses);
@@ -655,5 +659,34 @@ public class PlatformCustomerServiceTests
         Assert.Equal(System.Text.Json.JsonValueKind.Null, unlinkedAfter.RootElement.GetProperty("TenantId").ValueKind);
         Assert.Equal(created.Id.ToString(), unlinkedAfter.RootElement.GetProperty("Id").GetString());
         Assert.Null(unlinked.TenantId);
+    }
+
+    [Fact]
+    public void CloudTenantLinkRules_RejectsMissingOrTakenTenant()
+    {
+        var missing = Assert.Throws<ArgumentException>(() =>
+            GMS.Platform.Helpers.CloudTenantLinkRules.EnsureCanLink(tenantExistsNotDeleted: false, alreadyLinkedToOtherCustomer: false));
+        Assert.Equal(GMS.Platform.Helpers.CloudTenantLinkRules.NotFoundMessage, missing.Message);
+
+        var taken = Assert.Throws<ArgumentException>(() =>
+            GMS.Platform.Helpers.CloudTenantLinkRules.EnsureCanLink(tenantExistsNotDeleted: true, alreadyLinkedToOtherCustomer: true));
+        Assert.Equal(GMS.Platform.Helpers.CloudTenantLinkRules.AlreadyLinkedMessage, taken.Message);
+
+        GMS.Platform.Helpers.CloudTenantLinkRules.EnsureCanLink(tenantExistsNotDeleted: true, alreadyLinkedToOtherCustomer: false);
+    }
+
+    [Fact]
+    public async Task SetCustomerCloudLinkAsync_RejectsWhenTenantAlreadyLinkedToOtherCustomer()
+    {
+        var (svc, _, _) = NewSut();
+        var a = await svc.CreateCustomerAsync(new UpsertPlatformCustomerRequest { BusinessName = "Gym A", OwnerName = "A" }, Actor);
+        var b = await svc.CreateCustomerAsync(new UpsertPlatformCustomerRequest { BusinessName = "Gym B", OwnerName = "B" }, Actor);
+        var tenantId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+
+        await svc.SetCustomerCloudLinkAsync(a.Id, tenantId, Actor);
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            svc.SetCustomerCloudLinkAsync(b.Id, tenantId, Actor));
+        Assert.Equal(GMS.Platform.Helpers.CloudTenantLinkRules.AlreadyLinkedMessage, ex.Message);
     }
 }

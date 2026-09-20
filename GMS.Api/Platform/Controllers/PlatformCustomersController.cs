@@ -34,7 +34,7 @@ public class PlatformCustomersController : ControllerBase
     [HttpGet("{id:guid}/profile")]
     public async Task<IActionResult> Profile(Guid id, CancellationToken ct)
     {
-        var row = await _customers.GetProfileAsync(id, ct);
+        var row = await _customers.GetProfileAsync(id, CanRevealLicenseKey(), ct);
         return row == null ? NotFound() : Ok(row);
     }
 
@@ -107,5 +107,16 @@ public class PlatformCustomersController : ControllerBase
         var sub = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
                   ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(sub, out var id) ? id : null;
+    }
+
+    /// <summary>Ops+/Admin may see full Local license keys embedded in the customer profile.</summary>
+    bool CanRevealLicenseKey()
+    {
+        if (User.IsInRole(PlatformRoles.Ops) || User.IsInRole(PlatformRoles.Admin))
+            return true;
+        var role = User.FindFirst("role")?.Value
+            ?? User.FindFirst(ClaimTypes.Role)?.Value
+            ?? User.FindFirst(PlatformAuthConstants.RoleClaimType)?.Value;
+        return role is PlatformRoles.Ops or PlatformRoles.Admin;
     }
 }
