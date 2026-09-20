@@ -63,4 +63,6 @@ publish-local-recovery/
 publish-local-verify/
 publish-usb-latest/
 artifacts/
+publish-dist/
+HyMotion-Desktop-Release.zip
 
